@@ -289,6 +289,60 @@ function Sled({ x, base }: { x: number; base: number }) {
   )
 }
 
+
+// door (x, y) of every house → where its little path joins the main path
+const MAIN_PATH = 'M30 400 Q 180 390 330 398 T 620 396 T 900 394 T 1180 398 T 1430 396'
+const BRANCHES = [
+  'M91 358 Q 96 380 112 395', // yellow cottage
+  'M333 360 Q 328 380 336 398', // white cottage
+  'M208 380 Q 210 390 216 395', // Spelstugan
+  'M703 374 Q 708 388 722 396', // destilleri
+  'M923 374 Q 920 386 912 394', // verkstad
+  'M1162 380 Q 1160 390 1166 397', // långhuset
+  'M1321 358 Q 1312 380 1300 397', // cottage right
+  'M1397 362 Q 1392 382 1384 396', // small red cottage
+  'M575 386 Q 572 392 566 396', // up to the julgran
+]
+const SNOW_LANTERNS = [120, 282, 420, 532, 618, 1012, 1236, 1352]
+
+/** A snölykta: a little pyramid of snowballs with a candle inside. */
+function SnowLantern({ x, y, i }: { x: number; y: number; i: number }) {
+  return (
+    <g transform={`translate(${x} ${y}) scale(1.35)`}>
+      <circle cx="0" cy="-6" r="12" fill="url(#warm)" className="torch" style={{ animationDelay: `${i * 0.31}s` }} />
+      {[
+        [-6, 0], [0, 0], [6, 0], [-3, -5], [3, -5], [0, -10],
+      ].map(([cx, cy], k) => (
+        <circle key={k} cx={cx} cy={cy} r="3.3" fill="#f4f8ff" stroke="#c9d6ea" strokeWidth="0.6" />
+      ))}
+      <ellipse cx="0" cy="-3.5" rx="1.6" ry="2.4" fill="#ffcf6b" className="torch" style={{ animationDelay: `${i * 0.31}s` }} />
+    </g>
+  )
+}
+
+/** Trodden snow paths between the houses, with footprints and snow lanterns. */
+function VillagePaths() {
+  return (
+    <g>
+      {/* soft trodden edge, then the packed middle */}
+      <path d={MAIN_PATH} stroke="#9fb2d2" strokeWidth="17" strokeLinecap="round" fill="none" opacity="0.7" />
+      {BRANCHES.map((d) => (
+        <path key={d} d={d} stroke="#9fb2d2" strokeWidth="11" strokeLinecap="round" fill="none" opacity="0.7" />
+      ))}
+      <path d={MAIN_PATH} stroke="#c7d5ec" strokeWidth="10" strokeLinecap="round" fill="none" />
+      {BRANCHES.map((d) => (
+        <path key={`${d}-in`} d={d} stroke="#c7d5ec" strokeWidth="6" strokeLinecap="round" fill="none" />
+      ))}
+      {/* footprints */}
+      <path d={MAIN_PATH} stroke="#8197bd" strokeWidth="2.4" strokeLinecap="round" strokeDasharray="0.1 9" fill="none" transform="translate(0 -1.5)" />
+      <path d={MAIN_PATH} stroke="#8197bd" strokeWidth="2.4" strokeLinecap="round" strokeDasharray="0.1 9" strokeDashoffset="4.5" fill="none" transform="translate(0 1.5)" />
+      {SNOW_LANTERNS.map((x, i) => (
+        <SnowLantern key={x} x={x} y={409 - Math.sin(x / 140) * 3} i={i} />
+      ))}
+    </g>
+  )
+}
+
 const NEAR_SPRUCES = [
   { x: 14, h: 118 },
   { x: 42, h: 84 },
@@ -362,6 +416,7 @@ export function Lappland({
 
       {village && (
         <>
+          <VillagePaths />
           {/* back row: small cottages */}
           <House x={60} base={358} w={62} h={28} wall="#d9a441" windows={2} />
           <House x={300} base={360} w={66} h={30} wall="#e9e4d8" roof="#2e3b55" windows={2} />
