@@ -146,6 +146,32 @@ type HouseProps = {
   onEnter?: (b: Building, e: React.MouseEvent) => void
 }
 
+/** Red brick chimney with mortar lines, a fat snow cap and smoke. x/y = bottom-left, in the parent's units. */
+function BrickChimney({ x, y, w = 11, h = 20 }: { x: number; y: number; w?: number; h?: number }) {
+  const rows = Math.floor(h / 3.4)
+  return (
+    <g>
+      <rect x={x} y={y - h} width={w} height={h} fill="#9a3f2c" />
+      {Array.from({ length: rows }, (_, r) => (
+        <g key={r} stroke="#d9b8a0" strokeWidth="0.5" opacity="0.75">
+          <line x1={x} y1={y - h + 3.4 * (r + 1)} x2={x + w} y2={y - h + 3.4 * (r + 1)} />
+          {[0, 1, 2].map((k) => {
+            const bx = x + (r % 2 ? 1.8 : 3.6) + k * 3.7
+            return bx < x + w - 0.5 ? <line key={k} x1={bx} y1={y - h + 3.4 * r} x2={bx} y2={y - h + 3.4 * (r + 1)} /> : null
+          })}
+        </g>
+      ))}
+      <rect x={x} y={y - h} width={w * 0.3} height={h} fill="#000" opacity="0.12" />
+      <path d={`M${x - 2} ${y - h + 1} Q${x - 2} ${y - h - 4} ${x + w / 2} ${y - h - 4.5} Q${x + w + 2} ${y - h - 4} ${x + w + 2} ${y - h + 1} Q${x + w / 2} ${y - h + 3} ${x - 2} ${y - h + 1} Z`} fill="#f4f8ff" />
+      <g className="stuga-smoke">
+        <circle cx={x + w / 2} cy={y - h - 9} r="4" fill="#dfe8f7" opacity="0.35" />
+        <circle cx={x + w / 2 + 4} cy={y - h - 20} r="6" fill="#dfe8f7" opacity="0.22" />
+        <circle cx={x + w / 2 - 1} cy={y - h - 34} r="8" fill="#dfe8f7" opacity="0.12" />
+      </g>
+    </g>
+  )
+}
+
 /** A snowy little house for Tomtens by. Optionally clickable. */
 function House({ x, base, w, h, wall, roof = '#3a1410', windows = 2, sign, signColor = '#a92529', building, title, onEnter }: HouseProps) {
   const clickable = !!(onEnter && building)
@@ -171,8 +197,17 @@ function House({ x, base, w, h, wall, roof = '#3a1410', windows = 2, sign, signC
       {clickable && <rect x={-12} y={-peak - 14} width={w + 24} height={h + peak + 20} fill="transparent" />}
       <ellipse cx={w / 2} cy={h} rx={w * 0.8} ry={h * 0.5} fill="url(#warm)" opacity="0.3" />
       <rect x="0" y="0" width={w} height={h} fill={wall} />
+      {w >= 56 && <BrickChimney x={w * 0.68} y={-peak * 0.38} w={Math.min(12, w * 0.1)} h={peak * 0.62 + 6} />}
       <path d={`M-8 4 L${w / 2} ${-peak} L${w + 8} 4 Z`} fill={roof} />
-      <path d={`M-10 6 Q${w * 0.2} -6 ${w / 2} ${-peak - 3} Q${w * 0.8} -6 ${w + 10} 6 Q${w * 0.8} 0 ${w / 2} ${-peak + 9} Q${w * 0.2} 0 -10 6 Z`} fill="#f4f8ff" />
+      {/* thick, soft snow with lumps hanging over the eaves */}
+      <path
+        d={`M-13 8 Q-14 2 -8 1 Q${w * 0.2} -10 ${w / 2} ${-peak - 6} Q${w * 0.8} -10 ${w + 8} 1 Q${w + 14} 2 ${w + 13} 8 Q${w + 6} 12 ${w * 0.82} 5 Q${w / 2} ${-peak + 15} ${w * 0.18} 5 Q-6 12 -13 8 Z`}
+        fill="#f4f8ff"
+      />
+      <path d={`M-8 1 Q${w * 0.2} -10 ${w / 2} ${-peak - 6}`} stroke="#ffffff" strokeWidth="1.6" fill="none" opacity="0.9" />
+      {[0.08, 0.26, 0.74, 0.92].map((t) => (
+        <ellipse key={t} cx={-8 + t * (w + 16)} cy={t < 0.5 ? 4 + (0.5 - t) * 8 : 4 + (t - 0.5) * 8} rx="2.2" ry="3.2" fill="#f4f8ff" />
+      ))}
       {slots.map((wx, i) => (
         <g key={i}>
           <rect x={wx} y={h * 0.3} width={winW} height={winW * 0.85} fill="#ffcf6b" className="window-flicker" style={{ animationDelay: `${i * 0.7}s` }} />
@@ -701,14 +736,11 @@ export function Lappland({
         <ellipse cx="85" cy="78" rx="150" ry="44" fill="url(#warm)" opacity="0.45" />
         <rect x="0" y="22" width="170" height="56" fill="#8e2a1f" />
         <path d="M-14 26 L85 -26 L184 26 Z" fill="#4a1a14" />
-        <path d="M-17 28 Q30 4 85 -29 Q140 4 187 28 Q140 16 85 -16 Q30 16 -17 28 Z" fill="#f4f8ff" />
-        <rect x="128" y="-20" width="14" height="28" fill="#3a1410" />
-        <rect x="125" y="-24" width="20" height="6" rx="3" fill="#f4f8ff" />
-        <g className="stuga-smoke">
-          <circle cx="135" cy="-34" r="6" fill="#dfe8f7" opacity="0.35" />
-          <circle cx="141" cy="-50" r="9" fill="#dfe8f7" opacity="0.22" />
-          <circle cx="133" cy="-70" r="12" fill="#dfe8f7" opacity="0.12" />
-        </g>
+        <path d="M-20 30 Q-22 24 -15 24 Q30 2 85 -32 Q140 2 185 24 Q192 24 190 30 Q180 34 150 22 Q118 6 85 -12 Q52 6 20 22 Q-10 34 -20 30 Z" fill="#f4f8ff" />
+        {[-10, 10, 160, 178].map((dx) => (
+          <ellipse key={dx} cx={dx} cy={dx < 85 ? 27 - (dx + 10) * 0.25 : 22 + (dx - 160) * 0.25} rx="2.6" ry="3.6" fill="#f4f8ff" />
+        ))}
+        <BrickChimney x={127} y={8} w={15} h={28} />
         {/* sign */}
         <rect x="52" y="0" width="66" height="14" rx="3" fill="#fff3dc" />
         <text x="85" y="10.5" textAnchor="middle" fontFamily="Fraunces, Georgia, serif" fontSize="8.5" fontWeight="700" fill="#a92529" letterSpacing="0.6">
