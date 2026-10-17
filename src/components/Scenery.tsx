@@ -320,7 +320,79 @@ function SnowLantern({ x, y, i }: { x: number; y: number; i: number }) {
   )
 }
 
-/** Trodden snow paths between the houses, with footprints and snow lanterns. */
+
+// rough height of the main path at x – good enough to stand things along it
+const PATH_POINTS = [[30, 400], [330, 398], [620, 396], [900, 394], [1180, 398], [1430, 396]]
+const pathY = (x: number) => {
+  for (let i = 1; i < PATH_POINTS.length; i++) {
+    const [x0, y0] = PATH_POINTS[i - 1]
+    const [x1, y1] = PATH_POINTS[i]
+    if (x <= x1) return y0 + ((x - x0) / (x1 - x0)) * (y1 - y0)
+  }
+  return PATH_POINTS[PATH_POINTS.length - 1][1]
+}
+// leave gaps where the little paths come in from the doors
+const JUNCTIONS = [112, 216, 336, 566, 722, 912, 1166, 1300, 1384]
+const CANES = Array.from({ length: 23 }, (_, i) => 58 + i * 60)
+  .filter((x) => JUNCTIONS.every((j) => Math.abs(j - x) > 16))
+  .map((x) => ({ x, y: pathY(x) - 9 }))
+const GARLAND = ['#ffd27a', '#ff5a5a', '#7fd1ff', '#9bff9b', '#ffb3f0']
+
+/** A little candy cane stuck in the snow. */
+function CandyCane({ x, y, flip }: { x: number; y: number; flip?: boolean }) {
+  const d = 'M0 0 V-15 q0 -5 4.5 -5 q4.5 0 4.5 4.5'
+  return (
+    <g transform={`translate(${x} ${y}) scale(${flip ? -1.3 : 1.3} 1.3)`}>
+      <path d={d} stroke="#ffffff" strokeWidth="2.8" strokeLinecap="round" fill="none" />
+      <path d={d} stroke="#e5383b" strokeWidth="2.8" strokeLinecap="butt" strokeDasharray="2.4 2.6" fill="none" />
+      <ellipse cx="0" cy="0.5" rx="3" ry="1" fill="#9fb2d2" opacity="0.6" />
+    </g>
+  )
+}
+
+/** Candy canes along the path with a twinkling string of lights between them. */
+function CandyCaneGarland() {
+  return (
+    <g>
+      {CANES.slice(1).map((b, i) => {
+        const a = CANES[i]
+        if (b.x - a.x > 70) return null // no garland across a doorway
+        const ax = a.x + 2
+        const ay = a.y - 23
+        const bx = b.x + 2
+        const by = b.y - 23
+        const cx = (ax + bx) / 2
+        const cy = (ay + by) / 2 + 8
+        const at = (t: number) => [(1 - t) ** 2 * ax + 2 * (1 - t) * t * cx + t * t * bx, (1 - t) ** 2 * ay + 2 * (1 - t) * t * cy + t * t * by]
+        return (
+          <g key={a.x}>
+            <path d={`M${ax} ${ay} Q${cx} ${cy} ${bx} ${by}`} stroke="#14321f" strokeWidth="1" fill="none" />
+            {[0.2, 0.4, 0.6, 0.8].map((t, k) => {
+              const [lx, ly] = at(t)
+              const c = GARLAND[(i * 4 + k) % GARLAND.length]
+              return (
+                <circle
+                  key={t}
+                  cx={lx}
+                  cy={ly + 1.6}
+                  r="2.3"
+                  fill={c}
+                  className="animate-twinkle"
+                  style={{ animationDelay: `${((i * 4 + k) * 0.23) % 2.2}s`, animationDuration: '1.8s', transformBox: 'fill-box', transformOrigin: 'center', filter: `drop-shadow(0 0 2px ${c})` }}
+                />
+              )
+            })}
+          </g>
+        )
+      })}
+      {CANES.map((c, i) => (
+        <CandyCane key={c.x} x={c.x} y={c.y} flip={i % 2 === 1} />
+      ))}
+    </g>
+  )
+}
+
+/** Trodden snow paths between the houses: footprints, candy canes, a string of lights and snow lanterns. */
 function VillagePaths() {
   return (
     <g>
@@ -336,6 +408,7 @@ function VillagePaths() {
       {/* footprints */}
       <path d={MAIN_PATH} stroke="#8197bd" strokeWidth="2.4" strokeLinecap="round" strokeDasharray="0.1 9" fill="none" transform="translate(0 -1.5)" />
       <path d={MAIN_PATH} stroke="#8197bd" strokeWidth="2.4" strokeLinecap="round" strokeDasharray="0.1 9" strokeDashoffset="4.5" fill="none" transform="translate(0 1.5)" />
+      <CandyCaneGarland />
       {SNOW_LANTERNS.map((x, i) => (
         <SnowLantern key={x} x={x} y={409 - Math.sin(x / 140) * 3} i={i} />
       ))}
