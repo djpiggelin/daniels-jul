@@ -2,7 +2,9 @@
 // template pieces (cm, y pointing down) and places each piece in 3D so the
 // same shapes drive both the printable templates and the live preview.
 
-export type HouseType = 'sadel' | 'platt' | 'torn'
+import { bounds, toPolyline, type Shape } from './shapes'
+
+export type HouseType = 'sadel' | 'platt' | 'torn' | 'rund'
 
 export type HouseParams = {
   type: HouseType
@@ -19,6 +21,8 @@ export type HouseParams = {
   /** windows per long wall */
   windows: number
   gableWindow: boolean
+  /** facets of the round tower */
+  sides?: number
 }
 
 export const DEFAULT_PARAMS: HouseParams = {
@@ -31,12 +35,14 @@ export const DEFAULT_PARAMS: HouseParams = {
   door: true,
   windows: 2,
   gableWindow: false,
+  sides: 8,
 }
 
 export const HOUSE_TYPES: { type: HouseType; name: string; text: string }[] = [
   { type: 'sadel', name: 'Sadeltak', text: 'Det klassiska huset med två takfall.' },
   { type: 'platt', name: 'Platt tak med takkupa', text: 'Ett platt hus med en liten kupa på taket.' },
   { type: 'torn', name: 'Torn', text: 'Högt och smalt med spetsigt tältak.' },
+  { type: 'rund', name: 'Runt torn', text: 'Ett runt torn av smala väggbitar med kontak – rundare ju fler sidor.' },
 ]
 
 export type Pt = [number, number]
@@ -64,6 +70,10 @@ export type Face = {
   mirror?: boolean
   /** Drawn after the main body – chimneys and dormers sit on top of the roof. */
   attached?: boolean
+  /** Visible from both sides (free-standing pieces). */
+  double?: boolean
+  /** Faces of one building are depth-sorted together. */
+  group?: string
 }
 
 export type Design = { pieces: Piece[]; faces: Face[] }
@@ -196,6 +206,7 @@ function chimneyPieces(prefix: string, cw: number, cd: number, hFront: number, h
 /* ---------- the three house types ---------- */
 
 export function buildDesign(p: HouseParams): Design {
+  if (p.type === 'rund') return roundTower(p)
   if (p.type === 'torn') return tower(p)
   if (p.type === 'platt') return flat(p)
   return saddle(p)
@@ -343,6 +354,123 @@ function tower(p: HouseParams): Design {
     { piece: narrow, origin: add(apex, [0, 0, -D / 2]), u: [0, 0, 1], v: unit([-W / 2, -rise, 0]) },
   ]
   return { pieces, faces }
+}
+
+function roundTower(p: HouseParams): Design {
+  const n = Math.max(5, Math.min(16, Math.round(p.sides ?? 8)))
+  const R = p.width / 2
+  const H = p.height
+  const fw = r1(2 * R * Math.sin(Math.PI / n))
+  const apo = R * Math.cos(Math.PI / n)
+  const rise = apo * Math.tan(rad(p.pitch))
+  const slant = r1(Math.hypot(rise, apo))
+  const k = Math.min(p.windows, n - (p.door ? 1 : 0))
+  const winAt = new Set(Array.from({ length: k }, (_, j) => Math.round((n * (j + 1)) / (k + 1)) % n))
+  if (p.door) winAt.delete(0)
+  const plain = n - winAt.size - (p.door ? 1 : 0)
+  const pieces: Piece[] = []
+  if (p.door) pieces.push({ id: 'rund-dorr', name: 'Tornvägg med dörr', count: 1, w: fw, h: H, outline: rect(fw, H), cutouts: wallOpenings(fw, H, 0, true) })
+  if (winAt.size) pieces.push({ id: 'rund-fonster', name: 'Tornvägg med fönster', count: winAt.size, w: fw, h: H, outline: rect(fw, H), cutouts: wallOpenings(fw, H, 1, false) })
+  if (plain) pieces.push({ id: 'rund-vagg', name: 'Tornvägg', count: plain, w: fw, h: H, outline: rect(fw, H), cutouts: [] })
+  pieces.push({
+    id: 'rund-tak',
+    name: 'Kontak, bit',
+    count: n,
+    w: fw,
+    h: slant,
+    outline: [
+      [0, slant],
+      [fw / 2, 0],
+      [fw, slant],
+    ],
+    cutouts: [],
+    roof: true,
+    note: `${n} sidor`,
+  })
+  const apex: V3 = [R, H + rise, R]
+  const faces: Face[] = []
+  for (let i = 0; i < n; i++) {
+    const phi = (i * 2 * Math.PI) / n
+    const dir: V3 = [Math.sin(phi), 0, Math.cos(phi)]
+    const u: V3 = [Math.cos(phi), 0, -Math.sin(phi)]
+    const mid: V3 = [R + dir[0] * apo, H, R + dir[2] * apo]
+    const id = p.door && i === 0 ? 'rund-dorr' : winAt.has(i) ? 'rund-fonster' : 'rund-vagg'
+    faces.push({ piece: id, origin: add(mid, scale(u, -fw / 2)), u, v: [0, -1, 0] })
+    const down: V3 = [mid[0] - apex[0], mid[1] - apex[1], mid[2] - apex[2]]
+    faces.push({ piece: 'rund-tak', origin: add(apex, scale(u, -fw / 2)), u, v: scale(down, 1 / Math.hypot(...down)) })
+  }
+  return { pieces, faces }
+}
+
+/* ---------- the whole cake board ---------- */
+
+export type Building = { id: string; name: string; params: HouseParams; x: number; z: number; rot: number }
+
+export type CustomPiece = {
+  id: string
+  name: string
+  count: number
+  outline: Shape
+  holes: Shape[]
+  /** Where it stands on the board in the preview; null keeps it off the board. */
+  place: { x: number; z: number; y: number; yaw: number; flat: boolean } | null
+}
+
+/** Footprint centre of a building in its own coordinates. */
+const footprint = (p: HouseParams) => [p.width / 2, p.type === 'rund' ? p.width / 2 : p.depth / 2]
+
+/** A custom piece as a template piece: arcs sampled, moved so its corner sits at 0, 0. */
+export function customToPiece(c: CustomPiece): Piece {
+  const outline = toPolyline(c.outline)
+  const b = bounds(outline)
+  const shift = (pts: Pt[]): Pt[] => pts.map(([x, y]) => [Math.round((x - b.x0) * 100) / 100, Math.round((y - b.y0) * 100) / 100])
+  return {
+    id: c.id,
+    name: c.name || 'Egen bit',
+    count: c.count,
+    w: r1(b.x1 - b.x0),
+    h: r1(b.y1 - b.y0),
+    outline: shift(outline),
+    cutouts: c.holes.map((h) => ({ kind: 'window' as const, pts: shift(toPolyline(h)) })),
+  }
+}
+
+/** Every building and free piece on the board, with ids prefixed per building. */
+export function buildBoard(buildings: Building[], custom: CustomPiece[]): Design & { owner: Record<string, string> } {
+  const pieces: Piece[] = []
+  const faces: Face[] = []
+  const owner: Record<string, string> = {}
+  const many = buildings.length > 1
+  for (const b of buildings) {
+    const d = buildDesign(b.params)
+    const [cx, cz] = footprint(b.params)
+    const a = rad(b.rot)
+    const R = (v: V3): V3 => [v[0] * Math.cos(a) + v[2] * Math.sin(a), v[1], -v[0] * Math.sin(a) + v[2] * Math.cos(a)]
+    for (const pc of d.pieces) {
+      const id = `${b.id}/${pc.id}`
+      pieces.push({ ...pc, id, name: many ? `${b.name} · ${pc.name}` : pc.name })
+      owner[id] = b.id
+    }
+    for (const f of d.faces) {
+      faces.push({ ...f, piece: `${b.id}/${f.piece}`, origin: add(R([f.origin[0] - cx, f.origin[1], f.origin[2] - cz]), [b.x, 0, b.z]), u: R(f.u), v: R(f.v), group: b.id })
+    }
+  }
+  for (const c of custom) {
+    const pc = customToPiece(c)
+    pieces.push(pc)
+    owner[pc.id] = c.id
+    if (!c.place || pc.w <= 0 || pc.h <= 0) continue
+    const a = rad(c.place.yaw)
+    const u: V3 = [Math.cos(a), 0, -Math.sin(a)]
+    const { x, y, z } = c.place
+    if (c.place.flat) {
+      const v: V3 = [Math.sin(a), 0, Math.cos(a)]
+      faces.push({ piece: pc.id, origin: add(add([x, y + 0.01, z], scale(u, -pc.w / 2)), scale(v, -pc.h / 2)), u, v, group: c.id })
+    } else {
+      faces.push({ piece: pc.id, origin: add([x, y + pc.h, z], scale(u, -pc.w / 2)), u, v: [0, -1, 0], double: true, group: c.id })
+    }
+  }
+  return { pieces, faces, owner }
 }
 
 /* ---------- areas & dough ---------- */
