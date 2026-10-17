@@ -8,7 +8,7 @@ import { jingle } from '../lib/fx'
 
 // gifts float around the edges, clear of the sleigh
 const GIFTS = [
-  { left: '6%', top: '30%', size: 44, mobile: true },
+  { left: '7%', top: '50%', size: 44, mobile: true },
   { left: '92%', top: '40%', size: 40, mobile: true },
   { left: '24%', top: '12%', size: 34, mobile: false },
   { left: '76%', top: '14%', size: 38, mobile: false },
@@ -168,7 +168,7 @@ function FlyingSanta() {
             <span className="absolute inset-x-[5%] bottom-[5%] top-[30%] rounded-full bg-jul-red/20 blur-3xl" aria-hidden />
             <span ref={teamRef} className="sleigh-bob relative block">
               <span className="block md:hidden">
-                <SkyTeam scale={0.6} />
+                <SkyTeam scale={0.55} />
               </span>
               <span className="hidden md:block">
                 <SkyTeam />

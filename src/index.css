@@ -352,3 +352,19 @@ h1, h2, h3, h4 {
 }
 /* let each reindeer in the sky team gallop slightly out of step */
 .rd-gallop .rd-leg-a, .rd-gallop .rd-leg-b, .rd-gallop .rd-bob { animation-delay: var(--gd, 0s); }
+
+/* leaping reindeer in the sky team */
+.leap-front { transform-box: fill-box; transform-origin: 0% 0%; animation: leap-front 0.9s ease-in-out infinite alternate; animation-delay: var(--gd, 0s); }
+.leap-back { transform-box: fill-box; transform-origin: 100% 0%; animation: leap-back 0.9s ease-in-out infinite alternate; animation-delay: var(--gd, 0s); }
+.leap-bob { animation: leap-bob 0.9s ease-in-out infinite alternate; animation-delay: var(--gd, 0s); }
+@keyframes leap-front { from { transform: rotate(-10deg) } to { transform: rotate(8deg) } }
+@keyframes leap-back { from { transform: rotate(10deg) } to { transform: rotate(-8deg) } }
+@keyframes leap-bob { from { transform: translateY(2px) rotate(-1deg) } to { transform: translateY(-3px) rotate(1.5deg) } }
+@media (max-width: 640px) {
+  .sky-drift { animation-name: sky-drift-sm; }
+}
+@keyframes sky-drift-sm {
+  0% { transform: translate(-2vw, 6px) }
+  50% { transform: translate(0, -8px) }
+  100% { transform: translate(2vw, 4px) }
+}
