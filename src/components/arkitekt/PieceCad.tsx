@@ -19,6 +19,7 @@ const pathOf = (s: Shape) => `M${toPolyline(s).map((p) => p.join(' ')).join('L')
  */
 export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p: CustomPiece) => void }) {
   const svg = useRef<SVGSVGElement>(null)
+  const [pendingShape, setPendingShape] = useState<string | null>(null)
   const [sel, setSel] = useState<Sel>(null)
   const [snap, setSnap] = useState(true)
   const drag = useRef<Drag | null>(null)
@@ -167,14 +168,16 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
             {OUTLINE_PRESETS.map((p) => (
               <button
                 key={p.name}
-                className={btn}
+                className={`${btn} ${pendingShape === p.name ? '!border-[#d93a3d] !text-[#d93a3d]' : ''}`}
                 onClick={() => {
-                  if (piece.holes.length && !confirm('Byta form? Urtagen tas bort.')) return
+                  // switching shape drops the cut-outs: ask with a second click instead of confirm()
+                  if (piece.holes.length && pendingShape !== p.name) return setPendingShape(p.name)
                   onChange({ ...piece, outline: p.shape(), holes: [] })
+                  setPendingShape(null)
                   setSel(null)
                 }}
               >
-                {p.name}
+                {pendingShape === p.name ? 'Urtagen försvinner – klicka igen' : p.name}
               </button>
             ))}
           </div>

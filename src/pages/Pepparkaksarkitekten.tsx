@@ -70,6 +70,13 @@ export default function Pepparkaksarkitekten() {
   const [draft, setDraft] = useState<Draft>(readDraft)
   const [active, setActive] = useState(() => draft.buildings[0]?.id ?? '')
   const [notice, setNotice] = useState('')
+  // removing is instant (browser confirm dialogs are blocked in some browsers) – with a short undo instead
+  const [undo, setUndo] = useState<{ draft: Draft; active: string; label: string } | null>(null)
+  useEffect(() => {
+    if (!undo) return
+    const t = setTimeout(() => setUndo(null), 12_000)
+    return () => clearTimeout(t)
+  }, [undo])
   const [sharing, setSharing] = useState(false)
   const [textures, setTextures] = useState<Record<string, string>>({})
   const { buildings, custom, sketches, team } = draft
@@ -108,9 +115,15 @@ export default function Pepparkaksarkitekten() {
     setActive(id)
   }
   const remove = (id: string) => {
-    const name = buildings.find((b) => b.id === id)?.name ?? custom.find((c) => c.id === id)?.name
-    if (!confirm(`Ta bort ${name}?`)) return
+    const name = buildings.find((b) => b.id === id)?.name ?? custom.find((c) => c.id === id)?.name ?? 'Biten'
+    setUndo({ draft, active, label: `${name} togs bort.` })
     update({ buildings: buildings.filter((b) => b.id !== id), custom: custom.filter((c) => c.id !== id) })
+  }
+  const restore = () => {
+    if (!undo) return
+    setDraft(undo.draft)
+    setActive(undo.active)
+    setUndo(null)
   }
 
   // a shared link opens that team's plan
@@ -182,7 +195,7 @@ export default function Pepparkaksarkitekten() {
   }
 
   const startOver = () => {
-    if (!confirm('Börja om från ett tomt ritbord? Den nuvarande ritningen försvinner från den här enheten.')) return
+    setUndo({ draft, active, label: 'Ritbordet tömdes.' })
     setDraft({ ...fresh(), team })
     setActive('')
     setSearch({}, { replace: true })
@@ -236,7 +249,16 @@ export default function Pepparkaksarkitekten() {
           </div>
         </div>
         <p className="mt-2 min-h-5 text-sm text-jul-cream/60" aria-live="polite">
-          {notice || 'Allt sparas automatiskt på den här enheten.'}
+          {undo ? (
+            <>
+              {undo.label}{' '}
+              <button onClick={restore} className="font-semibold text-[#f0b878] underline underline-offset-4 hover:text-jul-cream">
+                Ångra
+              </button>
+            </>
+          ) : (
+            notice || 'Allt sparas automatiskt på den här enheten.'
+          )}
         </p>
 
         {/* 1 · byggnaderna */}

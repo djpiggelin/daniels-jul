@@ -38,6 +38,7 @@ export function FacadeEditor({
   onChange: (pieceId: string, ops: Op[]) => void
   team: string
 }) {
+  const [sure, setSure] = useState(false)
   const [pieceId, setPieceId] = useState(pieces[0]?.id ?? '')
   const [tool, setTool] = useState<Tool>('pensel')
   const [nozzle, setNozzle] = useState(NOZZLES[1].w)
@@ -198,11 +199,17 @@ export function FacadeEditor({
               Ångra
             </button>
             <button
-              className={btn(false)}
+              className={btn(sure)}
               disabled={!ops.length}
-              onClick={() => confirm(`Skrapa bort all glasyr från ${piece.name.toLowerCase()}?`) && onChange(piece.id, [])}
+              onClick={() => {
+                // two clicks instead of a confirm() dialog, which some browsers block
+                if (!sure) return setSure(true)
+                onChange(piece.id, [])
+                setSure(false)
+              }}
+              onBlur={() => setSure(false)}
             >
-              Börja om
+              {sure ? 'Säker? Klicka igen' : 'Börja om'}
             </button>
             <button className={btn(false)} onClick={exportPng}>
               Spara som bild
