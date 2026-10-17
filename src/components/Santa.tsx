@@ -4,24 +4,36 @@ import { LeapingReindeer, Reindeer } from './Reindeer'
 export function SantaSleigh({ size = 220, className = '' }: { size?: number; className?: string }) {
   return (
     <svg viewBox="0 0 220 150" width={size} height={(size * 150) / 220} className={className} aria-hidden>
-      {/* sack */}
-      <path d="M22 70 Q10 30 44 22 Q60 18 70 34 Q80 54 72 74 Z" fill="#8b5a2b" />
-      <path d="M40 26 Q48 18 60 22" stroke="#6b4423" strokeWidth="3" fill="none" />
-      <rect x="30" y="34" width="18" height="16" rx="2" fill="#2fa36b" transform="rotate(-12 39 42)" />
-      <rect x="37" y="34" width="4" height="16" fill="#f6c453" transform="rotate(-12 39 42)" />
-      <rect x="50" y="28" width="16" height="14" rx="2" fill="#4f7dff" transform="rotate(10 58 35)" />
-      <rect x="56" y="28" width="4" height="14" fill="#fff" transform="rotate(10 58 35)" />
+      {/* a big pile of presents in the back of the sleigh */}
+      {[
+        { x: 18, y: 46, w: 30, h: 22, c: '#2f7a4f', r: '#f6c453', rot: -4 },
+        { x: 46, y: 44, w: 32, h: 24, c: '#e9c46a', r: '#c1272d', rot: 3 },
+        { x: 24, y: 24, w: 24, h: 22, c: '#c1272d', r: '#fbf7ef', rot: -9 },
+        { x: 48, y: 22, w: 22, h: 22, c: '#2f5fb8', r: '#f6c453', rot: 8 },
+        { x: 34, y: 6, w: 20, h: 18, c: '#fbf7ef', r: '#c1272d', rot: -3 },
+        { x: 62, y: 8, w: 14, h: 16, c: '#8e1b2a', r: '#e9c46a', rot: 12 },
+      ].map((g, i) => (
+        <g key={i} transform={`rotate(${g.rot} ${g.x + g.w / 2} ${g.y + g.h / 2})`}>
+          <rect x={g.x} y={g.y} width={g.w} height={g.h} rx="2" fill={g.c} />
+          <rect x={g.x + g.w / 2 - 2} y={g.y} width="4" height={g.h} fill={g.r} />
+          <rect x={g.x} y={g.y + g.h / 2 - 2} width={g.w} height="4" fill={g.r} opacity="0.9" />
+          <path d={`M${g.x + g.w / 2} ${g.y} q-6 -6 -8 0 M${g.x + g.w / 2} ${g.y} q6 -6 8 0`} stroke={g.r} strokeWidth="2.4" fill="none" strokeLinecap="round" />
+        </g>
+      ))}
 
       {/* Santa */}
       <g>
         {/* body */}
-        <ellipse cx="108" cy="72" rx="28" ry="26" fill="#e5383b" />
+        <ellipse cx="108" cy="72" rx="28" ry="26" fill="#d42a30" />
+        <rect x="104" y="52" width="9" height="40" rx="4" fill="#fbf7ef" />
         <rect x="84" y="70" width="48" height="8" fill="#2b1a10" />
         <rect x="102" y="69" width="12" height="10" rx="2" fill="#f6c453" />
+        <path d="M82 84 Q108 96 134 84 L134 90 Q108 102 82 90 Z" fill="#fbf7ef" />
         {/* waving arm */}
         <g className="santa-wave">
-          <path d="M128 62 Q142 48 146 34" stroke="#e5383b" strokeWidth="11" strokeLinecap="round" fill="none" />
-          <circle cx="147" cy="31" r="7" fill="#2b1a10" />
+          <path d="M128 62 Q142 48 146 34" stroke="#d42a30" strokeWidth="11" strokeLinecap="round" fill="none" />
+          <circle cx="145.5" cy="36" r="6.5" fill="#fbf7ef" />
+          <circle cx="147" cy="29" r="6.5" fill="#2b1a10" />
         </g>
         {/* head */}
         <circle cx="110" cy="40" r="17" fill="#ffd7b5" />
@@ -35,9 +47,9 @@ export function SantaSleigh({ size = 220, className = '' }: { size?: number; cla
         <circle cx="120" cy="42" r="3" fill="#ff8a8a" opacity="0.6" />
         <circle cx="110" cy="42" r="3" fill="#f2a08a" />
         {/* hat */}
-        <path d="M92 30 Q100 6 124 10 Q138 14 140 30 Z" fill="#e5383b" />
-        <rect x="90" y="26" width="40" height="8" rx="4" fill="#fff" />
-        <circle cx="141" cy="31" r="6" fill="#fff" />
+        <path d="M92 30 Q100 6 124 10 Q138 14 140 30 Z" fill="#d42a30" />
+        <rect x="88" y="25" width="44" height="10" rx="5" fill="#fbf7ef" />
+        <circle cx="142" cy="31" r="7" fill="#fbf7ef" />
       </g>
 
       {/* sleigh */}
