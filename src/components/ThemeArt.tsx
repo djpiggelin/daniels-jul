@@ -345,3 +345,35 @@ export function Destilleri({ className = '' }: { className?: string }) {
     </svg>
   )
 }
+
+export const ROOMS = [
+  { kind: 'bageriet', name: 'Bageriet', text: 'Där ugnarna aldrig svalnar och degen alltid jäser.' },
+  { kind: 'leksaker', name: 'Leksaksverkstaden', text: 'Kugghjul som snurrar och tennsoldater som ställer sig i ledet.' },
+  { kind: 'glitter', name: 'Glitterlagret', text: 'Burkar av stjärnstoft, frost och allt som gnistrar.' },
+  { kind: 'post', name: 'Postkontoret', text: 'Önskelistor från hela världen, sorterade fack för fack.' },
+] as const
+
+/** One of the verkstad's four windows on its own – for the event story. */
+export function WindowScene({ kind, className = '' }: { kind: (typeof ROOMS)[number]['kind']; className?: string }) {
+  const id = useId().replace(/:/g, '')
+  return (
+    <svg viewBox="0 138 90 70" preserveAspectRatio="xMidYMid slice" className={className} aria-hidden>
+      <defs>
+        <linearGradient id={`${id}-g`} x1="0" y1="0" x2="0" y2="1">
+          <stop offset="0" stopColor="#ffd98a" />
+          <stop offset="1" stopColor="#ff9a3c" />
+        </linearGradient>
+        <radialGradient id={`${id}-f`} cx="0.5" cy="0.5" r="0.62">
+          <stop offset="0.72" stopColor="#ffffff" stopOpacity="0" />
+          <stop offset="1" stopColor="#eef6ff" stopOpacity="0.85" />
+        </radialGradient>
+      </defs>
+      <rect x="0" y="138" width="90" height="70" fill={`url(#${id}-g)`} />
+      {kind === 'bageriet' && <Bakery x={0} />}
+      {kind === 'leksaker' && <Toys x={0} />}
+      {kind === 'glitter' && <Glitter x={0} />}
+      {kind === 'post' && <Post x={0} />}
+      <rect x="0" y="138" width="90" height="70" fill={`url(#${id}-f)`} />
+    </svg>
+  )
+}

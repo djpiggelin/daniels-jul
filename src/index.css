@@ -295,3 +295,16 @@ h1, h2, h3, h4 {
 }
 .nisse-walk { animation: nisse-bob 0.42s ease-in-out infinite; }
 @keyframes nisse-bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-1.5px) } }
+
+/* clickable buildings on the front page */
+.building { pointer-events: auto; cursor: pointer; transition: filter 0.3s ease; }
+.building:hover { filter: drop-shadow(0 0 10px rgba(255, 190, 90, 0.9)) brightness(1.12); }
+
+/* front page → building: zoom through the door and warm up */
+.enter-zoom { transition: transform 0.9s cubic-bezier(0.6, 0, 0.8, 0.4); }
+.enter-warm { transition: opacity 0.6s ease 0.35s; }
+
+/* scroll reveal on the event story */
+.reveal { opacity: 0; transform: translateY(28px); transition: opacity 0.9s ease, transform 0.9s cubic-bezier(0.22, 1, 0.36, 1); }
+.reveal.is-visible { opacity: 1; transform: none; }
+@media (prefers-reduced-motion: reduce) { .reveal { opacity: 1; transform: none; } }
