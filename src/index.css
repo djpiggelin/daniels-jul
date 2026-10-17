@@ -383,3 +383,9 @@ h1, h2, h3, h4 {
   45% { transform: translate(calc(var(--drift) * 0.35), -22px) scale(1.7); opacity: 0.5 }
   100% { transform: translate(var(--drift), -52px) scale(3); opacity: 0 }
 }
+
+/* snowman */
+.snowman-wave { transform-box: fill-box; transform-origin: 0% 100%; animation: snowman-wave 3.2s ease-in-out infinite; }
+@keyframes snowman-wave { 0%, 70%, 100% { transform: rotate(0) } 78% { transform: rotate(-14deg) } 86% { transform: rotate(8deg) } 94% { transform: rotate(-8deg) } }
+.scarf-sway { transform-box: fill-box; transform-origin: 50% 0%; animation: scarf 2.6s ease-in-out infinite alternate; }
+@keyframes scarf { from { transform: rotate(-6deg) } to { transform: rotate(10deg) } }
