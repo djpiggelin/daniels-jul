@@ -34,7 +34,7 @@ export const EVENTS: JulEvent[] = [
     name: 'Julbak',
     emoji: '🍪',
     tagline: 'Pepparkakshus, lussebullar & glögg',
-    start: `${YEAR}-12-05T18:00:00`,
+    start: `${YEAR}-12-06T18:00:00`,
     durationHours: 6,
     location: 'Hemma hos Daniel',
     description:
@@ -74,7 +74,7 @@ export const EVENTS: JulEvent[] = [
     name: 'Julbord',
     emoji: '🍖',
     tagline: 'Sill, skinka, snaps & sång',
-    start: `${YEAR}-12-12T19:00:00`,
+    start: `${YEAR}-12-13T19:00:00`,
     durationHours: 6,
     location: 'Hemma hos Daniel',
     description:
