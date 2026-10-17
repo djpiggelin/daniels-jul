@@ -34,13 +34,13 @@ const PRESETS: Record<HouseType, Partial<HouseParams>> = {
 type Draft = { team: string; buildings: Building[]; custom: CustomPiece[]; sketches: Sketches; thickness: number; pack: number; id?: string }
 
 const firstHouse = (params: HouseParams = DEFAULT_PARAMS): Building => ({ id: 'h1', name: 'Hus 1', params, x: 0, z: 0, rot: 0 })
-const fresh = (): Draft => ({ team: '', buildings: [firstHouse()], custom: [], sketches: {}, thickness: 0.5, pack: 500 })
+const fresh = (): Draft => ({ team: '', buildings: [], custom: [], sketches: {}, thickness: 0.5, pack: 500 })
 
 /** Accept plans saved before there could be more than one building. */
 function migrate(raw: Partial<Draft> & { params?: HouseParams }): Draft {
   const { params, ...rest } = raw
   const d: Draft = { ...fresh(), ...rest }
-  if (!raw.buildings?.length) {
+  if (!raw.buildings && raw.params) {
     d.buildings = [firstHouse({ ...DEFAULT_PARAMS, ...params })]
     d.sketches = Object.fromEntries(Object.entries(raw.sketches ?? {}).map(([k, v]) => [k.includes('/') ? k : `h1/${k}`, v]))
   }
@@ -98,7 +98,7 @@ export default function Pepparkaksarkitekten() {
   }
   const addBuilding = () => {
     const id = nextId('h', buildings.map((b) => b.id))
-    const params: HouseParams = { ...DEFAULT_PARAMS, ...PRESETS.torn, type: 'torn', chimney: false }
+    const params: HouseParams = buildings.length ? { ...DEFAULT_PARAMS, ...PRESETS.torn, type: 'torn', chimney: false } : { ...DEFAULT_PARAMS }
     update({ buildings: [...buildings, { id, name: `Hus ${id.slice(1)}`, params, x: freeX(params.width), z: 0, rot: 0 }] })
     setActive(id)
   }
@@ -184,7 +184,7 @@ export default function Pepparkaksarkitekten() {
   const startOver = () => {
     if (!confirm('Börja om från ett tomt ritbord? Den nuvarande ritningen försvinner från den här enheten.')) return
     setDraft({ ...fresh(), team })
-    setActive('h1')
+    setActive('')
     setSearch({}, { replace: true })
     setNotice('')
   }
@@ -194,6 +194,7 @@ export default function Pepparkaksarkitekten() {
   const title = `${team.trim() || 'Ert lag'} · ${[...buildings.map((b) => (buildings.length > 1 ? `${b.name}: ${describe(b)}` : describe(b))), ...(custom.length ? [`${custom.length} egna bitar`] : [])].join(' · ')}`
   const params = building?.params
   const many = buildings.length + custom.length > 1
+  const empty = design.pieces.length === 0
 
   return (
     <div className="relative bg-[#170b06] text-jul-cream print:bg-white">
@@ -254,22 +255,28 @@ export default function Pepparkaksarkitekten() {
                   {it.name}
                 </button>
               ))}
-              <button onClick={addBuilding} className="rounded-full border border-dashed border-[#3a2410]/40 px-3.5 py-1.5 text-sm text-[#3a2410]/80 hover:border-[#3a2410]">
-                + Byggnad
+              <button onClick={addBuilding} className="rounded-full border border-[#3a2410]/50 bg-[#3a2410]/5 px-3.5 py-1.5 text-sm text-[#3a2410] hover:bg-[#3a2410]/10">
+                + Lägg till byggnad
               </button>
               <button onClick={addPiece} className="rounded-full border border-[#b5713a] bg-[#b5713a]/15 px-3.5 py-1.5 text-sm text-[#3a2410] hover:bg-[#b5713a]/25">
                 ✎ Rita egen bit (fri form)
               </button>
             </div>
-            {custom.length === 0 && (
-              <p className="mt-3 text-sm text-[#3a2410]/65">
-                Torn, valv, takkupor eller något helt eget? Med <b>Rita egen bit</b> öppnas ritbordet där ni ritar formen fritt med raka linjer, bågar och urtag.
+            {buildings.length + custom.length === 0 ? (
+              <p className="mt-5 border-t border-[#3a2410]/15 pt-5 leading-relaxed text-[#3a2410]/75">
+                Ritbordet är tomt. Börja med en <b>byggnad</b> – sadeltak, platt tak, torn eller runt torn – och ändra måtten, eller <b>rita en egen bit</b> helt fritt med raka linjer, bågar och urtag. Lägg till och ta bort så mycket ni vill.
               </p>
+            ) : (
+              custom.length === 0 && (
+                <p className="mt-3 text-sm text-[#3a2410]/65">
+                  Torn, valv, takkupor eller något helt eget? Med <b>Rita egen bit</b> öppnas ritbordet där ni ritar formen fritt.
+                </p>
+              )
             )}
 
             {building && params && (
               <div className="mt-6 border-t border-[#3a2410]/15 pt-5">
-                <NameField value={building.name} onChange={(name) => setBuilding(building.id, { name })} onRemove={many ? () => remove(building.id) : undefined} />
+                <NameField value={building.name} onChange={(name) => setBuilding(building.id, { name })} onRemove={() => remove(building.id)} />
                 <fieldset className="mt-5">
                   <legend className="sr-only">Hustyp</legend>
                   <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
@@ -340,7 +347,7 @@ export default function Pepparkaksarkitekten() {
 
             {piece && (
               <div className="mt-6 border-t border-[#3a2410]/15 pt-5">
-                <NameField value={piece.name} onChange={(name) => setPiece({ ...piece, name })} onRemove={many ? () => remove(piece.id) : undefined} />
+                <NameField value={piece.name} onChange={(name) => setPiece({ ...piece, name })} onRemove={() => remove(piece.id)} />
                 <div className="mt-5 space-y-4">
                   <Measure label="Antal att skära" value={piece.count} min={1} max={12} step={1} unit="st" onChange={(count) => setPiece({ ...piece, count })} />
                   <Check
@@ -385,7 +392,11 @@ export default function Pepparkaksarkitekten() {
               <span className="text-xs text-[#3a2410]/50">dra för att vrida</span>
             </div>
             <div className="mt-3 flex flex-1 items-center rounded-xl" style={{ backgroundImage: 'linear-gradient(#3a241012 1px, transparent 1px), linear-gradient(90deg, #3a241012 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
-              <Preview3D design={design} textures={textures} className="block aspect-[5/4] w-full" />
+              {empty ? (
+                <p className="flex aspect-[5/4] w-full items-center justify-center px-8 text-center font-serif italic text-[#3a2410]/50">Här växer huset fram när ni lägger till något.</p>
+              ) : (
+                <Preview3D design={design} textures={textures} className="block aspect-[5/4] w-full" />
+              )}
             </div>
             <ul className="mt-4 grid grid-cols-1 gap-x-4 gap-y-1 text-sm text-[#3a2410]/80 sm:grid-cols-2">
               {design.pieces.map((p) => (
@@ -417,7 +428,11 @@ export default function Pepparkaksarkitekten() {
               Välj en bit och spritsa. Tänk på juryn: estetik, kreativitet och att det ska kännas igen som en del av Tomtens verkstad.
             </p>
             <div className="mt-6">
-              <FacadeEditor pieces={design.pieces} sketches={sketches} onChange={setSketch} team={team} />
+              {empty ? (
+                <EmptyHint>Lägg till en byggnad eller en egen bit först – sedan kan ni spritsa glasyren här.</EmptyHint>
+              ) : (
+                <FacadeEditor pieces={design.pieces} sketches={sketches} onChange={setSketch} team={team} />
+              )}
             </div>
           </Paper>
         </section>
@@ -474,10 +489,11 @@ export default function Pepparkaksarkitekten() {
                   {pages.length} A4-{pages.length === 1 ? 'sida' : 'sidor'} i skala 1:1. Skriv ut i faktisk storlek och mät 5 cm-linjen längst ner. Streckade linjer är dörrar och fönster.
                 </p>
               </div>
-              <button onClick={() => window.print()} className="shrink-0 self-start rounded-full bg-[#3a2410] px-5 py-2.5 text-sm font-medium text-[#fbf3e4] transition-colors hover:bg-[#5a3420] sm:self-auto">
+              <button onClick={() => window.print()} disabled={empty} className="shrink-0 self-start disabled:opacity-40 rounded-full bg-[#3a2410] px-5 py-2.5 text-sm font-medium text-[#fbf3e4] transition-colors hover:bg-[#5a3420] sm:self-auto">
                 Skriv ut mallarna
               </button>
             </div>
+            {empty && <div className="mt-6"><EmptyHint>Mallarna dyker upp här när det finns något att skära ut.</EmptyHint></div>}
             <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
               {pages.map((pg, i) => (
                 <div key={i} className="overflow-hidden rounded-sm shadow-[0_6px_24px_-8px_rgba(58,36,16,0.45)] ring-1 ring-[#3a2410]/10">
@@ -507,6 +523,10 @@ export default function Pepparkaksarkitekten() {
 }
 
 /* ------------------------------------------------------------------ */
+
+function EmptyHint({ children }: { children: React.ReactNode }) {
+  return <p className="rounded-xl border border-dashed border-[#3a2410]/25 px-5 py-8 text-center font-serif italic text-[#3a2410]/55">{children}</p>
+}
 
 function Paper({ children, className = '' }: { children: React.ReactNode; className?: string }) {
   return <div className={`rounded-sm bg-[#fbf3e4] p-5 text-[#3a2410] shadow-2xl shadow-black/50 sm:p-8 ${className}`}>{children}</div>
