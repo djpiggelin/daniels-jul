@@ -1,7 +1,7 @@
-import { useState } from 'react'
 import { Link, useParams } from 'react-router-dom'
 import { EVENTS, type Competition } from '../data'
 import { Countdown } from '../components/Countdown'
+import { Destilleri, Verkstad } from '../components/ThemeArt'
 import { Reindeer } from '../components/Reindeer'
 import { Stars } from '../components/Scenery'
 import { burstFrom } from '../lib/fx'
@@ -49,13 +49,6 @@ export default function EventPage() {
               </Link>
             )}
           </section>
-
-          {e.theme && (
-            <section className="candy-border animate-rise relative overflow-hidden rounded-3xl p-6 text-center sm:p-8" style={{ animationDelay: '0.1s' }}>
-              <p className="font-display text-sm uppercase tracking-[0.3em] text-jul-gold">Årets tema</p>
-              <p className="mt-2 font-display text-3xl font-semibold sm:text-4xl">{e.theme}</p>
-            </section>
-          )}
 
           {e.competitions?.map((c, i) => <CompetitionCard key={c.name} c={c} delay={0.15 + i * 0.1} />)}
         </div>
@@ -105,36 +98,66 @@ function Info({ icon, label, value }: { icon: string; label: string; value: Reac
   )
 }
 
+const ART = {
+  verkstad: { Art: Verkstad, bg: 'linear-gradient(180deg,#061229,#0e2a4a)', accent: '#f0b878', chip: 'bg-[#b5713a]/25 ring-[#f0b878]/40' },
+  destilleri: { Art: Destilleri, bg: '#1f120d', accent: '#f2a56b', chip: 'bg-[#b5562a]/25 ring-[#f2a56b]/40' },
+}
+
 function CompetitionCard({ c, delay }: { c: Competition; delay: number }) {
-  const [open, setOpen] = useState(true)
+  const look = c.art ? ART[c.art] : null
+  const accent = look?.accent ?? '#f6c453'
   return (
     <section className="glass animate-rise overflow-hidden rounded-3xl" style={{ animationDelay: `${delay}s` }}>
-      <button onClick={() => setOpen(!open)} className="flex w-full items-center justify-between p-6 text-left sm:px-8" aria-expanded={open}>
-        <h2 className="text-2xl font-semibold">
-          <span className="mr-2 inline-block animate-wiggle">{c.emoji}</span>
+      {look && (
+        <div style={{ background: look.bg }}>
+          <look.Art className="block h-auto w-full" />
+        </div>
+      )}
+      <div className="p-6 sm:p-8">
+        <p className="text-xs font-semibold uppercase tracking-[0.2em]" style={{ color: accent }}>
           {c.name}
-        </h2>
-        <span className={`text-2xl transition-transform ${open ? 'rotate-180' : ''}`}>⌄</span>
-      </button>
-      {open && (
-        <div className="grid gap-6 px-6 pb-8 sm:px-8 md:grid-cols-[1.4fr_1fr]">
-          <div>
-            <h3 className="mb-3 font-display text-sm uppercase tracking-widest text-jul-gold">📜 Regler</h3>
-            <ul className="space-y-2.5">
-              {c.rules.map((r) => (
-                <li key={r} className="flex gap-3 text-snow/85">
-                  <span className="mt-1 text-jul-red">❄</span>
-                  <span>{r}</span>
-                </li>
-              ))}
-            </ul>
-          </div>
+        </p>
+        <h2 className="mt-1 text-3xl font-medium">{c.theme?.title ?? c.name}</h2>
+        {c.theme?.intro.map((p) => (
+          <p key={p} className="mt-3 leading-relaxed text-snow/80">
+            {p}
+          </p>
+        ))}
+
+        {c.notice && (
+          <p className="mt-6 rounded-2xl border-l-4 bg-white/5 px-4 py-3 text-sm text-snow/90" style={{ borderColor: accent }}>
+            <span className="font-semibold" style={{ color: accent }}>
+              Nytt i år:{' '}
+            </span>
+            {c.notice}
+          </p>
+        )}
+
+        <div className={`mt-8 grid gap-8 ${c.rules.length ? 'md:grid-cols-[1.4fr_1fr]' : ''}`}>
+          {c.rules.length > 0 && (
+            <div>
+              <h3 className="mb-3 text-lg font-medium">Regler</h3>
+              <ol className="space-y-3">
+                {c.rules.map((r, i) => (
+                  <li key={r} className="flex gap-3 text-snow/85">
+                    <span
+                      className="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-xs font-semibold text-night-950"
+                      style={{ background: accent }}
+                    >
+                      {i + 1}
+                    </span>
+                    <span>{r}</span>
+                  </li>
+                ))}
+              </ol>
+            </div>
+          )}
           {c.criteria && (
             <div>
-              <h3 className="mb-3 font-display text-sm uppercase tracking-widest text-jul-gold">⭐ Bedömning</h3>
-              <ul className="space-y-2">
+              <h3 className="mb-3 text-lg font-medium">Juryn bedömer</h3>
+              <ul className={`flex flex-wrap gap-2 ${c.rules.length ? 'md:flex-col' : ''}`}>
                 {c.criteria.map((k) => (
-                  <li key={k} className="rounded-2xl bg-white/5 px-4 py-2.5 font-display">
+                  <li key={k} className={`rounded-full px-4 py-2 text-sm font-medium ring-1 ${look?.chip ?? 'bg-white/5 ring-white/10'}`}>
                     {k}
                   </li>
                 ))}
@@ -142,7 +165,7 @@ function CompetitionCard({ c, delay }: { c: Competition; delay: number }) {
             </div>
           )}
         </div>
-      )}
+      </div>
     </section>
   )
 }

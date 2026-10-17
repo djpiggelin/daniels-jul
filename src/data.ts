@@ -5,6 +5,11 @@ export const YEAR = 2026
 export type Competition = {
   name: string
   emoji: string
+  /** Which illustration to show at the top of the competition. */
+  art?: 'verkstad' | 'destilleri'
+  theme?: { title: string; intro: string[] }
+  /** A highlighted note, e.g. what's changed since last year. */
+  notice?: string
   rules: string[]
   criteria?: string[]
 }
@@ -21,7 +26,6 @@ export type JulEvent = {
   image: string
   reindeer: string
   accent: 'red' | 'green' | 'gold'
-  theme?: string
   competitions?: Competition[]
   potluck?: boolean
   /** Leds by Santa himself – shown as the sleigh instead of a reindeer on the front page. */
@@ -33,39 +37,51 @@ export const EVENTS: JulEvent[] = [
     id: 'julbak',
     name: 'Julbak',
     emoji: '🍪',
-    tagline: 'Pepparkakshus, lussebullar & glögg',
+    tagline: 'Pepparkakshus i Tomtens verkstad & brygder från destilleriet',
     start: `${YEAR}-12-06T18:00:00`,
     durationHours: 6,
-    location: 'Hemma hos Daniel',
+    location: 'Vanadisvägen',
     description:
-      'Det årliga julbaket! Vi bygger pepparkakshus, bakar lussebullar, mixar drinkar och dricker varm glögg. Ta med vänner, förkläde och tävlingsinstinkt.',
+      'Det årliga julbaket! I år öppnar vi dörrarna till Tomtens verkstad: vi bygger pepparkakshus, brygger i Tomtens destilleri och dricker varm glögg. Ta med ditt lag, förkläde och tävlingsinstinkt.',
     image: '/Images/Julbak/f534f49c-adbf-4f72-9fa9-523e70a93534.jpg',
     reindeer: 'Dasher',
     accent: 'gold',
-    theme: 'Avslöjas snart …',
     competitions: [
       {
         name: 'Pepparkakstävling',
         emoji: '🏠',
+        art: 'verkstad',
+        theme: {
+          title: 'Tomtens verkstad',
+          intro: [
+            'I år öppnar vi dörrarna till Tomtens verkstad – platsen där julen blir till. Bakom de frostiga fönstren arbetar små väsen dag och natt: i bageriet, i leksaksverkstaden, i glitterlagret och på postkontoret.',
+            'Klassiskt eller oväntat, pyntigt eller stramt. Det enda som gäller är att det ska höra hemma i verkstaden där julen tillverkas.',
+          ],
+        },
+        notice:
+          'I år återgår vi, efter ett test med lite mer flexibilitet under 2025, till de traditionella reglerna. Allt i peppishusen ska alltså vara ätbart – inga limpistoler!',
         rules: [
-          'Max 3 deltagare per lag – samarbeta och utnyttja allas styrkor!',
-          'Bygget ska vara färdigt senast kl. 19:00.',
-          'Ni får gärna planera och projektera i förväg, men själva bygget får inte påbörjas innan eventet.',
-          'Prefabricerade delar är tillåtna, men de måste skapas samma dag som eventet och dokumenteras med datum.',
-          'Planerar ni något stort (mer än ett halvt paket deg) – ta med extra pepparkaksdeg.',
+          'Samtliga delar och ingredienser i pepparkakshusen måste vara ätbara. Limpistoler är inte tillåtna.',
+          'Prefabdelar (t.ex. väggar och tak) får tillverkas från kl. 00.00 den 6 december – förutsatt att ni fotar eller filmar med tidsstämplar som bevis.',
+          'Delar får under inga omständigheter byggas ihop innan ni är på plats på Vanadisvägen.',
+          'Inget pynt eller dekoration får sättas på i förväg.',
+          'Max 3 personer per lag, som alltid.',
         ],
-        criteria: ['Igenkänning av byggnad', 'Estetik', 'Kreativitet & koppling till temat'],
+        criteria: ['Estetik', 'Kreativitet', 'Igenkänning och temaenlighet'],
       },
       {
         name: 'Drinktävling',
         emoji: '🍸',
-        rules: [
-          'Max 3 deltagare per lag – experimentera med smaker och presentation för att imponera på juryn!',
-          'Förberedelser är tillåtna, men alla drinkar ska mixas på plats.',
-          'Gör tillräckligt många drinkar så att alla på eventet kan smaka.',
-          'Alla drinkar ska vara klara för servering senast kl. 19:30.',
-        ],
-        criteria: ['Smak', 'Presentation', 'Kreativitet'],
+        art: 'destilleri',
+        theme: {
+          title: 'Tomtens destilleri',
+          intro: [
+            'Längst in i verkstaden, bakom en dörr som doftar kanel och kardemumma, ligger destilleriet. Här blandar väsendena det som värmer under de långa vinternätterna – i ångande kittlar och blanka kopparkärl, efter recept som gått i arv sedan urminnes tider.',
+            'Varje lag får ställa sig vid sin egen panna och brygga sitt bidrag, precis som ni vill ha det. Hett eller iskallt, kryddigt eller bärigt. Det enda som gäller är att det ska värma och höra hemma bland verkstadens kopparkärl. Skål – och låt brygderna porla!',
+          ],
+        },
+        rules: [],
+        criteria: ['Smak', 'Snygghet', 'Show', 'Hade nissarna gillat den här?'],
       },
     ],
   },

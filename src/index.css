@@ -261,3 +261,37 @@ h1, h2, h3, h4 {
   }
   .sleigh-flight { display: none; }
 }
+
+/* ---------- Theme art (verkstad & destilleri) ---------- */
+.spin { transform-box: fill-box; transform-origin: center; animation: spin 6s linear infinite; }
+.spin-rev { transform-box: fill-box; transform-origin: center; animation: spin 4s linear infinite reverse; }
+@keyframes spin { to { transform: rotate(360deg) } }
+.steam { animation: steam 2.6s ease-out infinite; transform-box: fill-box; transform-origin: 50% 100%; }
+@keyframes steam {
+  0% { transform: translateY(8px) scaleY(0.6); opacity: 0 }
+  30% { opacity: 1 }
+  100% { transform: translateY(-14px) scaleY(1.1); opacity: 0 }
+}
+.letter-fly { animation: letter 3.3s ease-in-out infinite; }
+@keyframes letter {
+  0% { transform: translate(0, 0) rotate(-8deg); opacity: 0 }
+  10% { opacity: 1 }
+  50% { transform: translate(60px, -8px) rotate(6deg) }
+  90% { opacity: 1 }
+  100% { transform: translate(120px, 4px) rotate(-4deg); opacity: 0 }
+}
+.bubble { animation: bubble 2s ease-out infinite; transform-box: fill-box; transform-origin: center; }
+@keyframes bubble {
+  0% { transform: translateY(0) scale(0.4); opacity: 0 }
+  20% { opacity: 0.9 }
+  100% { transform: translateY(-40px) scale(1.2); opacity: 0 }
+}
+.drip { animation: drip 1.6s ease-in infinite; }
+@keyframes drip {
+  0% { transform: translateY(0) scale(0.3); opacity: 0 }
+  25% { transform: translateY(0) scale(1); opacity: 1 }
+  80% { transform: translateY(58px) scale(0.9); opacity: 1 }
+  100% { transform: translateY(62px) scale(0.6); opacity: 0 }
+}
+.nisse-walk { animation: nisse-bob 0.42s ease-in-out infinite; }
+@keyframes nisse-bob { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-1.5px) } }
