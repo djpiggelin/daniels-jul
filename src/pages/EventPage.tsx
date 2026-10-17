@@ -281,6 +281,18 @@ function VerkstadChapter({ c }: { c: Competition }) {
                 </li>
               ))}
             </ol>
+            <Link
+              to="/pepparkaksarkitekten"
+              className="group mt-8 flex items-center justify-between gap-4 border-t border-dashed border-[#3a2410]/30 pt-5 text-[#3a2410] transition-colors hover:text-jul-red"
+            >
+              <span>
+                <span className="block font-serif text-xl">Pepparkaksarkitekten</span>
+                <span className="mt-0.5 block text-sm text-[#5a3420]/80">Rita huset, skissa glasyren och skriv ut mallar i skala 1:1 – innan ni står med degen.</span>
+              </span>
+              <span className="text-2xl transition-transform group-hover:translate-x-1" aria-hidden>
+                →
+              </span>
+            </Link>
           </div>
 
           {/* jury criteria as iced gingerbread cookies */}

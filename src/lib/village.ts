@@ -16,6 +16,7 @@ export const EVENT_FOR: Partial<Record<Building, JulEvent | undefined>> = {
 /** Where clicking a house takes you. */
 export const linkFor = (b: Building) => {
   if (b === 'spel') return '/spel'
+  if (b === 'ritningar') return '/pepparkaksarkitekten'
   if (b === 'verkstad' || b === 'destilleri') return `/event/${JULBAK?.id}#${b}`
   return `/event/${EVENT_FOR[b]?.id ?? ''}`
 }

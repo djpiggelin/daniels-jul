@@ -131,7 +131,7 @@ function HouseNumber({ x, y, n }: { x: number; y: number; n: string }) {
   )
 }
 
-export type Building = 'verkstad' | 'destilleri' | 'spel' | 'julbord' | 'julafton'
+export type Building = 'verkstad' | 'destilleri' | 'spel' | 'julbord' | 'julafton' | 'ritningar'
 
 type HouseProps = {
   x: number
@@ -854,6 +854,27 @@ export function Lappland({
         <circle cx="85" cy="29" r="1.8" fill="#e5383b" />
         <path d="M-6 78 H176" stroke="#f4f8ff" strokeWidth="6" strokeLinecap="round" />
       </g>
+
+      {/* the verkstad's drawing board – house plans for the gingerbread competition */}
+      {village && (
+        <g
+          transform="translate(770 360)"
+          className={onEnter ? 'building' : undefined}
+          onClick={onEnter ? (e) => onEnter('ritningar', e) : undefined}
+        >
+          {onEnter && <title>Rita ert pepparkakshus</title>}
+          {onEnter && <rect x="-4" y="-6" width="30" height="34" fill="transparent" />}
+          <path d="M4 26 L9 -2 M20 26 L15 -2 M12 26 L12 8" stroke="#5a3b22" strokeWidth="1.6" strokeLinecap="round" />
+          <rect x="1" y="0" width="22" height="16" rx="0.8" fill="#fbf3e4" stroke="#5a3b22" strokeWidth="1" transform="rotate(-3 12 8)" />
+          <g transform="rotate(-3 12 8)" fill="none" stroke="#a8322a" strokeWidth="0.8" strokeLinejoin="round">
+            <path d="M6 13 V8 L12 4 L18 8 V13 Z" />
+            <path d="M10.5 13 V10 H13.5 V13" />
+            <path d="M4.5 14.5 H19.5" stroke="#5a3b22" strokeDasharray="1 0.8" strokeWidth="0.5" />
+          </g>
+          <path d="M-1 -1 Q12 -5 25 -1 Q12 -2 -1 -1Z" fill="#f4f8ff" />
+          <ellipse cx="12" cy="26.5" rx="11" ry="2" fill="#f4f8ff" />
+        </g>
+      )}
 
       {/* marschaller between the two */}
       {TORCHES.map((t, i) => (

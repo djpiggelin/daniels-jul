@@ -27,7 +27,7 @@ export function Layout() {
       <Snow density={pathname.startsWith('/spel/') ? 0.4 : 1} />
 
       <header
-        className={`fixed inset-x-0 top-0 z-50 transition-colors duration-300 ${
+        className={`fixed inset-x-0 top-0 z-50 print:hidden transition-colors duration-300 ${
           scrolled ? 'border-b border-white/10 bg-night-950/80 backdrop-blur-md' : 'bg-transparent'
         }`}
       >
@@ -58,7 +58,7 @@ export function Layout() {
         <Outlet />
       </main>
 
-      <footer className="relative z-10 bg-[#f7f9ff] px-4 pb-10 pt-4 text-center text-night-800">
+      <footer className="relative z-10 print:hidden bg-[#f7f9ff] px-4 pb-10 pt-4 text-center text-night-800">
         <p className="font-serif text-lg">God Jul & Gott Nytt År {YEAR + 1}</p>
         <p className="mt-1 text-sm opacity-60">Gjord med pepparkakor och kärlek av Daniel</p>
       </footer>
