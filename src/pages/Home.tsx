@@ -1,11 +1,10 @@
-import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { EVENTS, type JulEvent } from '../data'
 import { Gift } from '../components/Gift'
 import { SkyTeam } from '../components/Santa'
-import { Aurora, DOOR_PLATES, Lappland, Moon, Stars, type Building } from '../components/Scenery'
+import { Aurora, Lappland, Moon, Stars, type Building } from '../components/Scenery'
 import { jingle } from '../lib/fx'
-import { eventStatus, useNow } from '../lib/time'
 
 // gifts float around the edges, clear of the sleigh
 const GIFTS = [
@@ -30,7 +29,6 @@ const linkFor = (b: Building) => {
 }
 
 export default function Home() {
-  const now = useNow(30_000)
   const navigate = useNavigate()
   const [entering, setEntering] = useState<{ x: number; y: number } | null>(null)
 
@@ -66,7 +64,7 @@ export default function Home() {
 
         <FlyingSanta />
 
-        <Village onEnter={enter} now={now} />
+        <Village onEnter={enter} />
 
         <p className="absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">Svep på släden för en tur · kliv in i husen</p>
       </div>
@@ -82,51 +80,21 @@ export default function Home() {
 }
 
 /* ------------------------------------------------------------------ */
-/* Tomtens by, with a house-number plate by each event's front door    */
+/* Tomtens by – each event's house has the day in December as its number */
 /* ------------------------------------------------------------------ */
 
-// everyone knows it's December – the house number is just the day
-const plateDate = (iso: string) => String(new Date(iso).getDate())
+const day = (e?: JulEvent) => (e ? String(new Date(e.start).getDate()) : undefined)
+const NUMBERS: Partial<Record<Building, string>> = {
+  julafton: day(JULAFTON),
+  destilleri: day(JULBAK),
+  verkstad: day(JULBAK),
+  julbord: day(JULBORD),
+}
 
-function Village({ onEnter, now }: { onEnter: (b: Building, e: React.MouseEvent) => void; now: number }) {
-  const box = useRef<HTMLDivElement>(null)
-  const [size, setSize] = useState({ w: 0, h: 0 })
-
-  useLayoutEffect(() => {
-    const el = box.current
-    if (!el) return
-    const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }))
-    ro.observe(el)
-    return () => ro.disconnect()
-  }, [])
-
-  // the landscape SVG is 1440×460 drawn with xMidYMax slice – map its units to pixels
-  const scale = Math.max(size.w / 1440, size.h / 460)
-  const toPx = (x: number, y: number) => ({ left: size.w / 2 + (x - 720) * scale, top: size.h - (460 - y) * scale })
-
+function Village({ onEnter }: { onEnter: (b: Building, e: React.MouseEvent) => void }) {
   return (
-    <div ref={box} className="absolute inset-x-0 bottom-0 h-[36%] min-h-[210px]">
-      <Lappland className="h-full" onEnter={onEnter} />
-      {size.w > 0 &&
-        DOOR_PLATES.map((d) => {
-          const ev = EVENT_FOR[d.building]
-          if (!ev) return null
-          const { left, top } = toPx(d.x, d.y)
-          if (left < 0 || left > size.w) return null
-          const passed = eventStatus(ev, now) === 'passed'
-          return (
-            <button
-              key={d.building}
-              onClick={(e) => onEnter(d.building, e)}
-              className={`absolute z-10 flex h-[15px] min-w-[15px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2px] bg-[#1d3e8a] px-[3px] text-[10px] font-bold leading-none text-white shadow-[inset_0_0_0_1.5px_#1d3e8a,inset_0_0_0_2.5px_#fff,0_1px_2px_rgba(0,0,0,0.5)] transition-transform hover:scale-150 sm:h-[17px] sm:min-w-[17px] sm:text-[11px] ${passed ? 'opacity-60' : ''}`}
-              style={{ left, top }}
-              aria-label={`${ev.name}, ${plateDate(ev.start)} december – kliv in`}
-              title={ev.name}
-            >
-              {plateDate(ev.start)}
-            </button>
-          )
-        })}
+    <div className="absolute inset-x-0 bottom-0 h-[36%] min-h-[210px]">
+      <Lappland className="h-full" onEnter={onEnter} numbers={NUMBERS} />
     </div>
   )
 }

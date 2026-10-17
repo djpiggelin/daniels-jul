@@ -108,16 +108,26 @@ const TORCHES = [
   { x: 946, y: 390 },
 ]
 
-/**
- * House-number plates up in the facade corner of each event building (SVG units, centre of the plate).
- * The front page overlays them as HTML – the number is the day in December the event happens.
- */
-export const DOOR_PLATES: { building: Building; x: number; y: number }[] = [
-  { building: 'julafton', x: 497, y: 349 },
-  { building: 'destilleri', x: 604, y: 342 },
-  { building: 'verkstad', x: 801, y: 327 },
-  { building: 'julbord', x: 996, y: 342 },
+/** Where each event building's little house number sits, by its front door (SVG units). */
+const DOOR_NUMBERS: { building: Building; x: number; y: number }[] = [
+  { building: 'julafton', x: 465, y: 349 },
+  { building: 'destilleri', x: 583, y: 341.5 },
+  { building: 'verkstad', x: 739, y: 351 },
+  { building: 'julbord', x: 921, y: 345 },
 ]
+
+/** A small painted wooden house number, part of the facade. */
+function HouseNumber({ x, y, n }: { x: number; y: number; n: string }) {
+  const w = 4 + n.length * 3.6
+  return (
+    <g pointerEvents="none">
+      <rect x={x - w / 2} y={y - 3.6} width={w} height="7.2" rx="1.4" fill="#efe3c8" stroke="#5a3b22" strokeWidth="0.7" />
+      <text x={x} y={y + 2.3} textAnchor="middle" fontFamily="Fraunces, Georgia, serif" fontSize="6.4" fontWeight="700" fill="#3a2418">
+        {n}
+      </text>
+    </g>
+  )
+}
 
 export type Building = 'verkstad' | 'destilleri' | 'spel' | 'julbord' | 'julafton'
 
@@ -560,12 +570,15 @@ export function Lappland({
   className = '',
   village = true,
   onEnter,
+  numbers,
 }: {
   className?: string
   /** Show Tomtens by: houses, the verkstad, destilleri, julgran and nissar. */
   village?: boolean
   /** Makes the buildings clickable. */
   onEnter?: (b: Building, e: React.MouseEvent) => void
+  /** House number to paint by each event building's door – the day in December. */
+  numbers?: Partial<Record<Building, string>>
 }) {
   const farForest = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ x: i * 21 + rand(i) * 14, h: 26 + rand(i + 100) * 22 })), [])
   const nearForest = useMemo(
@@ -724,6 +737,9 @@ export function Lappland({
         </g>
       ))}
 
+      {/* house numbers by the doors */}
+          {numbers &&
+            DOOR_NUMBERS.map((d) => (numbers[d.building] ? <HouseNumber key={d.building} x={d.x} y={d.y} n={numbers[d.building]!} /> : null))}
       {/* nissar walking the paths between the houses */}
           <Nisse path="M583 374 Q586 388 594 396 L725 395 Q724 386 725 374" dur={12} carry="lantern" />
           <Nisse path="M725 374 Q724 386 725 395 L470 396 Q466 390 465 380" dur={14} delay={3} carry="gifts" flip />
