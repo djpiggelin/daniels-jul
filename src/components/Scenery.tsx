@@ -102,12 +102,24 @@ function Spruce({ x, y, h, fill = '#0a1726', snow = true }: { x: number; y: numb
 }
 
 const TORCHES = [
-  { x: 752, y: 388 },
-  { x: 790, y: 388 },
-  { x: 828, y: 388 },
+  { x: 702, y: 390 },
+  { x: 748, y: 390 },
+  { x: 898, y: 390 },
+  { x: 946, y: 390 },
 ]
 
-export type Building = 'verkstad' | 'destilleri' | 'spel' | 'julbord'
+/**
+ * House-number plates up in the facade corner of each event building (SVG units, centre of the plate).
+ * The front page overlays them as HTML – the number is the day in December the event happens.
+ */
+export const DOOR_PLATES: { building: Building; x: number; y: number }[] = [
+  { building: 'julafton', x: 497, y: 349 },
+  { building: 'destilleri', x: 604, y: 342 },
+  { building: 'verkstad', x: 801, y: 327 },
+  { building: 'julbord', x: 996, y: 342 },
+]
+
+export type Building = 'verkstad' | 'destilleri' | 'spel' | 'julbord' | 'julafton'
 
 type HouseProps = {
   x: number
@@ -172,28 +184,15 @@ function House({ x, base, w, h, wall, roof = '#3a1410', windows = 2, sign, signC
   )
 }
 
-/** A tiny nisse. With `path` it walks it (fading in and out at the ends). */
-function Nisse({
-  path,
-  dur = 12,
-  delay = 0,
-  flip,
-  lantern,
-  sack,
-  x = 0,
-  y = 0,
-  wave,
-}: {
-  path?: string
-  dur?: number
-  delay?: number
-  flip?: boolean
-  lantern?: boolean
-  sack?: boolean
-  x?: number
-  y?: number
-  wave?: boolean
-}) {
+type NisseProp = 'lantern' | 'sack' | 'gifts' | 'shovel' | 'brush' | 'wave'
+
+/**
+ * A proper Swedish tomtenisse: long drooping red cap over the eyes, big woolly
+ * beard, round nose, red coat with a belt. With `path` it walks it (fading in
+ * and out at the ends); `carry` decides what it's holding or doing.
+ */
+function Nisse({ path, dur = 12, delay = 0, flip, carry, x = 0, y = 0 }: { path?: string; dur?: number; delay?: number; flip?: boolean; carry?: NisseProp; x?: number; y?: number }) {
+  const walking = !!path
   return (
     <g transform={path ? undefined : `translate(${x} ${y})`} opacity={path ? 0 : 1}>
       {path && (
@@ -202,25 +201,121 @@ function Nisse({
           <animate attributeName="opacity" dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.06;0.86;0.93;1" />
         </>
       )}
-      <g className={path ? 'nisse-walk' : undefined} transform={flip ? 'scale(-1 1)' : undefined}>
-        <ellipse cx="0" cy="0" rx="7" ry="2" fill="#000" opacity="0.15" />
-        <rect x="-4" y="-12" width="8" height="10" rx="3" fill="#6b7a8f" />
-        <rect x="-4" y="-3" width="3" height="4" fill="#2b2b33" />
-        <rect x="1" y="-3" width="3" height="4" fill="#2b2b33" />
-        <circle cx="0" cy="-15" r="3.6" fill="#ffd7b5" />
-        <path d="M-3.5 -14 Q0 -8 3.5 -14 Z" fill="#fff" />
-        <path d="M-4.5 -16 L3 -27 L5 -15 Z" fill="#d93a3d" />
-        <circle cx="3" cy="-27" r="1.4" fill="#fff" />
-        {lantern && (
-          <>
-            <line x1="4" y1="-8" x2="8" y2="-6" stroke="#2b2b33" strokeWidth="1.2" />
-            <circle cx="8.5" cy="-4" r="7" fill="url(#warm)" />
-            <rect x="7" y="-6" width="3.5" height="4.5" rx="1" fill="#ffd27a" />
-          </>
+      <g transform={flip ? 'scale(-1 1)' : undefined}>
+        <ellipse cx="0" cy="0.5" rx="8" ry="2" fill="#1b2a44" opacity="0.18" />
+        {carry === 'sack' && <path d="M-5 -16 Q-15 -22 -13 -9 Q-11 -3 -5 -6 Z" fill="#8b5a2b" />}
+        <g className={walking ? 'nisse-walk' : undefined}>
+          {/* boots + trousers */}
+          <ellipse className={walking ? 'nisse-foot-a' : undefined} cx="-3" cy="-1" rx="3.4" ry="1.8" fill="#3a2418" />
+          <ellipse className={walking ? 'nisse-foot-b' : undefined} cx="3.4" cy="-1" rx="3.4" ry="1.8" fill="#3a2418" />
+          <rect x="-4.5" y="-8" width="9" height="7" rx="2" fill="#5d6b80" />
+          {/* coat + belt */}
+          <path d="M-7 -6.5 Q-7.5 -15 -4.5 -19 L4.5 -19 Q7.5 -15 7 -6.5 Z" fill="#c1272d" />
+          <rect x="-7.2" y="-11" width="14.4" height="2" fill="#3a2418" />
+          <rect x="-1.2" y="-11.3" width="2.4" height="2.6" fill="#f6c453" />
+          {/* beard */}
+          <path d="M-6.2 -21 Q-7.2 -13 0 -8.5 Q7.2 -13 6.2 -21 Z" fill="#ece7dc" />
+          <path d="M-3 -18 Q-2.5 -13 -1 -11 M2.6 -18 Q2.4 -13 1.2 -11" stroke="#cfc8b8" strokeWidth="0.7" fill="none" />
+          {/* nose */}
+          <circle cx="0" cy="-20.6" r="2.5" fill="#f2a08a" />
+          <circle cx="-0.8" cy="-21.3" r="0.7" fill="#fff" opacity="0.6" />
+          {/* drooping cap pulled down over the eyes */}
+          <path d="M-7.2 -20.5 Q-7.4 -25 -5 -29 Q-1 -39 6.5 -38.5 Q10 -37.5 10.8 -33 Q8 -35.5 5.4 -33.6 Q6.6 -27 7.2 -20.5 Z" fill="#d93a3d" />
+          <path d="M-7.8 -21 Q0 -24.2 7.8 -21 L7.8 -19.2 Q0 -22 -7.8 -19.2 Z" fill="#a92529" />
+          <circle cx="10.8" cy="-33" r="1.3" fill="#a92529" />
+        </g>
+
+        {carry === 'lantern' && (
+          <g>
+            <circle cx="7.5" cy="-11" r="2" fill="#c1272d" />
+            <line x1="8.5" y1="-10" x2="10" y2="-6" stroke="#2b2b33" strokeWidth="1" />
+            <circle cx="10.5" cy="-3" r="8" fill="url(#warm)" className="torch" />
+            <rect x="8.6" y="-6" width="4" height="5" rx="1" fill="#ffd27a" stroke="#2b2b33" strokeWidth="0.6" />
+          </g>
         )}
-        {sack && <path d="M-4 -12 Q-14 -18 -11 -7 Q-9 -2 -4 -5 Z" fill="#8b5a2b" />}
-        {wave && <line x1="4" y1="-10" x2="8" y2="-17" stroke="#6b7a8f" strokeWidth="2.4" strokeLinecap="round" className="nisse-wave" />}
+        {carry === 'gifts' && (
+          <g>
+            <rect x="-5.5" y="-17" width="11" height="7.5" rx="0.8" fill="#d93a3d" />
+            <rect x="-0.8" y="-17" width="1.8" height="7.5" fill="#f6c453" />
+            <rect x="-3.8" y="-23.5" width="8" height="6.5" rx="0.8" fill="#23885a" />
+            <rect x="-0.4" y="-23.5" width="1.5" height="6.5" fill="#fbf7ef" />
+            <path d="M0.3 -23.5 q-3 -3 -3.5 0 M0.4 -23.5 q3 -3 3.5 0" stroke="#fbf7ef" strokeWidth="1" fill="none" />
+            <circle cx="-6" cy="-12.5" r="1.8" fill="#c1272d" />
+            <circle cx="6" cy="-12.5" r="1.8" fill="#c1272d" />
+          </g>
+        )}
+        {carry === 'shovel' && (
+          <g>
+            <g className="shovel-dig">
+              <line x1="4" y1="-15" x2="14" y2="-1" stroke="#8b5a2b" strokeWidth="1.6" strokeLinecap="round" />
+              <path d="M12 -2 L19 0.5 L18 3 L11 1 Z" fill="#9aa3b5" />
+              <circle cx="5.5" cy="-13" r="1.9" fill="#c1272d" />
+            </g>
+            {[0, 1, 2].map((k) => (
+              <circle key={k} cx="17" cy="-1" r={1.6 - k * 0.3} fill="#f4f8ff" className="snow-toss" style={{ animationDelay: `${k * 0.12}s` }} />
+            ))}
+          </g>
+        )}
+        {carry === 'brush' && (
+          <g className="dab">
+            <line x1="5" y1="-14" x2="14" y2="-22" stroke="#8b5a2b" strokeWidth="1.6" strokeLinecap="round" />
+            <ellipse cx="15.5" cy="-23.5" rx="3.6" ry="3" fill="url(#checker-paint)" stroke="#3a2418" strokeWidth="0.5" transform="rotate(-40 15.5 -23.5)" />
+            <circle cx="5.5" cy="-13.5" r="1.9" fill="#c1272d" />
+          </g>
+        )}
+        {carry === 'wave' && <line x1="5" y1="-15" x2="9" y2="-23" stroke="#c1272d" strokeWidth="3" strokeLinecap="round" className="nisse-wave" />}
       </g>
+    </g>
+  )
+}
+
+/**
+ * A nod to the painting nisse in Tomtens verkstad on Kalle Anka: the paint in his
+ * bucket is already checkered, so every stroke leaves orange-and-black squares.
+ * The board is half done and stays that way – he just keeps on dabbing.
+ */
+function PaintingNisse({ x, base }: { x: number; base: number }) {
+  const cell = 5.2
+  const size = 8 * cell
+  const squares = Array.from({ length: 64 }, (_, i) => ({ r: Math.floor(i / 8), c: i % 8 })).filter(({ r, c }) => (r + c) % 2 === 1)
+  // the painted part: left side done, ragged brush edge towards the right
+  const painted = `M0 ${-size} H${size * 0.62} q4 4 -1 8 q6 5 1 10 q7 4 2 9 q6 5 4 13 L${size * 0.78} 0 H0 Z`
+  return (
+    <g>
+      <defs>
+        <pattern id="checker-paint" width="4" height="4" patternUnits="userSpaceOnUse">
+          <rect width="4" height="4" fill="#f6a623" />
+          <rect width="2" height="2" fill="#14141a" />
+          <rect x="2" y="2" width="2" height="2" fill="#14141a" />
+        </pattern>
+        <clipPath id="checker-done">
+          <path d={painted} />
+        </clipPath>
+      </defs>
+
+      {/* the board, leaning back slightly */}
+      <g transform={`translate(${x} ${base}) skewX(-7)`}>
+        <rect x="-2" y={-size - 2} width={size + 4} height={size + 4} rx="1" fill="#8b5a2b" />
+        <rect x="0" y={-size} width={size} height={size} fill="#ecd3ac" />
+        <g clipPath="url(#checker-done)">
+          <rect x="0" y={-size} width={size} height={size} fill="#f6a623" />
+          {squares.map(({ r, c }, i) => (
+            <rect key={i} x={c * cell} y={-size + r * cell} width={cell} height={cell} fill="#14141a" />
+          ))}
+        </g>
+        {/* wet checkered drips at the brush edge */}
+        <path d={`M${size * 0.64} ${-size + 9} q1.6 5 0 8 q-1.6 -3 0 -8`} fill="url(#checker-paint)" />
+        <path d={`M${size * 0.7} ${-size + 26} q1.6 5 0 8 q-1.6 -3 0 -8`} fill="url(#checker-paint)" />
+      </g>
+
+      {/* the bucket – the paint inside is already checkered */}
+      <g transform={`translate(${x + size + 22} ${base + 2})`}>
+        <path d="M-5.5 -10 L5.5 -10 L4.4 0 L-4.4 0 Z" fill="#5a3b22" />
+        <ellipse cx="0" cy="-10" rx="5.5" ry="1.9" fill="url(#checker-paint)" />
+        <path d="M-4.6 -9 q1 4 -0.2 5.5 q-1.2 -1.5 0.2 -5.5 M2.6 -9 q1 3 0 4.5 q-1 -1.2 0 -4.5" fill="url(#checker-paint)" />
+        <path d="M-5.5 -10 Q0 -15 5.5 -10" stroke="#3a2418" strokeWidth="0.8" fill="none" />
+      </g>
+      <Nisse x={x + size + 12} y={base + 4} carry="brush" flip />
     </g>
   )
 }
@@ -293,17 +388,19 @@ function Sled({ x, base }: { x: number; base: number }) {
 // door (x, y) of every house → where its little path joins the main path
 const MAIN_PATH = 'M30 400 Q 180 390 330 398 T 620 396 T 900 394 T 1180 398 T 1430 396'
 const BRANCHES = [
-  'M91 358 Q 96 380 112 395', // yellow cottage
-  'M333 360 Q 328 380 336 398', // white cottage
-  'M208 380 Q 210 390 216 395', // Spelstugan
-  'M703 374 Q 708 388 722 396', // destilleri
-  'M923 374 Q 920 386 912 394', // verkstad
-  'M1162 380 Q 1160 390 1166 397', // långhuset
-  'M1321 358 Q 1312 380 1300 397', // cottage right
-  'M1397 362 Q 1392 382 1384 396', // small red cottage
-  'M575 386 Q 572 392 566 396', // up to the julgran
+  'M71 358 Q 74 380 86 396', // yellow cottage
+  'M158 380 Q 160 390 166 396', // Spelstugan
+  'M283 358 Q 300 380 312 397', // white cottage
+  'M465 380 Q 466 390 470 396', // Tomtens stuga
+  'M583 374 Q 586 388 594 396', // destilleri
+  'M725 374 Q 724 386 725 395', // verkstad
+  'M921 380 Q 920 390 924 395', // långhuset
+  'M1091 358 Q 1086 380 1080 397', // yellow cottage right
+  'M1195 380 Q 1196 390 1200 397', // ochre house
+  'M1305 358 Q 1300 380 1296 397', // cottage right
+  'M1385 362 Q 1382 382 1378 396', // small red cottage
 ]
-const SNOW_LANTERNS = [120, 282, 420, 532, 618, 1012, 1236, 1352]
+const SNOW_LANTERNS = [130, 205, 365, 528, 655, 830, 1010, 1140, 1250, 1340]
 
 /** A snölykta: a little pyramid of snowballs with a candle inside. */
 function SnowLantern({ x, y, i }: { x: number; y: number; i: number }) {
@@ -332,7 +429,7 @@ const pathY = (x: number) => {
   return PATH_POINTS[PATH_POINTS.length - 1][1]
 }
 // leave gaps where the little paths come in from the doors
-const JUNCTIONS = [112, 216, 336, 566, 722, 912, 1166, 1300, 1384]
+const JUNCTIONS = [86, 166, 312, 470, 594, 725, 924, 1080, 1200, 1296, 1378]
 const CANES = Array.from({ length: 23 }, (_, i) => 58 + i * 60)
   .filter((x) => JUNCTIONS.every((j) => Math.abs(j - x) > 16))
   .map((x) => ({ x, y: pathY(x) - 9 }))
@@ -392,6 +489,38 @@ function CandyCaneGarland() {
   )
 }
 
+
+const COOKIE_SHAPES = {
+  heart: 'M0 2.6 C -5 -1 -3.4 -5 0 -2.6 C 3.4 -5 5 -1 0 2.6 Z',
+  star: 'M0 -4 L1.2 -1.2 L4 -1.2 L1.8 0.6 L2.6 3.6 L0 1.8 L-2.6 3.6 L-1.8 0.6 L-4 -1.2 L-1.2 -1.2 Z',
+  round: 'M-3.6 0 a3.6 3.6 0 1 0 7.2 0 a3.6 3.6 0 1 0 -7.2 0 Z',
+  man: 'M0 -4.2 a1.4 1.4 0 1 1 0.01 0 Z M-1.4 -2.4 H1.4 L3.6 -1.8 L3.4 -0.6 L1.4 -0.8 L2.2 3.6 L0.8 3.8 L0 1.2 L-0.8 3.8 L-2.2 3.6 L-1.4 -0.8 L-3.4 -0.6 L-3.6 -1.8 Z',
+} as const
+const COOKIE_ORDER = ['man', 'heart', 'star', 'round'] as const
+
+/** Gingerbread-cookie stepping stones along every little path to a door. */
+function CookieStones() {
+  return (
+    <g>
+      {BRANCHES.flatMap((d, bi) => {
+        const [x0, y0, cx, cy, x1, y1] = (d.match(/-?\d+(\.\d+)?/g) ?? []).map(Number)
+        return [0.22, 0.5, 0.78].map((t, k) => {
+          const px = (1 - t) ** 2 * x0 + 2 * (1 - t) * t * cx + t * t * x1
+          const py = (1 - t) ** 2 * y0 + 2 * (1 - t) * t * cy + t * t * y1
+          const shape = COOKIE_SHAPES[COOKIE_ORDER[(bi + k) % COOKIE_ORDER.length]]
+          return (
+            <g key={`${bi}-${k}`} transform={`translate(${px.toFixed(1)} ${py.toFixed(1)}) scale(1.05 0.62)`}>
+              <path d={shape} fill="#9a5a2a" transform="translate(0 1)" />
+              <path d={shape} fill="#c27c40" />
+              <path d={shape} fill="none" stroke="#fffaf0" strokeWidth="0.6" strokeDasharray="1 0.9" />
+            </g>
+          )
+        })
+      })}
+    </g>
+  )
+}
+
 /** Trodden snow paths between the houses: footprints, candy canes, a string of lights and snow lanterns. */
 function VillagePaths() {
   return (
@@ -408,6 +537,7 @@ function VillagePaths() {
       {/* footprints */}
       <path d={MAIN_PATH} stroke="#8197bd" strokeWidth="2.4" strokeLinecap="round" strokeDasharray="0.1 9" fill="none" transform="translate(0 -1.5)" />
       <path d={MAIN_PATH} stroke="#8197bd" strokeWidth="2.4" strokeLinecap="round" strokeDasharray="0.1 9" strokeDashoffset="4.5" fill="none" transform="translate(0 1.5)" />
+      <CookieStones />
       <CandyCaneGarland />
       {SNOW_LANTERNS.map((x, i) => (
         <SnowLantern key={x} x={x} y={409 - Math.sin(x / 140) * 3} i={i} />
@@ -418,9 +548,8 @@ function VillagePaths() {
 
 const NEAR_SPRUCES = [
   { x: 14, h: 118 },
-  { x: 42, h: 84 },
-  { x: 422, h: 92 },
-  { x: 1034, h: 84 },
+  { x: 44, h: 84 },
+  { x: 1030, h: 84 },
   { x: 1404, h: 110 },
   { x: 1432, h: 86 },
 ]
@@ -491,26 +620,31 @@ export function Lappland({
         <>
           <VillagePaths />
           {/* back row: small cottages */}
-          <House x={60} base={358} w={62} h={28} wall="#d9a441" windows={2} />
-          <House x={300} base={360} w={66} h={30} wall="#e9e4d8" roof="#2e3b55" windows={2} />
-          <House x={1286} base={358} w={70} h={30} wall="#d9a441" windows={2} />
-          <House x={1372} base={362} w={50} h={24} wall="#8e2a1f" windows={1} />
+          <House x={40} base={358} w={62} h={28} wall="#d9a441" windows={2} />
+          <House x={250} base={358} w={66} h={30} wall="#e9e4d8" roof="#2e3b55" windows={2} />
+          <House x={1060} base={358} w={62} h={28} wall="#d9a441" windows={2} />
+          <House x={1270} base={358} w={70} h={30} wall="#e9e4d8" roof="#2e3b55" windows={2} />
+          <House x={1360} base={362} w={50} h={24} wall="#8e2a1f" windows={1} />
         </>
       )}
 
       {village && (
         <>
-          {/* front row, left: Spelstugan */}
-          <House x={150} base={380} w={116} h={44} wall="#2f6b4f" windows={2} sign="SPELSTUGAN" signColor="#1d6e48" building="spel" title="Kliv in i Spelstugan" onEnter={onEnter} />
-          <NorthPole x={470} base={382} />
-          <VillageTree x={575} base={382} />
-          <Nisse x={548} y={382} wave />
-          {/* front row, right: långhuset where the julbord is laid */}
-          <House x={1064} base={380} w={196} h={46} wall="#8e2a1f" windows={6} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} />
-          <Sled x={1030} base={386} />
+          {/* front row, left: Spelstugan, the painting nisse, the North Pole and the julgran */}
+          <House x={100} base={380} w={116} h={44} wall="#2f6b4f" windows={2} sign="SPELSTUGAN" signColor="#1d6e48" building="spel" title="Kliv in i Spelstugan" onEnter={onEnter} />
+          <PaintingNisse x={236} base={388} />
+          <NorthPole x={338} base={384} />
+          <VillageTree x={394} base={382} />
+          <Nisse x={372} y={388} carry="wave" />
+          {/* centre: Tomtens stuga (Julafton), destilleri + verkstad (Julbak), långhuset (Julbord) */}
+          <House x={425} base={380} w={80} h={38} wall="#a8322a" windows={2} sign="TOMTEN" building="julafton" title="Kliv in hos Tomten – julafton" onEnter={onEnter} />
+          <House x={836} base={380} w={170} h={46} wall="#8e2a1f" windows={4} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} />
+          {/* right */}
+          <House x={1150} base={380} w={90} h={36} wall="#c98a2b" windows={2} />
+          <Sled x={1100} base={388} />
       {/* destilleri – timber shed with a copper dome venting warm steam */}
       <g
-        transform="translate(640 318)"
+        transform="translate(520 318)"
         className={onEnter ? 'building' : undefined}
         onClick={onEnter ? (e) => onEnter('destilleri', e) : undefined}
       >
@@ -545,7 +679,7 @@ export function Lappland({
 
       {/* Tomtens verkstad */}
       <g
-        transform="translate(838 296)"
+        transform="translate(640 296)"
         className={onEnter ? 'building' : undefined}
         onClick={onEnter ? (e) => onEnter('verkstad', e) : undefined}
       >
@@ -590,29 +724,18 @@ export function Lappland({
         </g>
       ))}
 
-      {/* a nisse with a lantern carrying a brew from the destilleri to the verkstad */}
-      <g>
-        <animateMotion dur="11s" repeatCount="indefinite" path="M705 372 L760 376 L820 376 L922 374" />
-        <animate attributeName="opacity" dur="11s" repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.06;0.86;0.92;1" />
-        <g className="nisse-walk">
-          <ellipse cx="0" cy="0" rx="7" ry="2" fill="#000" opacity="0.15" />
-          <rect x="-4" y="-12" width="8" height="10" rx="3" fill="#6b7a8f" />
-          <rect x="-4" y="-3" width="3" height="4" fill="#2b2b33" />
-          <rect x="1" y="-3" width="3" height="4" fill="#2b2b33" />
-          <circle cx="0" cy="-15" r="3.6" fill="#ffd7b5" />
-          <path d="M-3.5 -14 Q0 -8 3.5 -14 Z" fill="#fff" />
-          <path d="M-4.5 -16 L3 -27 L5 -15 Z" fill="#d93a3d" />
-          <circle cx="3" cy="-27" r="1.4" fill="#fff" />
-          <line x1="4" y1="-8" x2="8" y2="-6" stroke="#2b2b33" strokeWidth="1.2" />
-          <circle cx="8.5" cy="-4" r="7" fill="url(#warm)" />
-          <rect x="7" y="-6" width="3.5" height="4.5" rx="1" fill="#ffd27a" />
-        </g>
-      </g>
-
-          <Nisse path="M300 384 L250 384 L212 382" dur={10} flip lantern delay={2} />
-          <Nisse path="M1012 386 L1080 388 L1160 384" dur={13} sack delay={4} />
-          <Nisse path="M600 388 L660 390 L700 378" dur={9} delay={6} />
-          <Nisse path="M1270 380 L1320 382 L1400 380" dur={14} lantern delay={1} />
+      {/* nissar walking the paths between the houses */}
+          <Nisse path="M583 374 Q586 388 594 396 L725 395 Q724 386 725 374" dur={12} carry="lantern" />
+          <Nisse path="M725 374 Q724 386 725 395 L470 396 Q466 390 465 380" dur={14} delay={3} carry="gifts" flip />
+          <Nisse path="M725 374 Q724 386 725 395 L924 395 Q920 390 921 380" dur={13} delay={6} carry="sack" />
+          <Nisse path="M158 380 Q160 390 166 396 L312 397 Q300 380 283 358" dur={11} delay={1} carry="lantern" />
+          <Nisse path="M921 380 Q920 390 924 395 L1200 397 Q1196 390 1195 380" dur={12} delay={2} carry="gifts" />
+          {/* someone has to keep the paths clear */}
+          <g>
+            <ellipse cx="802" cy="401" rx="9" ry="3.5" fill="#f4f8ff" />
+            <ellipse cx="804" cy="399" rx="5" ry="2.5" fill="#ffffff" />
+          </g>
+          <Nisse x={782} y={402} carry="shovel" />
         </>
       )}
 

@@ -327,3 +327,28 @@ h1, h2, h3, h4 {
 .stall { transition: transform 0.35s cubic-bezier(0.22, 1, 0.36, 1); }
 .stall:hover { transform: translateY(-6px); }
 .stall:hover .stall-glow { opacity: 1; }
+
+/* ---------- Nissar ---------- */
+.nisse-foot-a { animation: foot 0.42s ease-in-out infinite alternate; }
+.nisse-foot-b { animation: foot 0.42s ease-in-out infinite alternate-reverse; }
+@keyframes foot { from { transform: translateX(-1.2px) } to { transform: translateX(1.2px) } }
+.shovel-dig { transform-box: view-box; transform-origin: 4px -15px; animation: dig 1.4s ease-in-out infinite; }
+@keyframes dig { 0%, 100% { transform: rotate(0) } 35% { transform: rotate(14deg) } 60% { transform: rotate(-38deg) } }
+.snow-toss { animation: toss 1.4s ease-out infinite; opacity: 0; }
+@keyframes toss {
+  0%, 55% { transform: translate(0, 0); opacity: 0 }
+  60% { opacity: 1 }
+  100% { transform: translate(14px, -16px); opacity: 0 }
+}
+.dab { transform-box: view-box; transform-origin: 5px -14px; animation: dab 0.7s ease-in-out infinite alternate; }
+@keyframes dab { from { transform: rotate(-8deg) } to { transform: rotate(18deg) } }
+
+/* Santa drifting slowly across the front-page sky */
+.sky-drift { animation: sky-drift 18s ease-in-out infinite alternate; }
+@keyframes sky-drift {
+  0% { transform: translate(-7vw, 6px) }
+  50% { transform: translate(0, -10px) }
+  100% { transform: translate(7vw, 4px) }
+}
+/* let each reindeer in the sky team gallop slightly out of step */
+.rd-gallop .rd-leg-a, .rd-gallop .rd-leg-b, .rd-gallop .rd-bob { animation-delay: var(--gd, 0s); }
