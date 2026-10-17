@@ -1,4 +1,4 @@
-import { Reindeer } from './Reindeer'
+import { LeapingReindeer, Reindeer } from './Reindeer'
 
 /** Santa in his sleigh with a sack of gifts. Facing right. */
 export function SantaSleigh({ size = 220, className = '' }: { size?: number; className?: string }) {
@@ -43,15 +43,23 @@ export function SantaSleigh({ size = 220, className = '' }: { size?: number; cla
       {/* sleigh */}
       <path
         d="M16 66 L150 66 Q166 66 170 50 Q174 40 184 42 Q172 46 174 60 Q172 104 136 108 L40 108 Q16 106 16 84 Z"
-        fill="#c1272d"
+        fill="#8e1b2a"
       />
-      <path d="M16 66 L150 66 Q166 66 170 50" stroke="#f6c453" strokeWidth="4" fill="none" />
-      <path d="M30 80 Q60 72 90 82 Q120 92 150 80" stroke="#f6c453" strokeWidth="2.5" fill="none" opacity="0.8" />
-      <circle cx="60" cy="88" r="4" fill="#f6c453" />
-      <circle cx="110" cy="92" r="4" fill="#f6c453" />
+      <path d="M16 66 L150 66 Q166 66 170 50" stroke="#e9c46a" strokeWidth="4" fill="none" />
+      <path d="M18 104 Q16 86 16 70" stroke="#e9c46a" strokeWidth="2" fill="none" />
+      {/* gold scrollwork */}
+      <g stroke="#e9c46a" strokeWidth="2.2" fill="none" strokeLinecap="round">
+        <path d="M30 96 q-2 -14 12 -16 q12 0 10 10 q-2 8 -10 6 q-6 -2 -3 -7" />
+        <path d="M60 84 q20 -10 40 0 q20 10 40 0" />
+        <path d="M96 98 q-2 -12 10 -13 q10 0 8 8 q-2 6 -8 5 q-5 -2 -2 -6" />
+        <path d="M128 98 q14 -4 22 -16 q4 -8 0 -14" />
+        <path d="M168 54 q6 -6 12 -10" />
+      </g>
+      <circle cx="74" cy="96" r="3" fill="#e9c46a" />
+      <circle cx="150" cy="92" r="3" fill="#e9c46a" />
       {/* runners */}
-      <path d="M36 108 L40 124 M130 108 L126 124" stroke="#9aa3b5" strokeWidth="4" />
-      <path d="M8 128 Q4 120 14 122 L176 124 Q200 124 204 108" stroke="#d6dbe6" strokeWidth="5" fill="none" strokeLinecap="round" />
+      <path d="M36 108 L40 124 M130 108 L126 124" stroke="#c9a24a" strokeWidth="4" />
+      <path d="M8 128 Q4 120 14 122 L176 124 Q200 124 204 108 Q206 98 198 98" stroke="#e9c46a" strokeWidth="5" fill="none" strokeLinecap="round" />
     </svg>
   )
 }
@@ -76,62 +84,42 @@ export function SleighTeam({ scale = 1, className = '' }: { scale?: number; clas
   )
 }
 
-// one reindeer in the sky team: position (unscaled px), size, and whether it's the far one of its pair
+// the sky team runs towards us: sleigh furthest away and smallest, each reindeer
+// bigger and closer than the one behind it, Rudolf leading nearest the screen
 const TEAM = [
-  { x: 214, y: 92, size: 104, far: true, scarf: '#4f7dff' },
-  { x: 306, y: 50, size: 102, far: true, scarf: '#f6c453' },
-  { x: 192, y: 112, size: 112, far: false, scarf: '#2fa36b' },
-  { x: 284, y: 70, size: 110, far: false, scarf: '#e5383b' },
-  { x: 382, y: 22, size: 112, far: false, scarf: '#f6c453', rudolf: true },
+  { x: 128, y: 120, size: 104 },
+  { x: 214, y: 92, size: 118 },
+  { x: 312, y: 58, size: 134 },
+  { x: 426, y: 16, size: 152, rudolf: true },
 ]
+const SLEIGH = { x: 0, y: 148, size: 150 }
 
-/**
- * Santa's sleigh at the back, pulled by reindeer in pairs climbing across the sky,
- * Rudolf leading at the front. The far reindeer of each pair sits a little higher and darker for depth.
- */
+/** Santa's sleigh pulled by a row of leaping reindeer, coming towards the viewer. */
 export function SkyTeam({ scale = 1 }: { scale?: number }) {
-  const W = 520
+  const W = 590
   const H = 290
-  const sleighFront = { x: 186, y: 172 }
-  const chest = (r: (typeof TEAM)[number]) => ({ x: r.x + r.size * 0.62, y: r.y + r.size * 0.5 })
-  const deer = (r: (typeof TEAM)[number], i: number) => (
-    <span
-      key={i}
-      className="absolute"
-      style={{
-        left: r.x * scale,
-        top: r.y * scale,
-        filter: r.far ? 'brightness(0.78) saturate(0.85)' : undefined,
-        ['--gd' as string]: `${(i * 0.13) % 0.5}s`,
-      }}
-    >
-      <Reindeer size={r.size * scale} mode="gallop" scarf={r.scarf} rudolf={r.rudolf} />
-    </span>
-  )
+  const sleighFront = { x: SLEIGH.x + SLEIGH.size * 0.82, y: SLEIGH.y + SLEIGH.size * 0.36 }
+  // where the reins attach on each reindeer (its collar)
+  const collar = (r: (typeof TEAM)[number]) => ({ x: r.x + (108 / 170) * r.size, y: r.y + ((56 + 14) / 170) * r.size })
+  const line = (a: { x: number; y: number }, b: { x: number; y: number }, sag = 10) =>
+    `M${a.x * scale} ${a.y * scale} Q ${((a.x + b.x) / 2) * scale} ${((a.y + b.y) / 2 + sag) * scale} ${b.x * scale} ${b.y * scale}`
 
   return (
-    <div className="relative" style={{ width: W * scale, height: H * scale, transform: 'rotate(-2deg)' }}>
-      {TEAM.filter((r) => r.far).map(deer)}
-      {/* reins from the sleigh to every reindeer */}
-      <svg className="absolute inset-0 overflow-visible" width={W * scale} height={H * scale} aria-hidden>
-        {TEAM.map((r, i) => {
-          const c = chest(r)
-          return (
-            <path
-              key={i}
-              d={`M${sleighFront.x * scale} ${sleighFront.y * scale} Q ${((sleighFront.x + c.x) / 2) * scale} ${((sleighFront.y + c.y) / 2 + 14) * scale} ${c.x * scale} ${c.y * scale}`}
-              stroke="#f6c453"
-              strokeOpacity={r.far ? 0.45 : 0.8}
-              strokeWidth={1.2}
-              fill="none"
-            />
-          )
-        })}
-      </svg>
-      {TEAM.filter((r) => !r.far).map((r) => deer(r, TEAM.indexOf(r)))}
-      <span className="absolute" style={{ left: 0, top: 128 * scale }}>
-        <SantaSleigh size={200 * scale} />
+    <div className="relative" style={{ width: W * scale, height: H * scale }}>
+      {/* furthest away first */}
+      <span className="absolute" style={{ left: SLEIGH.x * scale, top: SLEIGH.y * scale }}>
+        <SantaSleigh size={SLEIGH.size * scale} />
       </span>
+      <svg className="absolute inset-0 overflow-visible" width={W * scale} height={H * scale} aria-hidden>
+        {TEAM.map((r, i) => (
+          <path key={i} d={line(sleighFront, collar(r), 12 - i * 2)} stroke="#e9c46a" strokeWidth={1.1} strokeOpacity={0.8} fill="none" />
+        ))}
+      </svg>
+      {TEAM.map((r, i) => (
+        <span key={i} className="absolute" style={{ left: r.x * scale, top: r.y * scale, ['--gd' as string]: `${i * 0.11}s` }}>
+          <LeapingReindeer size={r.size * scale} rudolf={r.rudolf} />
+        </span>
+      ))}
     </div>
   )
 }
