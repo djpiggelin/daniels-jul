@@ -22,6 +22,7 @@ const GIFTS = [
 
 // which event chapter each building on the front page opens
 const BUILDING_EVENT = EVENTS.find((e) => e.competitions?.some((c) => c.art))?.id ?? 'julbak'
+const POTLUCK_EVENT = EVENTS.find((e) => e.potluck)?.id ?? 'julbord'
 
 export default function Home() {
   const now = useNow(30_000)
@@ -32,7 +33,8 @@ export default function Home() {
   const enter = (b: Building, ev: React.MouseEvent) => {
     if (entering) return
     setEntering({ x: ev.clientX, y: ev.clientY })
-    setTimeout(() => navigate(`/event/${BUILDING_EVENT}#${b}`), 1000)
+    const to = b === 'spel' ? '/spel' : b === 'julbord' ? `/event/${POTLUCK_EVENT}` : `/event/${BUILDING_EVENT}#${b}`
+    setTimeout(() => navigate(to), 1000)
   }
 
   return (

@@ -5,7 +5,8 @@ import { getScores, postScore, rememberedName, type ScoreEntry } from '../lib/ap
 import { burst } from '../lib/fx'
 import { useMusic } from '../lib/music'
 import { Leaderboard } from '../components/Leaderboard'
-import { Stars } from '../components/Scenery'
+import { Aurora, Lappland, Stars } from '../components/Scenery'
+import { Awning, Chalkboard, GamePreview, StringLights } from '../components/Market'
 import NotFound from './NotFound'
 
 type Phase = 'intro' | 'playing' | 'over'
@@ -65,80 +66,98 @@ export default function GamePage() {
     }
   }
 
+  const awning = game.id === 'renflyg' ? '#23885a' : game.id === 'tomtememory' ? '#2f5fb8' : '#d93a3d'
+
   return (
-    <div className="sky relative min-h-dvh px-4 pb-16 pt-24">
-      <Stars count={40} />
-      <div className="relative mx-auto grid max-w-5xl gap-6 lg:grid-cols-[auto_1fr]">
+    <div className="sky relative min-h-dvh overflow-hidden px-4 pb-16 pt-24">
+      <Stars count={70} />
+      <Aurora />
+      <div className="absolute inset-x-0 bottom-0 h-[30%] min-h-[200px]">
+        <Lappland village={false} className="h-full" />
+      </div>
+
+      <div className="relative mx-auto grid max-w-5xl items-start gap-8 lg:grid-cols-[auto_1fr]">
         <div>
-          <div className="mb-3 flex items-center justify-between gap-3">
-            <Link to="/spel" className="rounded-full bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20">
-              ← Alla spel
+          <div className="mb-4 flex items-center justify-between gap-3 text-sm">
+            <Link to="/spel" className="text-snow/70 underline-offset-4 hover:text-white hover:underline">
+              ← Julmarknaden
             </Link>
-            <h1 className="font-display text-2xl font-semibold">
-              {game.emoji} {game.name}
-            </h1>
-            <button onClick={music.toggle} className="rounded-full bg-white/10 px-3 py-1.5 text-sm hover:bg-white/20" aria-label="Musik av/på">
-              {music.enabled ? '🔊' : '🔇'}
+            <button onClick={music.toggle} className="text-snow/70 hover:text-white" aria-label="Musik av/på">
+              {music.enabled ? '♪ Musik på' : '♪ Musik av'}
             </button>
           </div>
 
-          <div className="relative mx-auto aspect-[2/3] w-full max-w-[min(480px,calc((100svh-9rem)*2/3))] overflow-hidden rounded-[1.75rem] shadow-2xl ring-4 ring-white/15">
-            {phase === 'playing' ? (
-              <Suspense fallback={<div className="flex h-full items-center justify-center">Laddar …</div>}>
-                <Game key={round} onScore={onScore} onOver={onOver} />
-              </Suspense>
-            ) : (
-              <div className={`flex h-full flex-col items-center justify-center bg-gradient-to-br p-8 text-center ${game.color}`}>
-                {phase === 'intro' ? (
-                  <>
-                    <span className="animate-float text-8xl">{game.emoji}</span>
-                    <h2 className="mt-4 text-4xl font-semibold">{game.name}</h2>
-                    <ul className="mt-5 space-y-2 text-white/90">
-                      {game.howTo.map((h) => (
-                        <li key={h}>{h}</li>
-                      ))}
-                    </ul>
-                    <button onClick={start} className="btn btn-gold mt-8 text-xl">
-                      ▶ Starta
-                    </button>
-                  </>
-                ) : (
-                  <>
-                    <p className="font-display text-xl text-white/80">Game over! 🎄</p>
-                    <p className="animate-pop-in mt-1 font-display text-7xl font-semibold text-jul-gold drop-shadow-lg">{final}</p>
-                    {isRecord && <p className="mt-2 animate-wiggle font-display text-lg">👑 Nytt rekord!</p>}
-                    {saved ? (
-                      <p className="mt-6 font-display text-lg">✅ Sparat på topplistan!</p>
-                    ) : final > 0 ? (
-                      <form onSubmit={save} className="mt-6 flex w-full max-w-xs flex-col gap-2">
-                        <input
-                          value={name}
-                          onChange={(e) => setName(e.target.value)}
-                          placeholder="Ditt namn"
-                          maxLength={24}
-                          className="rounded-full bg-white/90 px-4 py-2.5 text-center font-display text-lg text-night-900 outline-none ring-jul-gold focus:ring-4"
-                        />
-                        <button disabled={saving || !name.trim()} className="btn btn-red justify-center disabled:opacity-60">
-                          {saving ? 'Sparar …' : `Spara min poäng (${final})`}
-                        </button>
-                        {err && <p className="text-sm">{err}</p>}
-                      </form>
-                    ) : null}
-                    <button onClick={start} className="btn btn-ghost mt-4 !bg-white/20">
-                      🔁 Spela igen
-                    </button>
-                  </>
-                )}
-              </div>
-            )}
+          {/* the stall the game lives in */}
+          <div className="mx-auto w-full max-w-[min(500px,calc((100svh-12rem)*2/3+20px))]">
+            <div className="h-3 rounded-t-md bg-[#f4f8ff]" />
+            <Awning a={awning} className="h-10" />
+            <StringLights count={9} className="-mt-1 mx-3" />
+            <div className="relative aspect-[2/3] w-full overflow-hidden rounded-md border-[10px] border-[#6b4423] shadow-2xl shadow-black/60">
+              {phase === 'playing' ? (
+                <Suspense fallback={<div className="flex h-full items-center justify-center">Laddar …</div>}>
+                  <Game key={round} onScore={onScore} onOver={onOver} />
+                </Suspense>
+              ) : (
+                <div className="flex h-full flex-col items-center justify-center bg-gradient-to-b from-[#061229] via-[#0b2342] to-[#133a5c] p-7 text-center">
+                  {phase === 'intro' ? (
+                    <>
+                      <div className="w-full max-w-[280px]">
+                        <GamePreview id={game.id} />
+                      </div>
+                      <h1 className="mt-6 text-4xl font-normal">{game.name}</h1>
+                      <ul className="mt-4 space-y-1.5 text-sm text-snow/75">
+                        {game.howTo.map((h) => (
+                          <li key={h}>{h}</li>
+                        ))}
+                      </ul>
+                      <button onClick={start} className="btn mt-7 bg-jul-cream px-7 text-base text-[#2a160d] hover:bg-white">
+                        Starta
+                      </button>
+                    </>
+                  ) : (
+                    <>
+                      <p className="text-xs font-semibold uppercase tracking-[0.3em] text-jul-gold/90">Slut på spelet</p>
+                      <p className="animate-pop-in mt-2 font-serif text-7xl text-jul-gold">{final}</p>
+                      {isRecord && <p className="mt-2 font-chalk text-2xl text-jul-cream">Nytt rekord!</p>}
+                      {saved ? (
+                        <p className="mt-6 text-snow/80">Sparat på griffeltavlan ✓</p>
+                      ) : final > 0 ? (
+                        <form onSubmit={save} className="mt-6 flex w-full max-w-xs flex-col gap-2">
+                          <input
+                            value={name}
+                            onChange={(e) => setName(e.target.value)}
+                            placeholder="Ditt namn"
+                            maxLength={24}
+                            className="rounded-full bg-white/95 px-4 py-2.5 text-center text-night-900 outline-none ring-jul-gold focus:ring-4"
+                          />
+                          <button disabled={saving || !name.trim()} className="btn btn-red justify-center disabled:opacity-60">
+                            {saving ? 'Sparar …' : `Skriv upp mig (${final})`}
+                          </button>
+                          {err && <p className="text-sm">{err}</p>}
+                        </form>
+                      ) : null}
+                      <button onClick={start} className="btn btn-ghost mt-4">
+                        Spela igen
+                      </button>
+                    </>
+                  )}
+                </div>
+              )}
+            </div>
+            <div className="relative -mt-1 h-5 rounded-b-md" style={{ background: 'linear-gradient(180deg, #7a4c2a, #4a2c1c)' }}>
+              <span className="absolute -top-1.5 inset-x-0 h-3 rounded-full bg-[#f4f8ff]" aria-hidden />
+            </div>
           </div>
           {phase === 'playing' && <p className="mt-2 text-center text-sm text-snow/50">Poäng: {score}</p>}
         </div>
 
-        <aside className="glass h-fit rounded-3xl p-5">
-          <h2 className="mb-3 text-xl font-semibold">🏆 Topplista</h2>
-          <Leaderboard entries={scores} highlight={saved} />
-        </aside>
+        <Chalkboard className="lg:mt-24">
+          <p role="heading" aria-level={2} className="text-center text-4xl font-bold">Topplista</p>
+          <p className="text-center text-xl text-[#f2efe6]/60">{game.name}</p>
+          <div className="mt-3">
+            <Leaderboard entries={scores} highlight={saved} chalk />
+          </div>
+        </Chalkboard>
       </div>
     </div>
   )

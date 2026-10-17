@@ -107,8 +107,198 @@ const TORCHES = [
   { x: 828, y: 388 },
 ]
 
-/** Fjäll, granskog, snow, Tomtens verkstad and destilleri with marschaller between them. */
-export type Building = 'verkstad' | 'destilleri'
+export type Building = 'verkstad' | 'destilleri' | 'spel' | 'julbord'
+
+type HouseProps = {
+  x: number
+  base: number
+  w: number
+  h: number
+  wall: string
+  roof?: string
+  windows?: number
+  sign?: string
+  signColor?: string
+  building?: Building
+  title?: string
+  onEnter?: (b: Building, e: React.MouseEvent) => void
+}
+
+/** A snowy little house for Tomtens by. Optionally clickable. */
+function House({ x, base, w, h, wall, roof = '#3a1410', windows = 2, sign, signColor = '#a92529', building, title, onEnter }: HouseProps) {
+  const clickable = !!(onEnter && building)
+  const peak = Math.min(34, w * 0.32)
+  const doorW = Math.max(10, w * 0.14)
+  const winW = Math.min(18, (w - doorW - 16) / Math.max(windows, 1) - 6)
+  const half = Math.ceil(windows / 2)
+  const slots = Array.from({ length: windows }, (_, i) => {
+    const left = i < half
+    const n = left ? half : windows - half
+    const k = left ? i : i - half
+    const span = (w - doorW) / 2 - 8
+    const x0 = left ? 6 : w / 2 + doorW / 2 + 2
+    return x0 + ((k + 0.5) * span) / n - winW / 2
+  })
+  return (
+    <g
+      transform={`translate(${x} ${base - h})`}
+      className={clickable ? 'building' : undefined}
+      onClick={clickable ? (e) => onEnter!(building!, e) : undefined}
+    >
+      {clickable && title && <title>{title}</title>}
+      {clickable && <rect x={-12} y={-peak - 14} width={w + 24} height={h + peak + 20} fill="transparent" />}
+      <ellipse cx={w / 2} cy={h} rx={w * 0.8} ry={h * 0.5} fill="url(#warm)" opacity="0.3" />
+      <rect x="0" y="0" width={w} height={h} fill={wall} />
+      <path d={`M-8 4 L${w / 2} ${-peak} L${w + 8} 4 Z`} fill={roof} />
+      <path d={`M-10 6 Q${w * 0.2} -6 ${w / 2} ${-peak - 3} Q${w * 0.8} -6 ${w + 10} 6 Q${w * 0.8} 0 ${w / 2} ${-peak + 9} Q${w * 0.2} 0 -10 6 Z`} fill="#f4f8ff" />
+      {slots.map((wx, i) => (
+        <g key={i}>
+          <rect x={wx} y={h * 0.3} width={winW} height={winW * 0.85} fill="#ffcf6b" className="window-flicker" style={{ animationDelay: `${i * 0.7}s` }} />
+          <rect x={wx} y={h * 0.3} width={winW} height={winW * 0.85} fill="none" stroke="#f4f8ff" strokeWidth="2" />
+        </g>
+      ))}
+      <rect x={w / 2 - doorW / 2} y={h * 0.38} width={doorW} height={h * 0.62} fill="#2a150d" />
+      <rect x={w / 2 - doorW / 2} y={h * 0.38} width={doorW} height={h * 0.62} fill="none" stroke="#f4f8ff" strokeWidth="1.6" />
+      {sign && (
+        <g>
+          <rect x={w / 2 - sign.length * 3.4 - 6} y={-peak + 12} width={sign.length * 6.8 + 12} height="12" rx="2.5" fill="#fff3dc" />
+          <text x={w / 2} y={-peak + 21} textAnchor="middle" fontFamily="Fraunces, Georgia, serif" fontSize="8" fontWeight="700" fill={signColor} letterSpacing="0.5">
+            {sign}
+          </text>
+        </g>
+      )}
+      <path d={`M-4 ${h} H${w + 4}`} stroke="#f4f8ff" strokeWidth="5" strokeLinecap="round" />
+    </g>
+  )
+}
+
+/** A tiny nisse. With `path` it walks it (fading in and out at the ends). */
+function Nisse({
+  path,
+  dur = 12,
+  delay = 0,
+  flip,
+  lantern,
+  sack,
+  x = 0,
+  y = 0,
+  wave,
+}: {
+  path?: string
+  dur?: number
+  delay?: number
+  flip?: boolean
+  lantern?: boolean
+  sack?: boolean
+  x?: number
+  y?: number
+  wave?: boolean
+}) {
+  return (
+    <g transform={path ? undefined : `translate(${x} ${y})`} opacity={path ? 0 : 1}>
+      {path && (
+        <>
+          <animateMotion dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite" path={path} />
+          <animate attributeName="opacity" dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.06;0.86;0.93;1" />
+        </>
+      )}
+      <g className={path ? 'nisse-walk' : undefined} transform={flip ? 'scale(-1 1)' : undefined}>
+        <ellipse cx="0" cy="0" rx="7" ry="2" fill="#000" opacity="0.15" />
+        <rect x="-4" y="-12" width="8" height="10" rx="3" fill="#6b7a8f" />
+        <rect x="-4" y="-3" width="3" height="4" fill="#2b2b33" />
+        <rect x="1" y="-3" width="3" height="4" fill="#2b2b33" />
+        <circle cx="0" cy="-15" r="3.6" fill="#ffd7b5" />
+        <path d="M-3.5 -14 Q0 -8 3.5 -14 Z" fill="#fff" />
+        <path d="M-4.5 -16 L3 -27 L5 -15 Z" fill="#d93a3d" />
+        <circle cx="3" cy="-27" r="1.4" fill="#fff" />
+        {lantern && (
+          <>
+            <line x1="4" y1="-8" x2="8" y2="-6" stroke="#2b2b33" strokeWidth="1.2" />
+            <circle cx="8.5" cy="-4" r="7" fill="url(#warm)" />
+            <rect x="7" y="-6" width="3.5" height="4.5" rx="1" fill="#ffd27a" />
+          </>
+        )}
+        {sack && <path d="M-4 -12 Q-14 -18 -11 -7 Q-9 -2 -4 -5 Z" fill="#8b5a2b" />}
+        {wave && <line x1="4" y1="-10" x2="8" y2="-17" stroke="#6b7a8f" strokeWidth="2.4" strokeLinecap="round" className="nisse-wave" />}
+      </g>
+    </g>
+  )
+}
+
+/** Red & white North Pole with a sign. */
+function NorthPole({ x, base }: { x: number; base: number }) {
+  return (
+    <g transform={`translate(${x} ${base})`}>
+      <rect x="-3.5" y="-78" width="7" height="78" fill="#fff" />
+      {Array.from({ length: 9 }, (_, i) => (
+        <path key={i} d={`M-3.5 ${-74 + i * 9} l7 -4 v4 l-7 4 z`} fill="#d93a3d" />
+      ))}
+      <circle cx="0" cy="-82" r="6" fill="#f6c453" />
+      <circle cx="-2" cy="-84" r="2" fill="#fff" opacity="0.7" />
+      <path d="M4 -62 h44 l6 6 l-6 6 h-44 z" fill="#fff3dc" />
+      <text x="26" y="-53" textAnchor="middle" fontFamily="Fraunces, Georgia, serif" fontSize="7.5" fontWeight="700" fill="#a92529">
+        NORDPOLEN
+      </text>
+      <path d="M-6 0 H6" stroke="#f4f8ff" strokeWidth="5" strokeLinecap="round" />
+    </g>
+  )
+}
+
+const TREE_LIGHTS = [
+  [-6, -78], [8, -70], [-14, -58], [12, -50], [-4, -46], [-20, -34], [18, -30], [4, -26], [-10, -18], [22, -12], [-24, -10],
+]
+const LIGHT_COLORS = ['#ffd27a', '#ff6b6b', '#7fd1ff', '#9bff9b']
+
+/** The village Christmas tree with twinkling lights. */
+function VillageTree({ x, base }: { x: number; base: number }) {
+  return (
+    <g>
+      <ellipse cx={x} cy={base} rx="46" ry="12" fill="url(#warm)" opacity="0.35" />
+      <Spruce x={x} y={base} h={104} fill="#123a2a" />
+      {TREE_LIGHTS.map(([dx, dy], i) => (
+        <circle
+          key={i}
+          cx={x + dx}
+          cy={base + dy}
+          r="2.2"
+          fill={LIGHT_COLORS[i % 4]}
+          className="animate-twinkle"
+          style={{ animationDelay: `${i * 0.27}s`, animationDuration: '1.6s', transformBox: 'fill-box', transformOrigin: 'center' }}
+        />
+      ))}
+      <path d={`M${x} ${base - 114} l2.4 5 5.4 .6 -4 3.7 1.1 5.3 -4.9 -2.7 -4.9 2.7 1.1 -5.3 -4 -3.7 5.4 -.6z`} fill="#f6c453" />
+      <rect x={x - 22} y={base - 8} width="12" height="9" fill="#d93a3d" />
+      <rect x={x - 17} y={base - 8} width="2" height="9" fill="#f6c453" />
+      <rect x={x + 10} y={base - 7} width="10" height="8" fill="#2f5fb8" />
+      <rect x={x + 14} y={base - 7} width="2" height="8" fill="#fff" />
+    </g>
+  )
+}
+
+/** A sled loaded with gifts. */
+function Sled({ x, base }: { x: number; base: number }) {
+  return (
+    <g transform={`translate(${x} ${base})`}>
+      <path d="M-18 -2 H14 Q20 -2 20 -8" stroke="#9aa3b5" strokeWidth="2" fill="none" />
+      <rect x="-16" y="-9" width="30" height="6" rx="1.5" fill="#8b5a2b" />
+      <rect x="-14" y="-19" width="11" height="10" fill="#23885a" />
+      <rect x="-9.5" y="-19" width="2" height="10" fill="#d93a3d" />
+      <rect x="-1" y="-16" width="12" height="7" fill="#f6c453" />
+      <rect x="4" y="-16" width="2" height="7" fill="#d93a3d" />
+    </g>
+  )
+}
+
+const NEAR_SPRUCES = [
+  { x: 14, h: 118 },
+  { x: 42, h: 84 },
+  { x: 422, h: 92 },
+  { x: 1034, h: 84 },
+  { x: 1404, h: 110 },
+  { x: 1432, h: 86 },
+]
+
+/** Fjäll, granskog and – with `village` – Tomtens by on the snow. */
 
 export function Lappland({
   className = '',
@@ -116,14 +306,14 @@ export function Lappland({
   onEnter,
 }: {
   className?: string
-  /** Show the verkstad, destilleri, torches and nisse. */
+  /** Show Tomtens by: houses, the verkstad, destilleri, julgran and nissar. */
   village?: boolean
   /** Makes the buildings clickable. */
   onEnter?: (b: Building, e: React.MouseEvent) => void
 }) {
   const farForest = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ x: i * 21 + rand(i) * 14, h: 26 + rand(i + 100) * 22 })), [])
   const nearForest = useMemo(
-    () => Array.from({ length: 26 }, (_, i) => ({ x: i * 58 + rand(i + 300) * 30, h: 60 + rand(i + 400) * 70 })).filter((t) => t.x < 600 || t.x > 1040),
+    () => Array.from({ length: 26 }, (_, i) => ({ x: i * 58 + rand(i + 300) * 30, h: 60 + rand(i + 400) * 70 })),
     [],
   )
 
@@ -172,6 +362,24 @@ export function Lappland({
 
       {village && (
         <>
+          {/* back row: small cottages */}
+          <House x={60} base={358} w={62} h={28} wall="#d9a441" windows={2} />
+          <House x={300} base={360} w={66} h={30} wall="#e9e4d8" roof="#2e3b55" windows={2} />
+          <House x={1286} base={358} w={70} h={30} wall="#d9a441" windows={2} />
+          <House x={1372} base={362} w={50} h={24} wall="#8e2a1f" windows={1} />
+        </>
+      )}
+
+      {village && (
+        <>
+          {/* front row, left: Spelstugan */}
+          <House x={150} base={380} w={116} h={44} wall="#2f6b4f" windows={2} sign="SPELSTUGAN" signColor="#1d6e48" building="spel" title="Kliv in i Spelstugan" onEnter={onEnter} />
+          <NorthPole x={470} base={382} />
+          <VillageTree x={575} base={382} />
+          <Nisse x={548} y={382} wave />
+          {/* front row, right: långhuset where the julbord is laid */}
+          <House x={1064} base={380} w={196} h={46} wall="#8e2a1f" windows={6} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} />
+          <Sled x={1030} base={386} />
       {/* destilleri – timber shed with a copper dome venting warm steam */}
       <g
         transform="translate(640 318)"
@@ -196,6 +404,10 @@ export function Lappland({
           <circle cx="72" cy="-58" r="8" fill="#ffd9a8" opacity="0.25" />
           <circle cx="66" cy="-76" r="10" fill="#ffd9a8" opacity="0.12" />
         </g>
+        <rect x="14" y="4" width="64" height="12" rx="2.5" fill="#fff3dc" />
+        <text x="46" y="12.8" textAnchor="middle" fontFamily="Fraunces, Georgia, serif" fontSize="7.4" fontWeight="700" fill="#8a3d1d" letterSpacing="0.5">
+          DESTILLERI
+        </text>
         <rect x="12" y="28" width="20" height="16" fill="#ffb347" className="window-flicker" />
         <rect x="12" y="28" width="20" height="16" fill="none" stroke="#d9c3a5" strokeWidth="2" />
         <rect x="52" y="30" width="22" height="26" fill="#2a170e" />
@@ -269,12 +481,16 @@ export function Lappland({
         </g>
       </g>
 
+          <Nisse path="M300 384 L250 384 L212 382" dur={10} flip lantern delay={2} />
+          <Nisse path="M1012 386 L1080 388 L1160 384" dur={13} sack delay={4} />
+          <Nisse path="M600 388 L660 390 L700 378" dur={9} delay={6} />
+          <Nisse path="M1270 380 L1320 382 L1400 380" dur={14} lantern delay={1} />
         </>
       )}
 
       {/* near spruces */}
-      {nearForest.map((t, i) => (
-        <Spruce key={i} x={t.x} y={388 + rand(i + 700) * 30} h={t.h} />
+      {(village ? NEAR_SPRUCES : nearForest).map((t, i) => (
+        <Spruce key={i} x={t.x} y={village ? 412 + (i % 2) * 8 : 388 + rand(i + 700) * 30} h={t.h} />
       ))}
 
       {/* foreground drift */}
