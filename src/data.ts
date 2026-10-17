@@ -80,7 +80,12 @@ export const EVENTS: JulEvent[] = [
             'Varje lag får ställa sig vid sin egen panna och brygga sitt bidrag, precis som ni vill ha det. Hett eller iskallt, kryddigt eller bärigt. Det enda som gäller är att det ska värma och höra hemma bland verkstadens kopparkärl. Skål – och låt brygderna porla!',
           ],
         },
-        rules: [],
+        rules: [
+          'Max 3 personer per lag.',
+          'Förberedelser är tillåtna, men alla brygder ska mixas på plats – vid er egen panna.',
+          'Gör tillräckligt mycket så att alla på plats kan smaka.',
+          'Allt ska vara klart för servering senast kl. 19:30.',
+        ],
         criteria: ['Smak', 'Snygghet', 'Show', 'Hade nissarna gillat den här?'],
       },
     ],
