@@ -65,5 +65,5 @@ export function Snow({ density = 1 }: { density?: number }) {
     }
   }, [density])
 
-  return <canvas ref={ref} className="pointer-events-none fixed inset-0 z-40 h-full w-full" aria-hidden />
+  return <canvas ref={ref} className="pointer-events-none fixed print:hidden inset-0 z-40 h-full w-full" aria-hidden />
 }

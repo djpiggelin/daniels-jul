@@ -2,6 +2,9 @@
 // When running plain `npm run dev` (no functions available) it falls back to
 // localStorage so everything can be tried locally.
 
+import type { HouseParams } from './gingerbread'
+import type { Sketches } from './icing'
+
 export type Claim = { name: string; picture?: string | null }
 export type Claims = Record<string, Claim[]>
 export type ScoreEntry = { name: string; score: number; at: string }
@@ -77,3 +80,34 @@ export const rememberedName = {
   get: () => local.read<string>('jul-name', ''),
   set: (n: string) => local.write('jul-name', n),
 }
+
+/* ---------- Pepparkaksarkitekten ---------- */
+
+export type SavedHouse = {
+  id?: string
+  team: string
+  params: HouseParams
+  sketches: Sketches
+  thickness?: number
+  pack?: number
+  updatedAt?: string
+}
+
+export const getHouse = (id: string) =>
+  call<SavedHouse>(`/api/pepparkakshus?id=${encodeURIComponent(id)}`, undefined, () => {
+    const h = local.read<SavedHouse | null>(`dev-hus-${id}`, null)
+    if (!h) throw new Error('Hittade ingen ritning med den länken')
+    return h
+  })
+
+export const shareHouse = (house: SavedHouse) =>
+  call<SavedHouse>(
+    '/api/pepparkakshus',
+    { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(house) },
+    () => {
+      const id = house.id ?? `${house.team.toLowerCase().replace(/[^a-z0-9]+/g, '-') || 'lag'}-${Math.random().toString(36).slice(2, 7)}`
+      const saved = { ...house, id, updatedAt: new Date().toISOString() }
+      local.write(`dev-hus-${id}`, saved)
+      return saved
+    },
+  )

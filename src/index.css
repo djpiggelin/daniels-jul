@@ -389,3 +389,14 @@ h1, h2, h3, h4 {
 @keyframes snowman-wave { 0%, 70%, 100% { transform: rotate(0) } 78% { transform: rotate(-14deg) } 86% { transform: rotate(8deg) } 94% { transform: rotate(-8deg) } }
 .scarf-sway { transform-box: fill-box; transform-origin: 50% 0%; animation: scarf 2.6s ease-in-out infinite alternate; }
 @keyframes scarf { from { transform: rotate(-6deg) } to { transform: rotate(10deg) } }
+
+/* ---------- Pepparkaksarkitekten ---------- */
+.dough-range { accent-color: #b5713a; }
+
+@media print {
+  @page { size: A4 portrait; margin: 10mm; }
+  html, body { background: #fff !important; color: #000; }
+  .tpl-print { break-after: page; break-inside: avoid; }
+  .tpl-print:last-child { break-after: auto; }
+  .tpl-print svg { width: 190mm; height: 277mm; }
+}
