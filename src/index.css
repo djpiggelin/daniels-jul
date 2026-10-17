@@ -400,3 +400,44 @@ h1, h2, h3, h4 {
   .tpl-print:last-child { break-after: auto; }
   .tpl-print svg { width: 190mm; height: 277mm; }
 }
+
+/* ---------- Time of day (html[data-daypart]) ---------- */
+.stars, .aurora-layer, .moon { transition: opacity 2s ease; }
+
+/* morgon – dawn: deep blue fading into rose and apricot over the fjäll */
+html[data-daypart='morgon'] .sky {
+  background:
+    radial-gradient(900px 420px at 18% 92%, rgba(255, 170, 120, 0.45), transparent 65%),
+    linear-gradient(180deg, #16244d 0%, #34437e 32%, #8a6f9e 62%, #e5a28f 84%, #f8cfa3 100%);
+}
+html[data-daypart='morgon'] .stars { opacity: 0.3; }
+html[data-daypart='morgon'] .aurora-layer { opacity: 0.18; }
+html[data-daypart='morgon'] .moon { opacity: 0; }
+
+/* dag – a clear, cold winter day */
+html[data-daypart='dag'] .sky {
+  background:
+    radial-gradient(800px 400px at 86% 8%, rgba(255, 246, 214, 0.45), transparent 60%),
+    linear-gradient(180deg, #2f6db3 0%, #4f8fd0 30%, #8ec0e8 62%, #cfe6f6 86%, #eef6fc 100%);
+}
+html[data-daypart='dag'] .stars,
+html[data-daypart='dag'] .aurora-layer,
+html[data-daypart='dag'] .moon { opacity: 0; }
+html[data-daypart='dag'] .sky h1,
+html[data-daypart='dag'] .sky h2,
+html[data-daypart='dag'] .sky p { text-shadow: 0 1px 12px rgba(10, 40, 90, 0.45); }
+html[data-daypart='dag'] .lappland { filter: brightness(1.06) saturate(1.05); }
+/* by day the windows reflect the sky and the fires and torches are out */
+html[data-daypart='dag'] .window-flicker { animation: none; fill: #b9cde3; }
+html[data-daypart='dag'] [fill='url(#warm)'] { opacity: 0.05 !important; }
+html[data-daypart='dag'] .torch { animation: none; opacity: 0.12; }
+
+/* kväll – dusk: violet sky with an orange afterglow, stars and norrsken coming out */
+html[data-daypart='kvall'] .sky {
+  background:
+    radial-gradient(900px 420px at 84% 92%, rgba(255, 130, 80, 0.4), transparent 65%),
+    linear-gradient(180deg, #071233 0%, #1a2560 36%, #4b3878 66%, #b4627a 86%, #ee9a66 100%);
+}
+html[data-daypart='kvall'] .stars { opacity: 0.75; }
+html[data-daypart='kvall'] .aurora-layer { opacity: 0.6; }
+html[data-daypart='kvall'] .moon { opacity: 0.6; }

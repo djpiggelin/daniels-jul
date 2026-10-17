@@ -95,7 +95,7 @@ export const EVENTS: JulEvent[] = [
     name: 'Julbord',
     emoji: '🍖',
     tagline: 'Sill, skinka, snaps & sång',
-    start: `${YEAR}-12-13T19:00:00`,
+    start: `${YEAR}-12-13T14:00:00`,
     durationHours: 6,
     location: 'Hemma hos Daniel',
     description:

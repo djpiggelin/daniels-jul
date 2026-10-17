@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react'
 import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Snow } from './Snow'
 import { YEAR } from '../data'
+import { useDaypart } from '../lib/daypart'
 
 const links = [
   { to: '/', label: 'Händelser' },
@@ -11,6 +12,7 @@ const links = [
 
 export function Layout() {
   const { pathname } = useLocation()
+  useDaypart()
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
     const onScroll = () => setScrolled(window.scrollY > 24)

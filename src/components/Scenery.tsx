@@ -1,6 +1,7 @@
 import { useMemo } from 'react'
 import { Reindeer } from './Reindeer'
 import { SantaSleigh } from './Santa'
+import { useDaypart, type Daypart } from '../lib/daypart'
 
 export function Stars({ count = 90 }: { count?: number }) {
   const stars = useMemo(
@@ -15,7 +16,7 @@ export function Stars({ count = 90 }: { count?: number }) {
     [count],
   )
   return (
-    <div className="pointer-events-none absolute inset-0" aria-hidden>
+    <div className="stars pointer-events-none absolute inset-0" aria-hidden>
       {stars.map((s, i) => (
         <span
           key={i}
@@ -29,7 +30,7 @@ export function Stars({ count = 90 }: { count?: number }) {
 
 export function Moon({ className = '' }: { className?: string }) {
   return (
-    <div className={`pointer-events-none ${className}`} aria-hidden>
+    <div className={`moon pointer-events-none ${className}`} aria-hidden>
       <div className="relative h-full w-full animate-float" style={{ animationDuration: '9s' }}>
         <div className="absolute -inset-10 rounded-full bg-amber-100/20 blur-3xl" />
         <div
@@ -44,6 +45,24 @@ export function Moon({ className = '' }: { className?: string }) {
   )
 }
 
+const SUN: Record<Exclude<Daypart, 'natt'>, { pos: string; core: string; glow: string }> = {
+  dag: { pos: 'right-[14%] top-[12%] h-14 w-14 sm:h-20 sm:w-20', core: 'radial-gradient(circle at 40% 40%, #fffdf2, #fff1c4 60%, #ffe19a)', glow: 'rgba(255, 240, 190, 0.45)' },
+  morgon: { pos: 'left-[16%] top-[58%] h-16 w-16 sm:h-24 sm:w-24', core: 'radial-gradient(circle at 45% 40%, #fff3d6, #ffc37a 60%, #ff9a5a)', glow: 'rgba(255, 170, 120, 0.55)' },
+  kvall: { pos: 'right-[16%] top-[58%] h-16 w-16 sm:h-24 sm:w-24', core: 'radial-gradient(circle at 45% 40%, #ffe2b8, #ff9a52 55%, #e8603a)', glow: 'rgba(255, 120, 70, 0.5)' },
+}
+
+/** The low winter sun – only out when it isn't night. */
+export function Sun({ daypart }: { daypart: Daypart }) {
+  if (daypart === 'natt') return null
+  const s = SUN[daypart]
+  return (
+    <div className={`pointer-events-none absolute ${s.pos}`} aria-hidden>
+      <div className="absolute -inset-[120%] rounded-full blur-3xl" style={{ background: `radial-gradient(circle, ${s.glow}, transparent 65%)` }} />
+      <div className="absolute inset-0 rounded-full" style={{ background: s.core }} />
+    </div>
+  )
+}
+
 /** Norrsken – soft animated curtains of green/teal/violet light. */
 export function Aurora({ className = '' }: { className?: string }) {
   const bands = [
@@ -52,7 +71,7 @@ export function Aurora({ className = '' }: { className?: string }) {
     { d: 'M0 330 C 260 260 560 390 900 300 S 1300 250 1440 300 L1440 350 C 1260 310 1060 400 860 360 S 320 320 0 390 Z', c1: '#3dffa0', c2: '#46b8ff', cls: 'aurora-c' },
   ]
   return (
-    <svg viewBox="0 0 1440 480" preserveAspectRatio="none" className={`pointer-events-none absolute inset-x-0 top-0 h-[70%] w-full ${className}`} aria-hidden>
+    <svg viewBox="0 0 1440 480" preserveAspectRatio="none" className={`aurora-layer pointer-events-none absolute inset-x-0 top-0 h-[70%] w-full ${className}`} aria-hidden>
       <defs>
         {bands.map((b, i) => (
           <linearGradient key={i} id={`aur-${i}`} x1="0" x2="1" y1="0" y2="0">
@@ -349,7 +368,7 @@ function Nisse({ path, dur = 12, delay = 0, flip, carry, x = 0, y = 0 }: { path?
  * bucket is already checkered, so every stroke leaves orange-and-black squares.
  * The board is half done and stays that way – he just keeps on dabbing.
  */
-function PaintingNisse({ x, base }: { x: number; base: number }) {
+function PaintingNisse({ x, base, asleep }: { x: number; base: number; asleep?: boolean }) {
   const cell = 5.2
   const size = 8 * cell
   const squares = Array.from({ length: 64 }, (_, i) => ({ r: Math.floor(i / 8), c: i % 8 })).filter(({ r, c }) => (r + c) % 2 === 1)
@@ -390,7 +409,7 @@ function PaintingNisse({ x, base }: { x: number; base: number }) {
         <path d="M-4.6 -9 q1 4 -0.2 5.5 q-1.2 -1.5 0.2 -5.5 M2.6 -9 q1 3 0 4.5 q-1 -1.2 0 -4.5" fill="url(#checker-paint)" />
         <path d="M-5.5 -10 Q0 -15 5.5 -10" stroke="#3a2418" strokeWidth="0.8" fill="none" />
       </g>
-      <Nisse x={x + size + 12} y={base + 4} carry="brush" flip />
+      {!asleep && <Nisse x={x + size + 12} y={base + 4} carry="brush" flip />}
     </g>
   )
 }
@@ -471,7 +490,7 @@ const BRANCHES = [
   'M725 374 Q 724 386 725 395', // verkstad
   'M921 380 Q 920 390 924 395', // långhuset
   'M1091 358 Q 1086 380 1080 397', // yellow cottage right
-  'M1195 380 Q 1196 390 1200 397', // ochre house
+  'M1205 380 Q 1204 390 1200 397', // Arkitektkontoret
   'M1305 358 Q 1300 380 1296 397', // cottage right
   'M1385 362 Q 1382 382 1378 396', // small red cottage
 ]
@@ -711,6 +730,11 @@ export function Lappland({
   /** Park Santa's sleigh in front of this house. */
   landedAt?: Building
 }) {
+  // who's out and about: everyone by day and evening, a few early risers, one lantern at night
+  const daypart = useDaypart()
+  const busy = daypart === 'dag' || daypart === 'kvall'
+  const awake = daypart !== 'natt'
+  const working = daypart === 'dag' || daypart === 'morgon'
   const farForest = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ x: i * 21 + rand(i) * 14, h: 26 + rand(i + 100) * 22 })), [])
   const nearForest = useMemo(
     () => Array.from({ length: 26 }, (_, i) => ({ x: i * 58 + rand(i + 300) * 30, h: 60 + rand(i + 400) * 70 })),
@@ -718,7 +742,7 @@ export function Lappland({
   )
 
   return (
-    <svg viewBox="0 0 1440 460" preserveAspectRatio="xMidYMax slice" className={`pointer-events-none block w-full ${className}`} aria-hidden>
+    <svg viewBox="0 0 1440 460" preserveAspectRatio="xMidYMax slice" className={`lappland pointer-events-none block w-full ${className}`} aria-hidden>
       <defs>
         <linearGradient id="fjall-far" gradientUnits="userSpaceOnUse" x1="0" y1="110" x2="0" y2="300">
           <stop offset="0" stopColor="#e3ecfa" />
@@ -779,15 +803,15 @@ export function Lappland({
         <>
           {/* front row, left: Spelstugan, the painting nisse, the North Pole and the julgran */}
           <House x={100} base={380} w={116} h={44} wall="#2f6b4f" windows={2} sign="SPELSTUGAN" signColor="#1d6e48" building="spel" title="Kliv in i Spelstugan" onEnter={onEnter} />
-          <PaintingNisse x={236} base={388} />
+          <PaintingNisse x={236} base={388} asleep={!busy} />
           <NorthPole x={338} base={384} />
           <VillageTree x={394} base={382} />
-          <Nisse x={372} y={388} carry="wave" />
+          {busy && <Nisse x={372} y={388} carry="wave" />}
           {/* centre: Tomtens stuga (Julafton), destilleri + verkstad (Julbak), långhuset (Julbord) */}
           <House x={425} base={380} w={80} h={38} wall="#a8322a" windows={2} sign="TOMTEN" building="julafton" title="Kliv in hos Tomten – julafton" onEnter={onEnter} smoke={3} />
           <House x={836} base={380} w={170} h={46} wall="#8e2a1f" windows={4} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} smoke={7} />
           {/* right */}
-          <House x={1150} base={380} w={90} h={36} wall="#c98a2b" windows={2} />
+          <House x={1145} base={380} w={120} h={40} wall="#c98a2b" windows={4} sign="ARKITEKTKONTORET" signColor="#5a3b22" building="ritningar" title="Kliv in på Arkitektkontoret – Pepparkaksarkitekten" onEnter={onEnter} smoke={31} />
           <Sled x={1100} base={388} />
       {/* destilleri – timber shed with a copper dome venting warm steam */}
       <g
@@ -890,16 +914,16 @@ export function Lappland({
             DOOR_NUMBERS.map((d) => (numbers[d.building] ? <HouseNumber key={d.building} x={d.x} y={d.y} n={numbers[d.building]!} /> : null))}
       {/* nissar walking the paths between the houses */}
           <Nisse path="M583 374 Q586 388 594 396 L725 395 Q724 386 725 374" dur={12} carry="lantern" />
-          <Nisse path="M725 374 Q724 386 725 395 L470 396 Q466 390 465 380" dur={14} delay={3} carry="gifts" flip />
-          <Nisse path="M725 374 Q724 386 725 395 L924 395 Q920 390 921 380" dur={13} delay={6} carry="sack" />
-          <Nisse path="M158 380 Q160 390 166 396 L312 397 Q300 380 283 358" dur={11} delay={1} carry="lantern" />
-          <Nisse path="M921 380 Q920 390 924 395 L1200 397 Q1196 390 1195 380" dur={12} delay={2} carry="gifts" />
+          {awake && <Nisse path="M725 374 Q724 386 725 395 L470 396 Q466 390 465 380" dur={14} delay={3} carry="gifts" flip />}
+          {busy && <Nisse path="M725 374 Q724 386 725 395 L924 395 Q920 390 921 380" dur={13} delay={6} carry="sack" />}
+          {busy && <Nisse path="M158 380 Q160 390 166 396 L312 397 Q300 380 283 358" dur={11} delay={1} carry="lantern" />}
+          {busy && <Nisse path="M921 380 Q920 390 924 395 L1200 397 Q1204 390 1205 380" dur={12} delay={2} carry="gifts" />}
           {/* someone has to keep the paths clear */}
           <g>
             <ellipse cx="802" cy="401" rx="9" ry="3.5" fill="#f4f8ff" />
             <ellipse cx="804" cy="399" rx="5" ry="2.5" fill="#ffffff" />
           </g>
-          <Nisse x={782} y={402} carry="shovel" />
+          {working && <Nisse x={782} y={402} carry="shovel" />}
           <Snowman x={618} base={430} />
           {landedAt && <LandedTeam at={landedAt} />}
         </>

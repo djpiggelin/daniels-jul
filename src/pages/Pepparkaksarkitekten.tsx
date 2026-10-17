@@ -257,10 +257,15 @@ export default function Pepparkaksarkitekten() {
               <button onClick={addBuilding} className="rounded-full border border-dashed border-[#3a2410]/40 px-3.5 py-1.5 text-sm text-[#3a2410]/80 hover:border-[#3a2410]">
                 + Byggnad
               </button>
-              <button onClick={addPiece} className="rounded-full border border-dashed border-[#3a2410]/40 px-3.5 py-1.5 text-sm text-[#3a2410]/80 hover:border-[#3a2410]">
-                + Egen bit
+              <button onClick={addPiece} className="rounded-full border border-[#b5713a] bg-[#b5713a]/15 px-3.5 py-1.5 text-sm text-[#3a2410] hover:bg-[#b5713a]/25">
+                ✎ Rita egen bit (fri form)
               </button>
             </div>
+            {custom.length === 0 && (
+              <p className="mt-3 text-sm text-[#3a2410]/65">
+                Torn, valv, takkupor eller något helt eget? Med <b>Rita egen bit</b> öppnas ritbordet där ni ritar formen fritt med raka linjer, bågar och urtag.
+              </p>
+            )}
 
             {building && params && (
               <div className="mt-6 border-t border-[#3a2410]/15 pt-5">
