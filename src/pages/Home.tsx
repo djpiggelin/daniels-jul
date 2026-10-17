@@ -29,6 +29,13 @@ export default function Home() {
   const navigate = useNavigate()
   const [entering, setEntering] = useState<{ x: number; y: number } | null>(null)
 
+  // coming back via the browser's back button may restore the zoomed-in page – reset it
+  useEffect(() => {
+    const reset = () => setEntering(null)
+    addEventListener('pageshow', reset)
+    return () => removeEventListener('pageshow', reset)
+  }, [])
+
   // zoom the whole scene into the clicked door, glow warm, then step inside
   const enter = (b: Building, ev: React.MouseEvent) => {
     if (entering) return
