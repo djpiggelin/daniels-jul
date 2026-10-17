@@ -368,3 +368,18 @@ h1, h2, h3, h4 {
   50% { transform: translate(0, -8px) }
   100% { transform: translate(2vw, 4px) }
 }
+
+/* chimney smoke: each puff rises, swells, thins out and drifts downwind */
+.smoke-puff {
+  transform-box: fill-box;
+  transform-origin: center;
+  animation-name: smoke-rise;
+  animation-timing-function: cubic-bezier(0.25, 0.6, 0.4, 1);
+  animation-iteration-count: infinite;
+}
+@keyframes smoke-rise {
+  0% { transform: translate(0, 0) scale(0.5); opacity: 0 }
+  12% { opacity: 0.8 }
+  45% { transform: translate(calc(var(--drift) * 0.35), -22px) scale(1.7); opacity: 0.5 }
+  100% { transform: translate(var(--drift), -52px) scale(3); opacity: 0 }
+}
