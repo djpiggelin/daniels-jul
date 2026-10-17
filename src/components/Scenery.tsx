@@ -1,4 +1,6 @@
 import { useMemo } from 'react'
+import { Reindeer } from './Reindeer'
+import { SantaSleigh } from './Santa'
 
 export function Stars({ count = 90 }: { count?: number }) {
   const stars = useMemo(
@@ -619,6 +621,69 @@ function VillagePaths() {
   )
 }
 
+/** A snowman with a top hat, carrot nose, red scarf and twig arms. */
+function Snowman({ x, base }: { x: number; base: number }) {
+  return (
+    <g transform={`translate(${x} ${base}) scale(1.25)`}>
+      <ellipse cx="0" cy="0" rx="13" ry="3" fill="#9fb2d2" opacity="0.5" />
+      {/* twig arms */}
+      <g stroke="#6b4423" strokeWidth="1.3" strokeLinecap="round" fill="none">
+        <path d="M-6 -27 L-17 -34 M-13 -31.5 L-15 -36.5 M-13 -31.5 L-18 -31" />
+        <path d="M6 -27 L16 -36 M12.5 -32.5 L16 -31 M12.5 -32.5 L12 -37.5" className="snowman-wave" />
+      </g>
+      <circle cx="0" cy="-9" r="10" fill="#f8fbff" stroke="#d5e0f0" strokeWidth="0.8" />
+      <circle cx="0" cy="-25" r="7.5" fill="#f8fbff" stroke="#d5e0f0" strokeWidth="0.8" />
+      <circle cx="0" cy="-37.5" r="5.6" fill="#f8fbff" stroke="#d5e0f0" strokeWidth="0.8" />
+      <circle cx="-3" cy="-12" r="3" fill="#ffffff" opacity="0.7" />
+      {/* coal buttons, eyes and smile */}
+      {[-27, -23, -12, -7].map((cy) => (
+        <circle key={cy} cx="0" cy={cy} r="0.9" fill="#1b1b22" />
+      ))}
+      <circle cx="-2" cy="-39" r="0.85" fill="#1b1b22" />
+      <circle cx="2" cy="-39" r="0.85" fill="#1b1b22" />
+      {[-2.4, -0.8, 0.8, 2.4].map((dx) => (
+        <circle key={dx} cx={dx} cy={-34.6 + Math.abs(dx) * -0.25} r="0.45" fill="#1b1b22" />
+      ))}
+      <path d="M0.5 -37.4 L8 -36.4 L0.5 -35.6 Z" fill="#f28c28" />
+      {/* scarf */}
+      <path d="M-5.6 -32.4 Q0 -29.6 5.6 -32.4 L5.6 -30 Q0 -27.4 -5.6 -30 Z" fill="#c1272d" />
+      <path d="M3 -30.6 L5 -22 L2 -22.5 L1 -30 Z" fill="#c1272d" className="scarf-sway" />
+      <path d="M2 -24 L5 -24" stroke="#fbf7ef" strokeWidth="0.6" />
+      {/* top hat */}
+      <rect x="-6.4" y="-43" width="12.8" height="1.8" rx="0.6" fill="#1b1b22" />
+      <rect x="-4.2" y="-50.5" width="8.4" height="7.8" rx="0.8" fill="#1b1b22" />
+      <rect x="-4.2" y="-45" width="8.4" height="1.6" fill="#c1272d" />
+      <circle cx="3" cy="-44.2" r="1" fill="#2f7a4f" />
+    </g>
+  )
+}
+
+// where Santa parks in front of each house: sleigh first, then the reindeer facing right
+const LANDING: Partial<Record<Building, number>> = { julafton: 428, verkstad: 652, julbord: 846 }
+
+/** Santa's sleigh parked in the snow in front of a house, with two reindeer waiting. */
+function LandedTeam({ at }: { at: Building }) {
+  const x = LANDING[at]
+  if (x === undefined) return null
+  const base = 426
+  const sleigh = 74
+  const deer = 46
+  return (
+    <g pointerEvents="none">
+      <ellipse cx={x + 70} cy={base} rx="80" ry="4" fill="#9fb2d2" opacity="0.45" />
+      <g transform={`translate(${x} ${base - (sleigh * 150) / 220})`}>
+        <SantaSleigh size={sleigh} />
+      </g>
+      <path d={`M${x + sleigh * 0.8} ${base - 30} Q ${x + sleigh + 20} ${base - 22} ${x + sleigh + 48} ${base - 26}`} stroke="#e9c46a" strokeWidth="0.9" fill="none" />
+      {[0, 1].map((i) => (
+        <g key={i} transform={`translate(${x + sleigh + 6 + i * 40} ${base - (deer * 128) / 150 + 2})`}>
+          <Reindeer size={deer} rudolf={i === 1} scarf={i ? '#f6c453' : '#2fa36b'} />
+        </g>
+      ))}
+    </g>
+  )
+}
+
 const NEAR_SPRUCES = [
   { x: 14, h: 118 },
   { x: 44, h: 84 },
@@ -634,6 +699,7 @@ export function Lappland({
   village = true,
   onEnter,
   numbers,
+  landedAt,
 }: {
   className?: string
   /** Show Tomtens by: houses, the verkstad, destilleri, julgran and nissar. */
@@ -642,6 +708,8 @@ export function Lappland({
   onEnter?: (b: Building, e: React.MouseEvent) => void
   /** House number to paint by each event building's door – the day in December. */
   numbers?: Partial<Record<Building, string>>
+  /** Park Santa's sleigh in front of this house. */
+  landedAt?: Building
 }) {
   const farForest = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ x: i * 21 + rand(i) * 14, h: 26 + rand(i + 100) * 22 })), [])
   const nearForest = useMemo(
@@ -811,6 +879,8 @@ export function Lappland({
             <ellipse cx="804" cy="399" rx="5" ry="2.5" fill="#ffffff" />
           </g>
           <Nisse x={782} y={402} carry="shovel" />
+          <Snowman x={618} base={430} />
+          {landedAt && <LandedTeam at={landedAt} />}
         </>
       )}
 

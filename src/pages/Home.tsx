@@ -1,10 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { EVENTS, type JulEvent } from '../data'
 import { Gift } from '../components/Gift'
 import { SkyTeam } from '../components/Santa'
 import { Aurora, Lappland, Moon, Stars, type Building } from '../components/Scenery'
 import { jingle } from '../lib/fx'
+import { HOUSE_NUMBERS, linkFor } from '../lib/village'
 
 // gifts float around the edges, clear of the sleigh
 const GIFTS = [
@@ -15,18 +15,6 @@ const GIFTS = [
   { left: '12%', top: '52%', size: 36, mobile: false },
   { left: '86%', top: '56%', size: 42, mobile: false },
 ]
-
-// which event each building in Tomtens by belongs to
-const JULBAK = EVENTS.find((e) => e.competitions?.some((c) => c.art))
-const JULBORD = EVENTS.find((e) => e.potluck)
-const JULAFTON = EVENTS.find((e) => e.santa)
-const EVENT_FOR: Partial<Record<Building, JulEvent | undefined>> = { verkstad: JULBAK, destilleri: JULBAK, julbord: JULBORD, julafton: JULAFTON }
-
-const linkFor = (b: Building) => {
-  if (b === 'spel') return '/spel'
-  if (b === 'verkstad' || b === 'destilleri') return `/event/${JULBAK?.id}#${b}`
-  return `/event/${EVENT_FOR[b]?.id ?? ''}`
-}
 
 export default function Home() {
   const navigate = useNavigate()
@@ -83,18 +71,10 @@ export default function Home() {
 /* Tomtens by – each event's house has the day in December as its number */
 /* ------------------------------------------------------------------ */
 
-const day = (e?: JulEvent) => (e ? String(new Date(e.start).getDate()) : undefined)
-const NUMBERS: Partial<Record<Building, string>> = {
-  julafton: day(JULAFTON),
-  destilleri: day(JULBAK),
-  verkstad: day(JULBAK),
-  julbord: day(JULBORD),
-}
-
 function Village({ onEnter }: { onEnter: (b: Building, e: React.MouseEvent) => void }) {
   return (
     <div className="absolute inset-x-0 bottom-0 h-[36%] min-h-[210px]">
-      <Lappland className="h-full" onEnter={onEnter} numbers={NUMBERS} />
+      <Lappland className="h-full" onEnter={onEnter} numbers={HOUSE_NUMBERS} />
     </div>
   )
 }

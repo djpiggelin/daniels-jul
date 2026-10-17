@@ -1,12 +1,12 @@
 import { useEffect, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useNavigate, useParams } from 'react-router-dom'
 import { EVENTS, POTLUCK_IMAGE, type Competition, type JulEvent } from '../data'
-import { Reindeer } from '../components/Reindeer'
-import { SleighTeam } from '../components/Santa'
-import { Aurora, Lappland, Stars } from '../components/Scenery'
+import { SkyTeam } from '../components/Santa'
+import { Aurora, Lappland, Stars, type Building } from '../components/Scenery'
 import { Destilleri, ROOMS, Verkstad, WindowScene } from '../components/ThemeArt'
 import { burstFrom } from '../lib/fx'
 import { countdown, downloadIcs, eventStatus, formatDate, formatTime, useNow } from '../lib/time'
+import { buildingFor, HOUSE_NUMBERS, linkFor } from '../lib/village'
 import NotFound from './NotFound'
 
 const reducedMotion = () => window.matchMedia('(prefers-reduced-motion: reduce)').matches
@@ -100,9 +100,9 @@ export default function EventPage() {
 /* Openings                                                            */
 /* ------------------------------------------------------------------ */
 
-function Title({ event: e, style }: { event: JulEvent; style?: React.CSSProperties }) {
+function Title({ event: e, style, className = 'top-[16%]' }: { event: JulEvent; style?: React.CSSProperties; className?: string }) {
   return (
-    <div className="absolute inset-x-0 top-[16%] z-20 px-6 text-center" style={style}>
+    <div className={`absolute inset-x-0 z-20 px-6 text-center ${className}`} style={style}>
       <p className="text-xs font-semibold uppercase tracking-[0.3em] text-jul-gold/90">
         {formatDate(e.start)} · {formatTime(e.start)}
       </p>
@@ -148,19 +148,24 @@ function ZoomOpening({ event: e }: { event: JulEvent }) {
   )
 }
 
+/** Tomtens by, clickable, with house numbers – and Santa parked outside this event's house. */
+function Village({ landedAt, className = '' }: { landedAt?: Building; className?: string }) {
+  const navigate = useNavigate()
+  return (
+    <div className={`absolute inset-x-0 bottom-0 ${className}`}>
+      <Lappland className="h-full" onEnter={(b) => navigate(linkFor(b))} numbers={HOUSE_NUMBERS} landedAt={landedAt} />
+    </div>
+  )
+}
+
+/** Shorter than a full screen, so the warm chapter below already peeks in. */
 function Opening({ event: e }: { event: JulEvent }) {
   return (
-    <section className="sky relative h-[100svh] min-h-[560px] overflow-hidden">
+    <section className="sky relative h-[78svh] min-h-[520px] overflow-hidden">
       <Stars count={90} />
       <Aurora />
-      <div className="absolute inset-x-0 bottom-0 h-[42%]">
-        <Lappland className="h-full" />
-      </div>
-      <div className="absolute bottom-[14%] left-[8%] z-10 hidden sm:block">
-        <Reindeer size={130} rudolf={e.reindeer === 'Rudolf'} />
-      </div>
-      <Title event={e} />
-      <ScrollCue label="Scrolla" />
+      <Village landedAt={buildingFor(e.id)} className="h-[50%]" />
+      <Title event={e} className="top-[13%]" />
     </section>
   )
 }
@@ -426,21 +431,20 @@ function Closing({ event: e }: { event: JulEvent }) {
     <section className="sky relative h-[80svh] min-h-[480px] overflow-hidden">
       <Stars count={70} />
       <Aurora />
-      <div className="sleigh-flight pointer-events-none absolute left-0 top-[18%] opacity-70">
+      <div className="sleigh-flight pointer-events-none absolute left-0 top-[12%] opacity-80">
         <div className="sleigh-bob">
-          <SleighTeam scale={0.4} />
+          <SkyTeam scale={0.32} />
         </div>
       </div>
-      <div className="absolute inset-x-0 bottom-0 h-[40%]">
-        <Lappland village={false} className="h-full" />
-      </div>
-      <div className="reveal absolute inset-x-0 top-[34%] z-10 px-6 text-center">
+      <Village className="h-[42%]" />
+      <div className="reveal absolute inset-x-0 top-[26%] z-10 px-6 text-center">
         <h2 className="text-4xl font-normal sm:text-5xl">Vi ses {e.location === 'Där hjärtat är' ? 'där hjärtat är' : `på ${e.location}`}</h2>
         <p className="mt-3 text-snow/70">
           {formatDate(e.start)} · {formatTime(e.start)}
         </p>
-        <Link to="/" className="mt-8 inline-block text-sm text-snow/70 underline-offset-4 hover:text-white hover:underline">
-          ← Tillbaka till släden
+        <p className="mt-8 text-sm text-snow/60">Kliv in i ett annat hus i byn – eller</p>
+        <Link to="/" className="mt-1 inline-block text-sm text-snow/80 underline-offset-4 hover:text-white hover:underline">
+          ← tillbaka till släden
         </Link>
       </div>
     </section>
