@@ -4,7 +4,7 @@ import { EVENTS, type JulEvent } from '../data'
 import { Gift } from '../components/Gift'
 import { Reindeer } from '../components/Reindeer'
 import { SantaSleigh, SleighTeam } from '../components/Santa'
-import { Aurora, Lappland, Moon, Stars } from '../components/Scenery'
+import { Aurora, Lappland, Moon, Stars, type Building } from '../components/Scenery'
 import { jingle } from '../lib/fx'
 import { countdown, eventStatus, useNow } from '../lib/time'
 
@@ -20,11 +20,27 @@ const GIFTS = [
   { left: '84%', top: '58%', size: 42, mobile: false },
 ]
 
+// which event chapter each building on the front page opens
+const BUILDING_EVENT = EVENTS.find((e) => e.competitions?.some((c) => c.art))?.id ?? 'julbak'
+
 export default function Home() {
   const now = useNow(30_000)
+  const navigate = useNavigate()
+  const [entering, setEntering] = useState<{ x: number; y: number } | null>(null)
+
+  // zoom the whole scene into the clicked door, glow warm, then step inside
+  const enter = (b: Building, ev: React.MouseEvent) => {
+    if (entering) return
+    setEntering({ x: ev.clientX, y: ev.clientY })
+    setTimeout(() => navigate(`/event/${BUILDING_EVENT}#${b}`), 1000)
+  }
 
   return (
     <section className="sky relative h-[100svh] min-h-[620px] overflow-hidden">
+      <div
+        className="enter-zoom absolute inset-0"
+        style={entering ? { transform: 'scale(7)', transformOrigin: `${entering.x}px ${entering.y}px` } : undefined}
+      >
       <Stars count={110} />
       <Aurora />
       <Moon className="absolute left-[8%] top-20 h-10 w-10 opacity-80 sm:h-14 sm:w-14" />
@@ -43,14 +59,22 @@ export default function Home() {
       ))}
 
       <div className="absolute inset-x-0 bottom-0 h-[36%] min-h-[210px]">
-        <Lappland className="h-full" />
+        <Lappland className="h-full" onEnter={enter} />
       </div>
 
       <div className="absolute inset-x-0 bottom-[24%] top-[13%] z-10 flex items-end justify-center px-4">
         <SleighScene now={now} />
       </div>
 
-      <p className="absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">Tryck på en ren · svep på släden för en tur</p>
+      <p className="absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">Tryck på en ren · svep på släden · kliv in i verkstaden</p>
+      </div>
+      <div
+        className="enter-warm pointer-events-none absolute inset-0 z-50"
+        style={{
+          opacity: entering ? 1 : 0,
+          background: `radial-gradient(circle at ${entering?.x ?? 0}px ${entering?.y ?? 0}px, #ffcf6b, #c8742c 40%, #2a160d 100%)`,
+        }}
+      />
     </section>
   )
 }

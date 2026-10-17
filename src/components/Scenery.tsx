@@ -108,7 +108,19 @@ const TORCHES = [
 ]
 
 /** Fjäll, granskog, snow, Tomtens verkstad and destilleri with marschaller between them. */
-export function Lappland({ className = '' }: { className?: string }) {
+export type Building = 'verkstad' | 'destilleri'
+
+export function Lappland({
+  className = '',
+  village = true,
+  onEnter,
+}: {
+  className?: string
+  /** Show the verkstad, destilleri, torches and nisse. */
+  village?: boolean
+  /** Makes the buildings clickable. */
+  onEnter?: (b: Building, e: React.MouseEvent) => void
+}) {
   const farForest = useMemo(() => Array.from({ length: 70 }, (_, i) => ({ x: i * 21 + rand(i) * 14, h: 26 + rand(i + 100) * 22 })), [])
   const nearForest = useMemo(
     () => Array.from({ length: 26 }, (_, i) => ({ x: i * 58 + rand(i + 300) * 30, h: 60 + rand(i + 400) * 70 })).filter((t) => t.x < 600 || t.x > 1040),
@@ -158,8 +170,16 @@ export function Lappland({ className = '' }: { className?: string }) {
       {/* snowfield */}
       <path d="M0 360 Q300 330 620 352 T1440 340 V460 H0Z" fill="url(#snowfield)" />
 
+      {village && (
+        <>
       {/* destilleri – timber shed with a copper dome venting warm steam */}
-      <g transform="translate(640 318)">
+      <g
+        transform="translate(640 318)"
+        className={onEnter ? 'building' : undefined}
+        onClick={onEnter ? (e) => onEnter('destilleri', e) : undefined}
+      >
+        {onEnter && <title>Kliv in i Tomtens destilleri</title>}
+        {onEnter && <rect x="-14" y="-40" width="120" height="100" fill="transparent" />}
         <ellipse cx="45" cy="56" rx="80" ry="26" fill="url(#warm)" opacity="0.35" />
         <rect x="0" y="16" width="92" height="40" fill="#4a2c1c" />
         {[0, 1, 2, 3].map((i) => (
@@ -184,7 +204,13 @@ export function Lappland({ className = '' }: { className?: string }) {
       </g>
 
       {/* Tomtens verkstad */}
-      <g transform="translate(838 296)">
+      <g
+        transform="translate(838 296)"
+        className={onEnter ? 'building' : undefined}
+        onClick={onEnter ? (e) => onEnter('verkstad', e) : undefined}
+      >
+        {onEnter && <title>Kliv in i Tomtens verkstad</title>}
+        {onEnter && <rect x="-18" y="-34" width="206" height="116" fill="transparent" />}
         <ellipse cx="85" cy="78" rx="150" ry="44" fill="url(#warm)" opacity="0.45" />
         <rect x="0" y="22" width="170" height="56" fill="#8e2a1f" />
         <path d="M-14 26 L85 -26 L184 26 Z" fill="#4a1a14" />
@@ -242,6 +268,9 @@ export function Lappland({ className = '' }: { className?: string }) {
           <rect x="7" y="-6" width="3.5" height="4.5" rx="1" fill="#ffd27a" />
         </g>
       </g>
+
+        </>
+      )}
 
       {/* near spruces */}
       {nearForest.map((t, i) => (
