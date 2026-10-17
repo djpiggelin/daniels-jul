@@ -75,3 +75,63 @@ export function SleighTeam({ scale = 1, className = '' }: { scale?: number; clas
     </div>
   )
 }
+
+// one reindeer in the sky team: position (unscaled px), size, and whether it's the far one of its pair
+const TEAM = [
+  { x: 214, y: 92, size: 104, far: true, scarf: '#4f7dff' },
+  { x: 306, y: 50, size: 102, far: true, scarf: '#f6c453' },
+  { x: 192, y: 112, size: 112, far: false, scarf: '#2fa36b' },
+  { x: 284, y: 70, size: 110, far: false, scarf: '#e5383b' },
+  { x: 382, y: 22, size: 112, far: false, scarf: '#f6c453', rudolf: true },
+]
+
+/**
+ * Santa's sleigh at the back, pulled by reindeer in pairs climbing across the sky,
+ * Rudolf leading at the front. The far reindeer of each pair sits a little higher and darker for depth.
+ */
+export function SkyTeam({ scale = 1 }: { scale?: number }) {
+  const W = 520
+  const H = 290
+  const sleighFront = { x: 186, y: 172 }
+  const chest = (r: (typeof TEAM)[number]) => ({ x: r.x + r.size * 0.62, y: r.y + r.size * 0.5 })
+  const deer = (r: (typeof TEAM)[number], i: number) => (
+    <span
+      key={i}
+      className="absolute"
+      style={{
+        left: r.x * scale,
+        top: r.y * scale,
+        filter: r.far ? 'brightness(0.78) saturate(0.85)' : undefined,
+        ['--gd' as string]: `${(i * 0.13) % 0.5}s`,
+      }}
+    >
+      <Reindeer size={r.size * scale} mode="gallop" scarf={r.scarf} rudolf={r.rudolf} />
+    </span>
+  )
+
+  return (
+    <div className="relative" style={{ width: W * scale, height: H * scale, transform: 'rotate(-2deg)' }}>
+      {TEAM.filter((r) => r.far).map(deer)}
+      {/* reins from the sleigh to every reindeer */}
+      <svg className="absolute inset-0 overflow-visible" width={W * scale} height={H * scale} aria-hidden>
+        {TEAM.map((r, i) => {
+          const c = chest(r)
+          return (
+            <path
+              key={i}
+              d={`M${sleighFront.x * scale} ${sleighFront.y * scale} Q ${((sleighFront.x + c.x) / 2) * scale} ${((sleighFront.y + c.y) / 2 + 14) * scale} ${c.x * scale} ${c.y * scale}`}
+              stroke="#f6c453"
+              strokeOpacity={r.far ? 0.45 : 0.8}
+              strokeWidth={1.2}
+              fill="none"
+            />
+          )
+        })}
+      </svg>
+      {TEAM.filter((r) => !r.far).map((r) => deer(r, TEAM.indexOf(r)))}
+      <span className="absolute" style={{ left: 0, top: 128 * scale }}>
+        <SantaSleigh size={200 * scale} />
+      </span>
+    </div>
+  )
+}

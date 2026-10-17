@@ -1,28 +1,33 @@
-import { useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useNavigate } from 'react-router-dom'
+import { useEffect, useLayoutEffect, useRef, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { EVENTS, type JulEvent } from '../data'
 import { Gift } from '../components/Gift'
-import { Reindeer } from '../components/Reindeer'
-import { SantaSleigh, SleighTeam } from '../components/Santa'
-import { Aurora, Lappland, Moon, Stars, type Building } from '../components/Scenery'
+import { SkyTeam } from '../components/Santa'
+import { Aurora, DOOR_PLATES, Lappland, Moon, Stars, type Building } from '../components/Scenery'
 import { jingle } from '../lib/fx'
-import { countdown, eventStatus, useNow } from '../lib/time'
+import { eventStatus, useNow } from '../lib/time'
 
-const SCARFS = ['#2fa36b', '#e5383b', '#4f7dff', '#f6c453']
-
-// gifts float around the edges so they never cover the reindeer
+// gifts float around the edges, clear of the sleigh
 const GIFTS = [
-  { left: '5%', top: '22%', size: 44, mobile: true },
-  { left: '91%', top: '46%', size: 40, mobile: true },
-  { left: '30%', top: '14%', size: 34, mobile: false },
-  { left: '68%', top: '18%', size: 38, mobile: false },
-  { left: '14%', top: '55%', size: 36, mobile: true },
-  { left: '84%', top: '58%', size: 42, mobile: false },
+  { left: '6%', top: '30%', size: 44, mobile: true },
+  { left: '92%', top: '40%', size: 40, mobile: true },
+  { left: '24%', top: '12%', size: 34, mobile: false },
+  { left: '76%', top: '14%', size: 38, mobile: false },
+  { left: '12%', top: '52%', size: 36, mobile: false },
+  { left: '86%', top: '56%', size: 42, mobile: false },
 ]
 
-// which event chapter each building on the front page opens
-const BUILDING_EVENT = EVENTS.find((e) => e.competitions?.some((c) => c.art))?.id ?? 'julbak'
-const POTLUCK_EVENT = EVENTS.find((e) => e.potluck)?.id ?? 'julbord'
+// which event each building in Tomtens by belongs to
+const JULBAK = EVENTS.find((e) => e.competitions?.some((c) => c.art))
+const JULBORD = EVENTS.find((e) => e.potluck)
+const JULAFTON = EVENTS.find((e) => e.santa)
+const EVENT_FOR: Partial<Record<Building, JulEvent | undefined>> = { verkstad: JULBAK, destilleri: JULBAK, julbord: JULBORD, julafton: JULAFTON }
+
+const linkFor = (b: Building) => {
+  if (b === 'spel') return '/spel'
+  if (b === 'verkstad' || b === 'destilleri') return `/event/${JULBAK?.id}#${b}`
+  return `/event/${EVENT_FOR[b]?.id ?? ''}`
+}
 
 export default function Home() {
   const now = useNow(30_000)
@@ -40,8 +45,7 @@ export default function Home() {
   const enter = (b: Building, ev: React.MouseEvent) => {
     if (entering) return
     setEntering({ x: ev.clientX, y: ev.clientY })
-    const to = b === 'spel' ? '/spel' : b === 'julbord' ? `/event/${POTLUCK_EVENT}` : `/event/${BUILDING_EVENT}#${b}`
-    setTimeout(() => navigate(to), 1000)
+    setTimeout(() => navigate(linkFor(b)), 1000)
   }
 
   return (
@@ -50,32 +54,21 @@ export default function Home() {
         className="enter-zoom absolute inset-0"
         style={entering ? { transform: 'scale(7)', transformOrigin: `${entering.x}px ${entering.y}px` } : undefined}
       >
-      <Stars count={110} />
-      <Aurora />
-      <Moon className="absolute left-[8%] top-20 h-10 w-10 opacity-80 sm:h-14 sm:w-14" />
+        <Stars count={110} />
+        <Aurora />
+        <Moon className="absolute left-[8%] top-20 h-10 w-10 opacity-80 sm:h-14 sm:w-14" />
 
-      {/* a sleigh far away in the sky */}
-      <div className="sleigh-flight pointer-events-none absolute left-0 top-[9%] opacity-50">
-        <div className="sleigh-bob">
-          <SleighTeam scale={0.3} />
-        </div>
-      </div>
+        {GIFTS.map((g, i) => (
+          <div key={i} className={`absolute z-20 -translate-x-1/2 ${g.mobile ? '' : 'hidden md:block'}`} style={{ left: g.left, top: g.top }}>
+            <Gift variant={i} size={g.size} delay={i * 0.7} />
+          </div>
+        ))}
 
-      {GIFTS.map((g, i) => (
-        <div key={i} className={`absolute z-20 -translate-x-1/2 ${g.mobile ? '' : 'hidden md:block'}`} style={{ left: g.left, top: g.top }}>
-          <Gift variant={i} size={g.size} delay={i * 0.7} />
-        </div>
-      ))}
+        <FlyingSanta />
 
-      <div className="absolute inset-x-0 bottom-0 h-[36%] min-h-[210px]">
-        <Lappland className="h-full" onEnter={enter} />
-      </div>
+        <Village onEnter={enter} now={now} />
 
-      <div className="absolute inset-x-0 bottom-[24%] top-[13%] z-10 flex items-end justify-center px-4">
-        <SleighScene now={now} />
-      </div>
-
-      <p className="absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">Tryck på en ren · svep på släden · kliv in i verkstaden</p>
+        <p className="absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">Svep på släden för en tur · kliv in i husen</p>
       </div>
       <div
         className="enter-warm pointer-events-none absolute inset-0 z-50"
@@ -88,30 +81,65 @@ export default function Home() {
   )
 }
 
-/**
- * Santa's sleigh with every event as a reindeer floating around it in an arc.
- * Click a reindeer → its event. Tap Santa → his event. Swipe the sleigh → it flies a lap.
- */
-function SleighScene({ now }: { now: number }) {
-  const navigate = useNavigate()
-  const herd = EVENTS.filter((e) => !e.santa)
-  const santaEvent = EVENTS.find((e) => e.santa)
+/* ------------------------------------------------------------------ */
+/* Tomtens by, with a house-number plate by each event's front door    */
+/* ------------------------------------------------------------------ */
+
+// everyone knows it's December – the house number is just the day
+const plateDate = (iso: string) => String(new Date(iso).getDate())
+
+function Village({ onEnter, now }: { onEnter: (b: Building, e: React.MouseEvent) => void; now: number }) {
+  const box = useRef<HTMLDivElement>(null)
+  const [size, setSize] = useState({ w: 0, h: 0 })
+
+  useLayoutEffect(() => {
+    const el = box.current
+    if (!el) return
+    const ro = new ResizeObserver(([e]) => setSize({ w: e.contentRect.width, h: e.contentRect.height }))
+    ro.observe(el)
+    return () => ro.disconnect()
+  }, [])
+
+  // the landscape SVG is 1440×460 drawn with xMidYMax slice – map its units to pixels
+  const scale = Math.max(size.w / 1440, size.h / 460)
+  const toPx = (x: number, y: number) => ({ left: size.w / 2 + (x - 720) * scale, top: size.h - (460 - y) * scale })
+
+  return (
+    <div ref={box} className="absolute inset-x-0 bottom-0 h-[36%] min-h-[210px]">
+      <Lappland className="h-full" onEnter={onEnter} />
+      {size.w > 0 &&
+        DOOR_PLATES.map((d) => {
+          const ev = EVENT_FOR[d.building]
+          if (!ev) return null
+          const { left, top } = toPx(d.x, d.y)
+          if (left < 0 || left > size.w) return null
+          const passed = eventStatus(ev, now) === 'passed'
+          return (
+            <button
+              key={d.building}
+              onClick={(e) => onEnter(d.building, e)}
+              className={`absolute z-10 flex h-[15px] min-w-[15px] -translate-x-1/2 -translate-y-1/2 items-center justify-center rounded-[2px] bg-[#1d3e8a] px-[3px] text-[10px] font-bold leading-none text-white shadow-[inset_0_0_0_1.5px_#1d3e8a,inset_0_0_0_2.5px_#fff,0_1px_2px_rgba(0,0,0,0.5)] transition-transform hover:scale-150 sm:h-[17px] sm:min-w-[17px] sm:text-[11px] ${passed ? 'opacity-60' : ''}`}
+              style={{ left, top }}
+              aria-label={`${ev.name}, ${plateDate(ev.start)} december – kliv in`}
+              title={ev.name}
+            >
+              {plateDate(ev.start)}
+            </button>
+          )
+        })}
+    </div>
+  )
+}
+
+/* ------------------------------------------------------------------ */
+/* Santa and the reindeer, flying free in the sky                      */
+/* ------------------------------------------------------------------ */
+
+function FlyingSanta() {
   const [lapping, setLapping] = useState(false)
   const [hoho, setHoho] = useState(false)
   const swipe = useRef<{ x: number; y: number } | null>(null)
-  const sleighRef = useRef<HTMLSpanElement>(null)
-
-  // arc positions (% of the scene), half the herd on each side of the sleigh; outermost fly highest
-  const spots = useMemo(() => {
-    const left = Math.ceil(herd.length / 2)
-    const side = (count: number, fromX: number, toX: number) =>
-      Array.from({ length: count }, (_, i) => {
-        const t = count === 1 ? 0.5 : i / (count - 1)
-        const outer = fromX < 50 ? 1 - t : t
-        return { x: fromX + (toX - fromX) * t, y: 22 - outer * 16 }
-      })
-    return [...side(left, 12, 34), ...side(herd.length - left, 66, 88)]
-  }, [herd.length])
+  const teamRef = useRef<HTMLSpanElement>(null)
 
   // gold stardust behind the sleigh while it flies its lap
   useEffect(() => {
@@ -119,14 +147,14 @@ function SleighScene({ now }: { now: number }) {
     let raf = 0
     let last = 0
     const tick = (t: number) => {
-      const el = sleighRef.current
+      const el = teamRef.current
       if (el && t - last > 45) {
         last = t
         const r = el.getBoundingClientRect()
         const s = document.createElement('span')
         s.className = 'trail-spark'
-        s.style.left = `${r.left + r.width * 0.15 + (Math.random() - 0.5) * 20}px`
-        s.style.top = `${r.top + r.height * 0.75 + (Math.random() - 0.5) * 16}px`
+        s.style.left = `${r.left + r.width * 0.12 + (Math.random() - 0.5) * 20}px`
+        s.style.top = `${r.top + r.height * 0.8 + (Math.random() - 0.5) * 16}px`
         document.body.appendChild(s)
         setTimeout(() => s.remove(), 1100)
       }
@@ -146,31 +174,9 @@ function SleighScene({ now }: { now: number }) {
   }
 
   return (
-    <div className={`relative h-full max-h-[440px] w-full max-w-4xl ${lapping ? 'sleigh-lap' : 'animate-rise'}`}>
-      <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-        {spots.map((s, i) => (
-          <path
-            key={i}
-            d={`M50 70 Q ${(50 + s.x) / 2} ${s.y + 42} ${s.x} ${s.y + 20}`}
-            fill="none"
-            stroke="#f6c453"
-            strokeOpacity="0.5"
-            strokeWidth="1.2"
-            vectorEffect="non-scaling-stroke"
-          />
-        ))}
-      </svg>
-
-      {herd.map((e, i) => (
-        <div key={e.id} className="absolute -translate-x-1/2" style={{ left: `${spots[i].x}%`, top: `${spots[i].y}%` }}>
-          <div className="origin-top scale-[0.7] sm:scale-85 md:scale-100">
-            <FlyingReindeer event={e} now={now} index={i} />
-          </div>
-        </div>
-      ))}
-
-      <div className="absolute bottom-0 left-1/2 -translate-x-1/2">
-        <div className="origin-bottom scale-[0.78] sm:scale-90 md:scale-100">
+    <div className="absolute inset-x-0 top-[24%] z-10 flex justify-center sm:top-[16%]">
+      <div className="sky-drift">
+        <div className={lapping ? 'sleigh-lap' : 'animate-rise'} style={{ animationDelay: lapping ? '0s' : '0.2s' }}>
           <button
             className="relative block touch-pan-y select-none"
             onPointerDown={(e) => (swipe.current = { x: e.clientX, y: e.clientY })}
@@ -184,28 +190,24 @@ function SleighScene({ now }: { now: number }) {
               }
             }}
             onPointerUp={() => {
-              if (swipe.current && santaEvent && !lapping) navigate(`/event/${santaEvent.id}`)
+              if (swipe.current) fly()
               swipe.current = null
             }}
             onPointerLeave={() => (swipe.current = null)}
-            aria-label={santaEvent ? `${santaEvent.name} – tomten leder släden` : 'Tomtens släde'}
+            aria-label="Tomten och renarna – tryck för en tur"
+            title="Ta en tur med släden!"
           >
-            <span className="absolute inset-x-[10%] bottom-[8%] top-[30%] rounded-full bg-jul-red/35 blur-2xl" aria-hidden />
-            <span ref={sleighRef} className="relative block animate-float" style={{ animationDuration: '4s' }}>
-              <SantaSleigh size={250} />
+            <span className="absolute inset-x-[5%] bottom-[5%] top-[30%] rounded-full bg-jul-red/20 blur-3xl" aria-hidden />
+            <span ref={teamRef} className="sleigh-bob relative block">
+              <span className="block md:hidden">
+                <SkyTeam scale={0.6} />
+              </span>
+              <span className="hidden md:block">
+                <SkyTeam />
+              </span>
             </span>
-            {santaEvent && (
-              <>
-                <span className="absolute left-[4%] top-[4%]">
-                  <DaysBadge event={santaEvent} now={now} />
-                </span>
-                <span className="absolute inset-x-0 -bottom-2 flex justify-center">
-                  <NamePill>{santaEvent.name}</NamePill>
-                </span>
-              </>
-            )}
             {hoho && (
-              <span className="animate-pop-in absolute -top-6 left-1/2 -translate-x-1/2 whitespace-nowrap rounded-xl bg-white px-3 py-1 text-sm font-semibold text-jul-red shadow-lg">
+              <span className="animate-pop-in absolute -top-8 left-[18%] whitespace-nowrap rounded-xl bg-white px-3 py-1 text-sm font-semibold text-jul-red shadow-lg">
                 Ho ho ho!
               </span>
             )}
@@ -213,46 +215,5 @@ function SleighScene({ now }: { now: number }) {
         </div>
       </div>
     </div>
-  )
-}
-
-function FlyingReindeer({ event: e, now, index }: { event: JulEvent; now: number; index: number }) {
-  const passed = eventStatus(e, now) === 'passed'
-  return (
-    <Link to={`/event/${e.id}`} className={`team-member group relative flex flex-col items-center ${passed ? 'opacity-50' : ''}`} aria-label={e.name}>
-      <span className="block animate-float" style={{ animationDelay: `${index * 0.8}s`, animationDuration: `${5 + index * 0.6}s` }}>
-        <span className="relative block transition-transform duration-300 group-hover:-translate-y-2 group-hover:scale-105">
-          <span className="absolute inset-[15%] rounded-full bg-white/5 blur-xl transition group-hover:bg-jul-gold/25" aria-hidden />
-          <Reindeer size={140} rudolf={e.reindeer === 'Rudolf'} scarf={SCARFS[index % SCARFS.length]} />
-          {/* badge over the back, away from the face */}
-          <span className="absolute -left-2 top-4">
-            <DaysBadge event={e} now={now} />
-          </span>
-        </span>
-      </span>
-      <NamePill>{e.name}</NamePill>
-    </Link>
-  )
-}
-
-function NamePill({ children }: { children: React.ReactNode }) {
-  return (
-    <span className="mt-1 whitespace-nowrap rounded-full bg-jul-red-dark px-4 py-1 text-sm font-semibold text-white shadow-lg shadow-black/30 transition-colors group-hover:bg-jul-red">
-      {children}
-    </span>
-  )
-}
-
-function DaysBadge({ event, now }: { event: JulEvent; now: number }) {
-  const status = eventStatus(event, now)
-  const value = status === 'live' ? 'Nu' : status === 'passed' ? '✓' : String(countdown(event.start, now).days)
-  return (
-    <span
-      className="flex h-11 w-11 flex-col items-center justify-center rounded-full bg-jul-gold text-night-950 shadow-lg shadow-black/30 ring-2 ring-white/70"
-      title={status === 'upcoming' ? `${value} dagar kvar` : undefined}
-    >
-      <span className="text-sm font-semibold leading-none tabular-nums">{value}</span>
-      {status === 'upcoming' && <span className="text-[7px] uppercase leading-tight tracking-wide">dagar</span>}
-    </span>
   )
 }
