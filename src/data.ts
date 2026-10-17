@@ -24,6 +24,8 @@ export type JulEvent = {
   theme?: string
   competitions?: Competition[]
   potluck?: boolean
+  /** Leds by Santa himself – shown as the sleigh instead of a reindeer on the front page. */
+  santa?: boolean
 }
 
 export const EVENTS: JulEvent[] = [
@@ -78,7 +80,7 @@ export const EVENTS: JulEvent[] = [
     description:
       'Det årliga julbordet med alla klassiker – sill, lax, skinka, köttbullar, Jansson och naturligtvis snaps. Knytkalas-style: välj vad du tar med på Knytis-listan. Klä upp dig fint och ta med aptiten!',
     image: '/Images/Julbord/47e43066-d754-4614-8875-a71d42462100.jpg',
-    reindeer: 'Dancer',
+    reindeer: 'Rudolf',
     accent: 'red',
     potluck: true,
   },
@@ -92,7 +94,8 @@ export const EVENTS: JulEvent[] = [
     location: 'Där hjärtat är',
     description: 'Den stora finalen! Kalle Anka, julmys, klappar och värme – Santa leder släden.',
     image: '/Images/Julbord/5121726d-7697-4990-9c78-7f9839e1c9b9.jpg',
-    reindeer: 'Rudolf',
+    reindeer: 'Tomten',
+    santa: true,
     accent: 'green',
   },
 ]
