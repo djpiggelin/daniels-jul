@@ -2,7 +2,8 @@ import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Gift } from '../components/Gift'
 import { SkyTeam } from '../components/Santa'
-import { Aurora, Lappland, Moon, Stars, type Building } from '../components/Scenery'
+import { Aurora, Lappland, Moon, Stars, Sun, type Building } from '../components/Scenery'
+import { useDaypart } from '../lib/daypart'
 import { jingle } from '../lib/fx'
 import { HOUSE_NUMBERS, linkFor } from '../lib/village'
 
@@ -18,6 +19,7 @@ const GIFTS = [
 
 export default function Home() {
   const navigate = useNavigate()
+  const daypart = useDaypart()
   const [entering, setEntering] = useState<{ x: number; y: number } | null>(null)
 
   // coming back via the browser's back button may restore the zoomed-in page – reset it
@@ -43,6 +45,7 @@ export default function Home() {
         <Stars count={110} />
         <Aurora />
         <Moon className="absolute left-[8%] top-20 h-10 w-10 opacity-80 sm:h-14 sm:w-14" />
+        <Sun daypart={daypart} />
 
         {GIFTS.map((g, i) => (
           <div key={i} className={`absolute z-20 -translate-x-1/2 ${g.mobile ? '' : 'hidden md:block'}`} style={{ left: g.left, top: g.top }}>
