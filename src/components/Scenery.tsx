@@ -144,10 +144,42 @@ type HouseProps = {
   building?: Building
   title?: string
   onEnter?: (b: Building, e: React.MouseEvent) => void
+  /** Seed for chimney smoke – leave out for a cold chimney. */
+  smoke?: number
 }
 
-/** Red brick chimney with mortar lines, a fat snow cap and smoke. x/y = bottom-left, in the parent's units. */
-function BrickChimney({ x, y, w = 11, h = 20 }: { x: number; y: number; w?: number; h?: number }) {
+/**
+ * A soft, continuous plume: blurred puffs that rise, swell, thin out and drift
+ * downwind. `seed` gives each chimney its own pace and phase so none are in sync.
+ */
+function Smoke({ x, y, seed, color = '#d9e1ee', size = 1 }: { x: number; y: number; seed: number; color?: string; size?: number }) {
+  const dur = 7 + rand(seed) * 4 // 7–11 s per puff
+  const offset = rand(seed + 50) * dur
+  const puffs = 6
+  return (
+    <g filter="url(#smoke-blur)" pointerEvents="none">
+      {Array.from({ length: puffs }, (_, i) => (
+        <ellipse
+          key={i}
+          cx={x}
+          cy={y}
+          rx={4.4 * size}
+          ry={3.4 * size}
+          fill={color}
+          className="smoke-puff"
+          style={{
+            animationDuration: `${dur}s`,
+            animationDelay: `${-((i * dur) / puffs + offset)}s`,
+            ['--drift' as string]: `${(10 + rand(seed + i) * 10) * size}px`,
+          }}
+        />
+      ))}
+    </g>
+  )
+}
+
+/** Red brick chimney with mortar lines and a fat snow cap. x/y = bottom-left, in the parent's units. */
+function BrickChimney({ x, y, w = 11, h = 20, smoke }: { x: number; y: number; w?: number; h?: number; smoke?: number }) {
   const rows = Math.floor(h / 3.4)
   return (
     <g>
@@ -163,17 +195,13 @@ function BrickChimney({ x, y, w = 11, h = 20 }: { x: number; y: number; w?: numb
       ))}
       <rect x={x} y={y - h} width={w * 0.3} height={h} fill="#000" opacity="0.12" />
       <path d={`M${x - 2} ${y - h + 1} Q${x - 2} ${y - h - 4} ${x + w / 2} ${y - h - 4.5} Q${x + w + 2} ${y - h - 4} ${x + w + 2} ${y - h + 1} Q${x + w / 2} ${y - h + 3} ${x - 2} ${y - h + 1} Z`} fill="#f4f8ff" />
-      <g className="stuga-smoke">
-        <circle cx={x + w / 2} cy={y - h - 9} r="4" fill="#dfe8f7" opacity="0.35" />
-        <circle cx={x + w / 2 + 4} cy={y - h - 20} r="6" fill="#dfe8f7" opacity="0.22" />
-        <circle cx={x + w / 2 - 1} cy={y - h - 34} r="8" fill="#dfe8f7" opacity="0.12" />
-      </g>
+      {smoke !== undefined && <Smoke x={x + w / 2} y={y - h - 5} seed={smoke} />}
     </g>
   )
 }
 
 /** A snowy little house for Tomtens by. Optionally clickable. */
-function House({ x, base, w, h, wall, roof = '#3a1410', windows = 2, sign, signColor = '#a92529', building, title, onEnter }: HouseProps) {
+function House({ x, base, w, h, wall, roof = '#3a1410', windows = 2, sign, signColor = '#a92529', building, title, onEnter, smoke }: HouseProps) {
   const clickable = !!(onEnter && building)
   const peak = Math.min(34, w * 0.32)
   const doorW = Math.max(10, w * 0.14)
@@ -197,7 +225,7 @@ function House({ x, base, w, h, wall, roof = '#3a1410', windows = 2, sign, signC
       {clickable && <rect x={-12} y={-peak - 14} width={w + 24} height={h + peak + 20} fill="transparent" />}
       <ellipse cx={w / 2} cy={h} rx={w * 0.8} ry={h * 0.5} fill="url(#warm)" opacity="0.3" />
       <rect x="0" y="0" width={w} height={h} fill={wall} />
-      {w >= 56 && <BrickChimney x={w * 0.68} y={-peak * 0.38} w={Math.min(12, w * 0.1)} h={peak * 0.62 + 6} />}
+      {w >= 56 && <BrickChimney x={w * 0.68} y={-peak * 0.38} w={Math.min(12, w * 0.1)} h={peak * 0.62 + 6} smoke={smoke} />}
       <path d={`M-8 4 L${w / 2} ${-peak} L${w + 8} 4 Z`} fill={roof} />
       {/* thick, soft snow with lumps hanging over the eaves */}
       <path
@@ -638,6 +666,9 @@ export function Lappland({
           <stop offset="0" stopColor="#d3e0f4" />
           <stop offset="1" stopColor="#f7f9ff" />
         </linearGradient>
+        <filter id="smoke-blur" x="-100%" y="-100%" width="300%" height="300%">
+          <feGaussianBlur stdDeviation="1.8" />
+        </filter>
         <radialGradient id="warm" cx="0.5" cy="0.5" r="0.5">
           <stop offset="0" stopColor="#ffb347" stopOpacity="0.9" />
           <stop offset="1" stopColor="#ffb347" stopOpacity="0" />
@@ -669,7 +700,7 @@ export function Lappland({
           <VillagePaths />
           {/* back row: small cottages */}
           <House x={40} base={358} w={62} h={28} wall="#d9a441" windows={2} />
-          <House x={250} base={358} w={66} h={30} wall="#e9e4d8" roof="#2e3b55" windows={2} />
+          <House x={250} base={358} w={66} h={30} wall="#e9e4d8" roof="#2e3b55" windows={2} smoke={11} />
           <House x={1060} base={358} w={62} h={28} wall="#d9a441" windows={2} />
           <House x={1270} base={358} w={70} h={30} wall="#e9e4d8" roof="#2e3b55" windows={2} />
           <House x={1360} base={362} w={50} h={24} wall="#8e2a1f" windows={1} />
@@ -685,8 +716,8 @@ export function Lappland({
           <VillageTree x={394} base={382} />
           <Nisse x={372} y={388} carry="wave" />
           {/* centre: Tomtens stuga (Julafton), destilleri + verkstad (Julbak), långhuset (Julbord) */}
-          <House x={425} base={380} w={80} h={38} wall="#a8322a" windows={2} sign="TOMTEN" building="julafton" title="Kliv in hos Tomten – julafton" onEnter={onEnter} />
-          <House x={836} base={380} w={170} h={46} wall="#8e2a1f" windows={4} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} />
+          <House x={425} base={380} w={80} h={38} wall="#a8322a" windows={2} sign="TOMTEN" building="julafton" title="Kliv in hos Tomten – julafton" onEnter={onEnter} smoke={3} />
+          <House x={836} base={380} w={170} h={46} wall="#8e2a1f" windows={4} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} smoke={7} />
           {/* right */}
           <House x={1150} base={380} w={90} h={36} wall="#c98a2b" windows={2} />
           <Sled x={1100} base={388} />
@@ -709,11 +740,7 @@ export function Lappland({
         <rect x="64" y="-14" width="6" height="16" fill="#b5562a" />
         <path d="M56 -14 Q56 -32 67 -34 Q78 -32 78 -14 Z" fill="#d9783f" />
         <path d="M60 -18 Q61 -28 66 -30" stroke="#ffd2a1" strokeWidth="1.5" fill="none" opacity="0.8" />
-        <g className="stuga-smoke">
-          <circle cx="67" cy="-44" r="5" fill="#ffd9a8" opacity="0.4" />
-          <circle cx="72" cy="-58" r="8" fill="#ffd9a8" opacity="0.25" />
-          <circle cx="66" cy="-76" r="10" fill="#ffd9a8" opacity="0.12" />
-        </g>
+        <Smoke x={67} y={-37} seed={23} color="#f3dcc0" size={0.8} />
         <rect x="14" y="4" width="64" height="12" rx="2.5" fill="#fff3dc" />
         <text x="46" y="12.8" textAnchor="middle" fontFamily="Fraunces, Georgia, serif" fontSize="7.4" fontWeight="700" fill="#8a3d1d" letterSpacing="0.5">
           DESTILLERI
@@ -740,7 +767,7 @@ export function Lappland({
         {[-10, 10, 160, 178].map((dx) => (
           <ellipse key={dx} cx={dx} cy={dx < 85 ? 27 - (dx + 10) * 0.25 : 22 + (dx - 160) * 0.25} rx="2.6" ry="3.6" fill="#f4f8ff" />
         ))}
-        <BrickChimney x={127} y={8} w={15} h={28} />
+        <BrickChimney x={127} y={8} w={15} h={28} smoke={19} />
         {/* sign */}
         <rect x="52" y="0" width="66" height="14" rx="3" fill="#fff3dc" />
         <text x="85" y="10.5" textAnchor="middle" fontFamily="Fraunces, Georgia, serif" fontSize="8.5" fontWeight="700" fill="#a92529" letterSpacing="0.6">
