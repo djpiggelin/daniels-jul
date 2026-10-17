@@ -2,7 +2,7 @@
 // When running plain `npm run dev` (no functions available) it falls back to
 // localStorage so everything can be tried locally.
 
-import type { HouseParams } from './gingerbread'
+import type { Building, CustomPiece, HouseParams } from './gingerbread'
 import type { Sketches } from './icing'
 
 export type Claim = { name: string; picture?: string | null }
@@ -86,7 +86,10 @@ export const rememberedName = {
 export type SavedHouse = {
   id?: string
   team: string
-  params: HouseParams
+  buildings?: Building[]
+  custom?: CustomPiece[]
+  /** plans shared before there could be several buildings */
+  params?: HouseParams
   sketches: Sketches
   thickness?: number
   pack?: number

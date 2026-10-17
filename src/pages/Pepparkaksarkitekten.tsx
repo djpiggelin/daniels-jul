@@ -1,11 +1,24 @@
 import { useEffect, useMemo, useState } from 'react'
 import { Link, useSearchParams } from 'react-router-dom'
-import { buildDesign, DEFAULT_PARAMS, DOUGH_DENSITY, DOUGH_WASTE, HOUSE_TYPES, totalArea, type HouseParams, type HouseType } from '../lib/gingerbread'
+import {
+  buildBoard,
+  DEFAULT_PARAMS,
+  DOUGH_DENSITY,
+  DOUGH_WASTE,
+  HOUSE_TYPES,
+  totalArea,
+  type Building,
+  type CustomPiece,
+  type HouseParams,
+  type HouseType,
+} from '../lib/gingerbread'
 import { renderPiece, type Op, type Sketches } from '../lib/icing'
+import { OUTLINE_PRESETS } from '../lib/shapes'
 import { getHouse, shareHouse, type SavedHouse } from '../lib/api'
 import { JULBAK } from '../lib/village'
 import { Preview3D } from '../components/arkitekt/Preview3D'
 import { FacadeEditor } from '../components/arkitekt/FacadeEditor'
+import { PieceCad } from '../components/arkitekt/PieceCad'
 import { layoutPages, TemplatePage } from '../components/arkitekt/Templates'
 
 const STORAGE = 'pepparkaksarkitekten'
@@ -15,48 +28,90 @@ const PRESETS: Record<HouseType, Partial<HouseParams>> = {
   sadel: { width: 18, depth: 12, height: 10, pitch: 45 },
   platt: { width: 18, depth: 13, height: 9, pitch: 40 },
   torn: { width: 9, depth: 9, height: 18, pitch: 62 },
+  rund: { width: 10, depth: 10, height: 16, pitch: 60, sides: 8, windows: 2 },
 }
 
-type Draft = { team: string; params: HouseParams; sketches: Sketches; thickness: number; pack: number; id?: string }
+type Draft = { team: string; buildings: Building[]; custom: CustomPiece[]; sketches: Sketches; thickness: number; pack: number; id?: string }
 
-const fresh = (): Draft => ({ team: '', params: DEFAULT_PARAMS, sketches: {}, thickness: 0.5, pack: 500 })
+const firstHouse = (params: HouseParams = DEFAULT_PARAMS): Building => ({ id: 'h1', name: 'Hus 1', params, x: 0, z: 0, rot: 0 })
+const fresh = (): Draft => ({ team: '', buildings: [firstHouse()], custom: [], sketches: {}, thickness: 0.5, pack: 500 })
+
+/** Accept plans saved before there could be more than one building. */
+function migrate(raw: Partial<Draft> & { params?: HouseParams }): Draft {
+  const { params, ...rest } = raw
+  const d: Draft = { ...fresh(), ...rest }
+  if (!raw.buildings?.length) {
+    d.buildings = [firstHouse({ ...DEFAULT_PARAMS, ...params })]
+    d.sketches = Object.fromEntries(Object.entries(raw.sketches ?? {}).map(([k, v]) => [k.includes('/') ? k : `h1/${k}`, v]))
+  }
+  d.buildings = d.buildings.map((b) => ({ ...b, params: { ...DEFAULT_PARAMS, ...b.params } }))
+  d.custom = d.custom ?? []
+  return d
+}
 
 function readDraft(): Draft {
   try {
     const raw = localStorage.getItem(STORAGE)
-    if (raw) return { ...fresh(), ...JSON.parse(raw) }
+    if (raw) return migrate(JSON.parse(raw))
   } catch {
     /* ignore */
   }
   return fresh()
 }
 
-const fromSaved = (h: SavedHouse): Draft => ({
-  ...fresh(),
-  team: h.team,
-  params: { ...DEFAULT_PARAMS, ...h.params },
-  sketches: h.sketches ?? {},
-  thickness: h.thickness ?? 0.5,
-  pack: h.pack ?? 500,
-  id: h.id,
-})
+const fromSaved = (h: SavedHouse): Draft => ({ ...migrate(h as Partial<Draft>), id: h.id })
+
+const nextId = (prefix: string, ids: string[]) => `${prefix}${Math.max(0, ...ids.filter((i) => i.startsWith(prefix)).map((i) => parseInt(i.slice(1)) || 0)) + 1}`
 
 const sv = (n: number, d = 0) => n.toLocaleString('sv-SE', { maximumFractionDigits: d, minimumFractionDigits: d })
 
 export default function Pepparkaksarkitekten() {
   const [search, setSearch] = useSearchParams()
   const [draft, setDraft] = useState<Draft>(readDraft)
+  const [active, setActive] = useState(() => draft.buildings[0]?.id ?? '')
   const [notice, setNotice] = useState('')
   const [sharing, setSharing] = useState(false)
   const [textures, setTextures] = useState<Record<string, string>>({})
-  const { params, sketches, team } = draft
+  const { buildings, custom, sketches, team } = draft
 
-  const design = useMemo(() => buildDesign(params), [params])
+  const design = useMemo(() => buildBoard(buildings, custom), [buildings, custom])
   const pages = useMemo(() => layoutPages(design.pieces), [design])
 
+  const building = buildings.find((b) => b.id === active)
+  const piece = custom.find((c) => c.id === active)
+  useEffect(() => {
+    if (!building && !piece) setActive(buildings[0]?.id ?? custom[0]?.id ?? '')
+  }, [building, piece, buildings, custom])
+
   const update = (patch: Partial<Draft>) => setDraft((d) => ({ ...d, ...patch }))
-  const setParam = <K extends keyof HouseParams>(k: K, v: HouseParams[K]) => setDraft((d) => ({ ...d, params: { ...d.params, [k]: v } }))
+  const setBuilding = (id: string, patch: Partial<Building>) => setDraft((d) => ({ ...d, buildings: d.buildings.map((b) => (b.id === id ? { ...b, ...patch } : b)) }))
+  const setParam = <K extends keyof HouseParams>(k: K, v: HouseParams[K]) => {
+    if (building) setBuilding(building.id, { params: { ...building.params, [k]: v } })
+  }
+  const setPiece = (p: CustomPiece) => setDraft((d) => ({ ...d, custom: d.custom.map((c) => (c.id === p.id ? p : c)) }))
   const setSketch = (id: string, ops: Op[]) => setDraft((d) => ({ ...d, sketches: { ...d.sketches, [id]: ops } }))
+
+  // new things go to the right of what's already on the board
+  const freeX = (w: number) => {
+    const edges = [...buildings.map((b) => b.x + b.params.width / 2), ...custom.filter((c) => c.place).map((c) => c.place!.x + 6)]
+    return edges.length ? Math.round(Math.max(...edges) + 4 + w / 2) : 0
+  }
+  const addBuilding = () => {
+    const id = nextId('h', buildings.map((b) => b.id))
+    const params: HouseParams = { ...DEFAULT_PARAMS, ...PRESETS.torn, type: 'torn', chimney: false }
+    update({ buildings: [...buildings, { id, name: `Hus ${id.slice(1)}`, params, x: freeX(params.width), z: 0, rot: 0 }] })
+    setActive(id)
+  }
+  const addPiece = () => {
+    const id = nextId('c', custom.map((c) => c.id))
+    update({ custom: [...custom, { id, name: `Egen bit ${id.slice(1)}`, count: 1, outline: OUTLINE_PRESETS[0].shape(), holes: [], place: { x: freeX(12), z: 6, y: 0, yaw: 0, flat: false } }] })
+    setActive(id)
+  }
+  const remove = (id: string) => {
+    const name = buildings.find((b) => b.id === id)?.name ?? custom.find((c) => c.id === id)?.name
+    if (!confirm(`Ta bort ${name}?`)) return
+    update({ buildings: buildings.filter((b) => b.id !== id), custom: custom.filter((c) => c.id !== id) })
+  }
 
   // a shared link opens that team's plan
   const sharedId = search.get('hus')
@@ -64,7 +119,9 @@ export default function Pepparkaksarkitekten() {
     if (!sharedId || sharedId === draft.id) return
     getHouse(sharedId)
       .then((h) => {
-        setDraft(fromSaved(h))
+        const d = fromSaved(h)
+        setDraft(d)
+        setActive(d.buildings[0]?.id ?? d.custom[0]?.id ?? '')
         setNotice(`Du har öppnat ${/[sxz]$/i.test(h.team) ? h.team : `${h.team}s`} ritning. Ändringar sparas hos dig – dela igen för att uppdatera lagets länk.`)
       })
       .catch((e: Error) => setNotice(e.message || 'Kunde inte öppna ritningen.'))
@@ -107,7 +164,7 @@ export default function Pepparkaksarkitekten() {
     }
     setSharing(true)
     try {
-      const saved = await shareHouse({ id: draft.id, team, params, sketches, thickness: draft.thickness, pack: draft.pack })
+      const saved = await shareHouse({ id: draft.id, team, buildings, custom, sketches, thickness: draft.thickness, pack: draft.pack })
       update({ id: saved.id })
       setSearch({ hus: saved.id! }, { replace: true })
       const link = `${location.origin}/pepparkaksarkitekten?hus=${saved.id}`
@@ -125,14 +182,18 @@ export default function Pepparkaksarkitekten() {
   }
 
   const startOver = () => {
-    if (!confirm('Börja om med ett nytt hus? Den nuvarande ritningen försvinner från den här enheten.')) return
+    if (!confirm('Börja om från ett tomt ritbord? Den nuvarande ritningen försvinner från den här enheten.')) return
     setDraft({ ...fresh(), team })
+    setActive('h1')
     setSearch({}, { replace: true })
     setNotice('')
   }
 
-  const typeName = HOUSE_TYPES.find((t) => t.type === params.type)!.name
-  const title = `${team.trim() || 'Ert lag'} · ${typeName}, ${sv(params.width, 1)} × ${sv(params.depth, 1)} cm, väggar ${sv(params.height, 1)} cm`
+  const describe = (b: Building) =>
+    `${HOUSE_TYPES.find((t) => t.type === b.params.type)!.name.toLowerCase()} ${sv(b.params.width, 1)} × ${sv(b.params.type === 'rund' ? b.params.width : b.params.depth, 1)} × ${sv(b.params.height, 1)} cm`
+  const title = `${team.trim() || 'Ert lag'} · ${[...buildings.map((b) => (buildings.length > 1 ? `${b.name}: ${describe(b)}` : describe(b))), ...(custom.length ? [`${custom.length} egna bitar`] : [])].join(' · ')}`
+  const params = building?.params
+  const many = buildings.length + custom.length > 1
 
   return (
     <div className="relative bg-[#170b06] text-jul-cream print:bg-white">
@@ -147,7 +208,7 @@ export default function Pepparkaksarkitekten() {
           </p>
           <h1 className="mt-3 text-4xl font-normal sm:text-6xl">Pepparkaksarkitekten</h1>
           <p className="mt-5 text-lg leading-relaxed text-jul-cream/80">
-            Rita huset innan ni står med degen. Ange måtten, skissa glasyren och skriv ut mallarna i skala 1:1. Planera hur mycket ni vill – men bygget och pyntet sker först på plats.
+            Rita huset innan ni står med degen. Bygg ihop flera byggnader, rita egna bitar med bågar och urtag, skissa glasyren och skriv ut mallarna i skala 1:1. Planera hur mycket ni vill – men bygget och pyntet sker först på plats.
           </p>
         </header>
 
@@ -169,7 +230,7 @@ export default function Pepparkaksarkitekten() {
               {sharing ? 'Sparar …' : draft.id ? 'Uppdatera lagets länk' : 'Dela med laget'}
             </button>
             <button onClick={startOver} className="rounded-full border border-jul-cream/25 px-5 py-2.5 text-sm text-jul-cream/80 transition-colors hover:border-jul-cream/60">
-              Nytt hus
+              Nytt ritbord
             </button>
           </div>
         </div>
@@ -177,60 +238,143 @@ export default function Pepparkaksarkitekten() {
           {notice || 'Allt sparas automatiskt på den här enheten.'}
         </p>
 
-        {/* 1 · måtten */}
+        {/* 1 · byggnaderna */}
         <section className="mt-14 grid gap-6 lg:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)]">
           <Paper>
-            <Eyebrow n={1}>Måtten</Eyebrow>
-            <fieldset className="mt-5">
-              <legend className="sr-only">Hustyp</legend>
-              <div className="grid grid-cols-3 gap-2">
-                {HOUSE_TYPES.map((t) => (
-                  <button
-                    key={t.type}
-                    aria-pressed={params.type === t.type}
-                    onClick={() => params.type !== t.type && update({ params: { ...params, ...PRESETS[t.type], type: t.type } })}
-                    className={`flex flex-col items-center gap-2 rounded-xl border px-1 py-3 text-center text-[13px] leading-tight transition-colors ${
-                      params.type === t.type ? 'border-[#3a2410] bg-[#b5713a]/20' : 'border-[#3a2410]/20 hover:border-[#3a2410]/50'
-                    }`}
-                  >
-                    <TypeIcon type={t.type} />
-                    {t.name}
-                  </button>
-                ))}
+            <Eyebrow n={1}>Byggnaderna</Eyebrow>
+            <div className="mt-5 flex flex-wrap gap-2" role="tablist" aria-label="Byggnader och egna bitar">
+              {[...buildings, ...custom].map((it) => (
+                <button
+                  key={it.id}
+                  role="tab"
+                  aria-selected={it.id === active}
+                  onClick={() => setActive(it.id)}
+                  className={`rounded-full border px-3.5 py-1.5 text-sm transition-colors ${it.id === active ? 'border-[#3a2410] bg-[#3a2410] text-[#fbf3e4]' : 'border-[#3a2410]/25 hover:border-[#3a2410]/60'}`}
+                >
+                  {it.name}
+                </button>
+              ))}
+              <button onClick={addBuilding} className="rounded-full border border-dashed border-[#3a2410]/40 px-3.5 py-1.5 text-sm text-[#3a2410]/80 hover:border-[#3a2410]">
+                + Byggnad
+              </button>
+              <button onClick={addPiece} className="rounded-full border border-dashed border-[#3a2410]/40 px-3.5 py-1.5 text-sm text-[#3a2410]/80 hover:border-[#3a2410]">
+                + Egen bit
+              </button>
+            </div>
+
+            {building && params && (
+              <div className="mt-6 border-t border-[#3a2410]/15 pt-5">
+                <NameField value={building.name} onChange={(name) => setBuilding(building.id, { name })} onRemove={many ? () => remove(building.id) : undefined} />
+                <fieldset className="mt-5">
+                  <legend className="sr-only">Hustyp</legend>
+                  <div className="grid grid-cols-2 gap-2 sm:grid-cols-4">
+                    {HOUSE_TYPES.map((t) => (
+                      <button
+                        key={t.type}
+                        aria-pressed={params.type === t.type}
+                        onClick={() => params.type !== t.type && setBuilding(building.id, { params: { ...params, ...PRESETS[t.type], type: t.type } })}
+                        className={`flex flex-col items-center gap-2 rounded-xl border px-1 py-3 text-center text-[13px] leading-tight transition-colors ${
+                          params.type === t.type ? 'border-[#3a2410] bg-[#b5713a]/20' : 'border-[#3a2410]/20 hover:border-[#3a2410]/50'
+                        }`}
+                      >
+                        <TypeIcon type={t.type} />
+                        {t.name}
+                      </button>
+                    ))}
+                  </div>
+                  <p className="mt-2 text-sm text-[#3a2410]/65">{HOUSE_TYPES.find((t) => t.type === params.type)!.text}</p>
+                </fieldset>
+
+                <div className="mt-6 space-y-4">
+                  <Measure
+                    label={params.type === 'rund' ? 'Diameter' : params.type === 'torn' ? 'Bredd fram' : 'Bredd (långvägg)'}
+                    value={params.width}
+                    min={4}
+                    max={40}
+                    onChange={(v) => setParam('width', v)}
+                  />
+                  {params.type !== 'rund' && <Measure label={params.type === 'torn' ? 'Djup (sida)' : 'Djup (gavel)'} value={params.depth} min={4} max={30} onChange={(v) => setParam('depth', v)} />}
+                  {params.type === 'rund' && <Measure label="Antal sidor" value={params.sides ?? 8} min={5} max={16} step={1} unit="st" onChange={(v) => setParam('sides', v)} />}
+                  <Measure label="Vägghöjd" value={params.height} min={3} max={30} onChange={(v) => setParam('height', v)} />
+                  <Measure label={params.type === 'platt' ? 'Taklutning på kupan' : 'Taklutning'} value={params.pitch} min={15} max={75} step={1} unit="°" onChange={(v) => setParam('pitch', v)} />
+                </div>
+
+                <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#3a2410]/15 pt-5 text-sm">
+                  <Check label="Dörr" checked={params.door} onChange={(v) => setParam('door', v)} />
+                  {(params.type === 'sadel' || params.type === 'platt') && <Check label="Skorsten" checked={params.chimney} onChange={(v) => setParam('chimney', v)} />}
+                  {params.type !== 'rund' && (
+                    <Check label={params.type === 'sadel' ? 'Fönster i gavlarna' : 'Fönster på sidorna'} checked={params.gableWindow} onChange={(v) => setParam('gableWindow', v)} />
+                  )}
+                  <label className="col-span-2 flex items-center justify-between gap-3">
+                    <span>{params.type === 'rund' ? 'Fönster runt om' : `Fönster per ${params.type === 'torn' ? 'vägg' : 'långvägg'}`}</span>
+                    <span className="flex items-center gap-1">
+                      {[0, 1, 2, 3, 4].slice(0, params.type === 'torn' ? 3 : 5).map((n) => (
+                        <button
+                          key={n}
+                          aria-pressed={params.windows === n}
+                          onClick={() => setParam('windows', n)}
+                          className={`h-8 w-8 rounded-full border text-sm ${params.windows === n ? 'border-[#3a2410] bg-[#3a2410] text-[#fbf3e4]' : 'border-[#3a2410]/25'}`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </span>
+                  </label>
+                </div>
+
+                {many && (
+                  <div className="mt-6 space-y-4 border-t border-[#3a2410]/15 pt-5">
+                    <p className="text-[11px] uppercase tracking-widest text-[#3a2410]/60">Placering på brickan</p>
+                    <Measure label="Åt sidan" value={building.x} min={-60} max={60} onChange={(x) => setBuilding(building.id, { x })} />
+                    <Measure label="Bakåt / framåt" value={building.z} min={-40} max={40} onChange={(z) => setBuilding(building.id, { z })} />
+                    <Measure label="Vridning" value={building.rot} min={0} max={345} step={15} unit="°" onChange={(rot) => setBuilding(building.id, { rot })} />
+                  </div>
+                )}
               </div>
-              <p className="mt-2 text-sm text-[#3a2410]/65">{HOUSE_TYPES.find((t) => t.type === params.type)!.text}</p>
-            </fieldset>
+            )}
 
-            <div className="mt-6 space-y-4">
-              <Measure label={params.type === 'torn' ? 'Bredd fram' : 'Bredd (långvägg)'} value={params.width} min={6} max={40} onChange={(v) => setParam('width', v)} />
-              <Measure label={params.type === 'torn' ? 'Djup (sida)' : 'Djup (gavel)'} value={params.depth} min={6} max={30} onChange={(v) => setParam('depth', v)} />
-              <Measure label="Vägghöjd" value={params.height} min={4} max={30} onChange={(v) => setParam('height', v)} />
-              <Measure label={params.type === 'platt' ? 'Taklutning på kupan' : 'Taklutning'} value={params.pitch} min={20} max={70} step={1} unit="°" onChange={(v) => setParam('pitch', v)} />
-            </div>
-
-            <div className="mt-6 grid grid-cols-2 gap-x-4 gap-y-3 border-t border-[#3a2410]/15 pt-5 text-sm">
-              <Check label="Dörr" checked={params.door} onChange={(v) => setParam('door', v)} />
-              {params.type !== 'torn' && <Check label="Skorsten" checked={params.chimney} onChange={(v) => setParam('chimney', v)} />}
-              <Check label={params.type === 'sadel' ? 'Fönster i gavlarna' : 'Fönster på sidorna'} checked={params.gableWindow} onChange={(v) => setParam('gableWindow', v)} />
-              <label className="col-span-2 flex items-center justify-between gap-3">
-                <span>Fönster per {params.type === 'torn' ? 'vägg' : 'långvägg'}</span>
-                <span className="flex items-center gap-1">
-                  {[0, 1, 2, 3, 4].slice(0, params.type === 'torn' ? 3 : 5).map((n) => (
-                    <button
-                      key={n}
-                      aria-pressed={params.windows === n}
-                      onClick={() => setParam('windows', n)}
-                      className={`h-8 w-8 rounded-full border text-sm ${params.windows === n ? 'border-[#3a2410] bg-[#3a2410] text-[#fbf3e4]' : 'border-[#3a2410]/25'}`}
-                    >
-                      {n}
-                    </button>
-                  ))}
-                </span>
-              </label>
-            </div>
+            {piece && (
+              <div className="mt-6 border-t border-[#3a2410]/15 pt-5">
+                <NameField value={piece.name} onChange={(name) => setPiece({ ...piece, name })} onRemove={many ? () => remove(piece.id) : undefined} />
+                <div className="mt-5 space-y-4">
+                  <Measure label="Antal att skära" value={piece.count} min={1} max={12} step={1} unit="st" onChange={(count) => setPiece({ ...piece, count })} />
+                  <Check
+                    label="Visa på brickan i förhandsvisningen"
+                    checked={!!piece.place}
+                    onChange={(v) => setPiece({ ...piece, place: v ? { x: 0, z: 8, y: 0, yaw: 0, flat: false } : null })}
+                  />
+                  {piece.place && (
+                    <>
+                      <div className="flex gap-2 text-sm">
+                        {[
+                          [false, 'Står upp'],
+                          [true, 'Ligger ner'],
+                        ].map(([flat, label]) => (
+                          <button
+                            key={String(flat)}
+                            aria-pressed={piece.place!.flat === flat}
+                            onClick={() => setPiece({ ...piece, place: { ...piece.place!, flat: flat as boolean } })}
+                            className={`rounded-full border px-3.5 py-1.5 ${piece.place!.flat === flat ? 'border-[#3a2410] bg-[#3a2410] text-[#fbf3e4]' : 'border-[#3a2410]/25'}`}
+                          >
+                            {label as string}
+                          </button>
+                        ))}
+                      </div>
+                      <Measure label="Åt sidan" value={piece.place.x} min={-60} max={60} onChange={(x) => setPiece({ ...piece, place: { ...piece.place!, x } })} />
+                      <Measure label="Bakåt / framåt" value={piece.place.z} min={-40} max={40} onChange={(z) => setPiece({ ...piece, place: { ...piece.place!, z } })} />
+                      <Measure label="Höjd över brickan" value={piece.place.y} min={0} max={40} onChange={(y) => setPiece({ ...piece, place: { ...piece.place!, y } })} />
+                      <Measure label="Vridning" value={piece.place.yaw} min={0} max={345} step={15} unit="°" onChange={(yaw) => setPiece({ ...piece, place: { ...piece.place!, yaw } })} />
+                    </>
+                  )}
+                </div>
+                <p className="mt-5 text-[13px] leading-relaxed text-[#3a2410]/65">
+                  Rita formen på ritbordet nedanför. Egna bitar kommer med i mallarna, i degberäkningen och på skissytan.
+                </p>
+              </div>
+            )}
           </Paper>
 
-          <Paper className="flex flex-col">
+          <Paper className="flex flex-col lg:sticky lg:top-20 lg:self-start">
             <div className="flex items-baseline justify-between gap-3">
               <Eyebrow>Förhandsvisning</Eyebrow>
               <span className="text-xs text-[#3a2410]/50">dra för att vrida</span>
@@ -238,7 +382,7 @@ export default function Pepparkaksarkitekten() {
             <div className="mt-3 flex flex-1 items-center rounded-xl" style={{ backgroundImage: 'linear-gradient(#3a241012 1px, transparent 1px), linear-gradient(90deg, #3a241012 1px, transparent 1px)', backgroundSize: '20px 20px' }}>
               <Preview3D design={design} textures={textures} className="block aspect-[5/4] w-full" />
             </div>
-            <ul className="mt-4 grid grid-cols-2 gap-x-4 gap-y-1 text-sm text-[#3a2410]/80 sm:grid-cols-3">
+            <ul className="mt-4 grid grid-cols-1 gap-x-4 gap-y-1 text-sm text-[#3a2410]/80 sm:grid-cols-2">
               {design.pieces.map((p) => (
                 <li key={p.id} className="flex justify-between gap-2 border-b border-dotted border-[#3a2410]/20 py-1">
                   <span className="truncate">{p.name}</span>
@@ -248,6 +392,17 @@ export default function Pepparkaksarkitekten() {
             </ul>
           </Paper>
         </section>
+
+        {piece && (
+          <section className="mt-6">
+            <Paper>
+              <Eyebrow>Ritbordet · {piece.name}</Eyebrow>
+              <div className="mt-6">
+                <PieceCad key={piece.id} piece={piece} onChange={setPiece} />
+              </div>
+            </Paper>
+          </section>
+        )}
 
         {/* 2 · fasaden */}
         <section className="mt-6">
@@ -405,6 +560,22 @@ function Measure({
   )
 }
 
+function NameField({ value, onChange, onRemove }: { value: string; onChange: (v: string) => void; onRemove?: () => void }) {
+  return (
+    <div className="flex items-end gap-3">
+      <label className="flex-1">
+        <span className="text-[11px] uppercase tracking-widest text-[#3a2410]/60">Namn</span>
+        <input value={value} maxLength={24} onChange={(e) => onChange(e.target.value)} className="mt-1 block w-full border-b border-[#3a2410]/25 bg-transparent py-1 font-serif text-lg outline-none focus:border-[#b5713a]" />
+      </label>
+      {onRemove && (
+        <button onClick={onRemove} className="pb-1.5 text-sm text-[#3a2410]/60 underline-offset-4 hover:text-jul-red hover:underline">
+          Ta bort
+        </button>
+      )}
+    </div>
+  )
+}
+
 function Check({ label, checked, onChange }: { label: string; checked: boolean; onChange: (v: boolean) => void }) {
   return (
     <label className="flex cursor-pointer items-center gap-2.5">
@@ -431,6 +602,14 @@ function TypeIcon({ type }: { type: HouseType }) {
           <rect x="6" y="20" width="36" height="16" {...common} />
           <path d="M4 20 H44" stroke="#fff8ee" strokeWidth="3" strokeLinecap="round" />
           <rect x="21" y="26" width="6" height="10" rx="3" fill="#3a1f0e" />
+        </>
+      )}
+      {type === 'rund' && (
+        <>
+          <path d="M14 18 H34 V36 H14Z" {...common} />
+          <path d="M20 18 V36 M28 18 V36" stroke="#8a4f22" strokeWidth="1" />
+          <path d="M12 19 L24 3 L36 19 Q24 22 12 19Z" {...common} />
+          <rect x="21.5" y="27" width="5" height="9" rx="2.5" fill="#3a1f0e" />
         </>
       )}
       {type === 'torn' && (

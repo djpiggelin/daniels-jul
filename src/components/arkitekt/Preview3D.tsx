@@ -48,6 +48,7 @@ export function Preview3D({ design, textures, className = '' }: { design: Design
         maxZ = Math.max(maxZ, w[2])
       }
     }
+    if (!Number.isFinite(minX)) [minX, maxX, minZ, maxZ] = [-10, 10, -10, 10]
     const cx = (minX + maxX) / 2
     const cz = (minZ + maxZ) / 2
     const lin = (v: V3): [number, number] => {
@@ -62,13 +63,12 @@ export function Preview3D({ design, textures, className = '' }: { design: Design
     const project = (v: V3) => lin([v[0] - cx, v[1], v[2] - cz])
     const viewDir: V3 = [0, sp, cp]
 
-    const faces = design.faces
-      .map((f, i) => {
+    const faces = design.faces.map((f, i) => {
         const piece = pieces.get(f.piece)!
         let n = cross(f.v, f.u)
         if (f.mirror) n = n.map((c) => -c) as V3
         const nr: V3 = [n[0] * ct - n[2] * st, n[1], n[0] * st + n[2] * ct]
-        const visible = dot(nr, viewDir) > 0.01
+        const visible = f.double || dot(nr, viewDir) > 0.01
         const pts = piece.outline.map((pt) => world(f, pt))
         const d = pts.reduce((s, p) => s + depth(p), 0) / pts.length
         const [a, b] = lin(f.u)
@@ -78,10 +78,18 @@ export function Preview3D({ design, textures, className = '' }: { design: Design
         const light = 0.62 + 0.42 * Math.max(0, dot(n, LIGHT) / nn)
         const base = piece.roof ? ROOF : DOUGH
         const fill = `rgb(${base.map((c) => Math.min(255, Math.round(c * light))).join(',')})`
-        return { i, f, piece, visible, d, matrix: `matrix(${a} ${b} ${c} ${dd} ${e} ${ff})`, fill, screen: pts.map(project) }
+        return { i, f, piece, visible, d, group: f.group ?? '', matrix: `matrix(${a} ${b} ${c} ${dd} ${e} ${ff})`, fill, screen: pts.map(project) }
       })
+    // buildings far → near; inside each, the body before what sits on its roof
+    const groupDepth = new Map<string, number[]>()
+    for (const f of faces) groupDepth.set(f.group, [...(groupDepth.get(f.group) ?? []), f.d])
+    const gd = (g: string) => {
+      const ds = groupDepth.get(g)!
+      return ds.reduce((s, d) => s + d, 0) / ds.length
+    }
+    const visibleFaces = faces
       .filter((f) => f.visible)
-      .sort((a, b) => Number(!!a.f.attached) - Number(!!b.f.attached) || a.d - b.d)
+      .sort((a, b) => gd(a.group) - gd(b.group) || Number(!!a.f.attached) - Number(!!b.f.attached) || a.d - b.d)
 
     // the cake board
     const pad = 3
@@ -93,7 +101,7 @@ export function Preview3D({ design, textures, className = '' }: { design: Design
         [minX - pad, 0, maxZ + pad],
       ] as V3[]
     ).map(project)
-    const all = [...board, ...faces.flatMap((f) => f.screen)]
+    const all = [...board, ...visibleFaces.flatMap((f) => f.screen)]
     let x0 = Math.min(...all.map((p) => p[0])),
       x1 = Math.max(...all.map((p) => p[0])),
       y0 = Math.min(...all.map((p) => p[1])),
@@ -103,7 +111,7 @@ export function Preview3D({ design, textures, className = '' }: { design: Design
       minH = 26
     if (x1 - x0 < minW) [x0, x1] = [(x0 + x1) / 2 - minW / 2, (x0 + x1) / 2 + minW / 2]
     if (y1 - y0 < minH) [y0, y1] = [y1 - minH, y1]
-    return { faces, board, viewBox: `${x0 - 1.5} ${y0 - 1.5} ${x1 - x0 + 3} ${y1 - y0 + 3}` }
+    return { faces: visibleFaces, board, viewBox: `${x0 - 1.5} ${y0 - 1.5} ${x1 - x0 + 3} ${y1 - y0 + 3}` }
   }, [design, yaw, tilt])
 
   const pathOf = (piece: Piece) => `M${piece.outline.map((p) => p.join(' ')).join('L')}Z`
@@ -121,7 +129,7 @@ export function Preview3D({ design, textures, className = '' }: { design: Design
       onPointerMove={(e) => {
         const d = drag.current
         if (!d) return
-        setYaw(Math.max(-80, Math.min(80, d.yaw + (e.clientX - d.x) * 0.45)))
+        setYaw(d.yaw + (e.clientX - d.x) * 0.45)
         setTilt(Math.max(8, Math.min(55, d.tilt + (e.clientY - d.y) * 0.3)))
       }}
       onPointerUp={() => (drag.current = null)}

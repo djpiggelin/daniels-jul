@@ -40,14 +40,16 @@ export default async (req: Request) => {
     }
     const team = cleanName(body.team)
     if (!team) return json({ error: 'Ange ett lagnamn' }, 400)
-    if (typeof body.params !== 'object' || body.params === null) return json({ error: 'Måtten saknas' }, 400)
+    if (!Array.isArray(body.buildings) && (typeof body.params !== 'object' || body.params === null)) return json({ error: 'Måtten saknas' }, 400)
     const sketches = typeof body.sketches === 'object' && body.sketches !== null ? body.sketches : {}
 
     const id = typeof body.id === 'string' && ID.test(body.id) ? body.id : `${slug(team)}-${Math.random().toString(36).slice(2, 7)}`
     const house = {
       id,
       team,
-      params: body.params,
+      buildings: Array.isArray(body.buildings) ? body.buildings : undefined,
+      custom: Array.isArray(body.custom) ? body.custom : [],
+      params: Array.isArray(body.buildings) ? undefined : body.params,
       sketches,
       thickness: typeof body.thickness === 'number' ? body.thickness : undefined,
       pack: typeof body.pack === 'number' ? body.pack : undefined,
