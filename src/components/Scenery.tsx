@@ -2,6 +2,7 @@ import { useMemo } from 'react'
 import { Reindeer } from './Reindeer'
 import { SantaSleigh } from './Santa'
 import { useDaypart, type Daypart } from '../lib/daypart'
+import { useNisseEffect } from './Snowballs'
 
 export function Stars({ count = 90 }: { count?: number }) {
   const stars = useMemo(
@@ -285,16 +286,19 @@ type NisseProp = 'lantern' | 'sack' | 'gifts' | 'shovel' | 'brush' | 'wave'
  * beard, round nose, red coat with a belt. With `path` it walks it (fading in
  * and out at the ends); `carry` decides what it's holding or doing.
  */
-function Nisse({ path, dur = 12, delay = 0, flip, carry, x = 0, y = 0 }: { path?: string; dur?: number; delay?: number; flip?: boolean; carry?: NisseProp; x?: number; y?: number }) {
+function Nisse({ id, path, dur = 12, delay = 0, flip, carry, x = 0, y = 0 }: { id?: string; path?: string; dur?: number; delay?: number; flip?: boolean; carry?: NisseProp; x?: number; y?: number }) {
   const walking = !!path
+  // set when hit by a snowball on the front page
+  const fx = useNisseEffect(id)
   return (
-    <g transform={path ? undefined : `translate(${x} ${y})`} opacity={path ? 0 : 1}>
+    <g transform={path ? undefined : `translate(${x} ${y})`} opacity={path ? 0 : 1} data-nisse={id}>
       {path && (
         <>
           <animateMotion dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite" path={path} />
           <animate attributeName="opacity" dur={`${dur}s`} begin={`${delay}s`} repeatCount="indefinite" values="0;1;1;0;0" keyTimes="0;0.06;0.86;0.93;1" />
         </>
       )}
+      <g className={fx ? `nisse-fx-${fx}` : undefined}>
       <g transform={flip ? 'scale(-1 1)' : undefined}>
         <ellipse cx="0" cy="0.5" rx="8" ry="2" fill="#1b2a44" opacity="0.18" />
         {carry === 'sack' && <path d="M-5 -16 Q-15 -22 -13 -9 Q-11 -3 -5 -6 Z" fill="#8b5a2b" />}
@@ -359,6 +363,7 @@ function Nisse({ path, dur = 12, delay = 0, flip, carry, x = 0, y = 0 }: { path?
         )}
         {carry === 'wave' && <line x1="5" y1="-15" x2="9" y2="-23" stroke="#c1272d" strokeWidth="3" strokeLinecap="round" className="nisse-wave" />}
       </g>
+      </g>
     </g>
   )
 }
@@ -409,7 +414,7 @@ function PaintingNisse({ x, base, asleep }: { x: number; base: number; asleep?: 
         <path d="M-4.6 -9 q1 4 -0.2 5.5 q-1.2 -1.5 0.2 -5.5 M2.6 -9 q1 3 0 4.5 q-1 -1.2 0 -4.5" fill="url(#checker-paint)" />
         <path d="M-5.5 -10 Q0 -15 5.5 -10" stroke="#3a2418" strokeWidth="0.8" fill="none" />
       </g>
-      {!asleep && <Nisse x={x + size + 12} y={base + 4} carry="brush" flip />}
+      {!asleep && <Nisse id="painter" x={x + size + 12} y={base + 4} carry="brush" flip />}
     </g>
   )
 }
@@ -642,8 +647,10 @@ function VillagePaths() {
 
 /** A snowman with a top hat, carrot nose, red scarf and twig arms. */
 function Snowman({ x, base }: { x: number; base: number }) {
+  const fx = useNisseEffect('snowman')
   return (
-    <g transform={`translate(${x} ${base}) scale(1.25)`}>
+    <g transform={`translate(${x} ${base}) scale(1.25)`} data-nisse="snowman">
+      <g className={fx ? `nisse-fx-${fx}` : undefined}>
       <ellipse cx="0" cy="0" rx="13" ry="3" fill="#9fb2d2" opacity="0.5" />
       {/* twig arms */}
       <g stroke="#6b4423" strokeWidth="1.3" strokeLinecap="round" fill="none">
@@ -673,6 +680,26 @@ function Snowman({ x, base }: { x: number; base: number }) {
       <rect x="-4.2" y="-50.5" width="8.4" height="7.8" rx="0.8" fill="#1b1b22" />
       <rect x="-4.2" y="-45" width="8.4" height="1.6" fill="#c1272d" />
       <circle cx="3" cy="-44.2" r="1" fill="#2f7a4f" />
+      </g>
+    </g>
+  )
+}
+
+/** A heap of snow with a few snowballs on top – click it to pick some up. */
+function SnowPile({ x, y }: { x: number; y: number }) {
+  return (
+    <g className="snow-pile" data-pile="1" transform={`translate(${x} ${y})`}>
+      <title>Snöhög – plocka snöbollar</title>
+      <rect x="-28" y="-34" width="56" height="42" fill="transparent" />
+      <ellipse cx="0" cy="0.5" rx="15" ry="3.5" fill="#9fb2d2" opacity="0.45" />
+      <path d="M-14 0 Q-11 -9 -2 -10.5 Q7 -12 12 -5 Q15 -2 14 0 Z" fill="#f4f8ff" stroke="#d5e0f0" strokeWidth="0.6" />
+      {[
+        [-4, -11.5, 3.2],
+        [2.6, -12.2, 3.2],
+        [-0.6, -16.6, 3],
+      ].map(([cx, cy, r]) => (
+        <circle key={`${cx}`} cx={cx} cy={cy} r={r} fill="#ffffff" stroke="#c9d6ea" strokeWidth="0.6" />
+      ))}
     </g>
   )
 }
@@ -806,7 +833,7 @@ export function Lappland({
           <PaintingNisse x={236} base={388} asleep={!busy} />
           <NorthPole x={338} base={384} />
           <VillageTree x={394} base={382} />
-          {busy && <Nisse x={372} y={388} carry="wave" />}
+          {busy && <Nisse id="waver" x={372} y={388} carry="wave" />}
           {/* centre: Tomtens stuga (Julafton), destilleri + verkstad (Julbak), långhuset (Julbord) */}
           <House x={425} base={380} w={80} h={38} wall="#a8322a" windows={2} sign="TOMTEN" building="julafton" title="Kliv in hos Tomten – julafton" onEnter={onEnter} smoke={3} />
           <House x={836} base={380} w={170} h={46} wall="#8e2a1f" windows={4} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} smoke={7} />
@@ -913,17 +940,17 @@ export function Lappland({
           {numbers &&
             DOOR_NUMBERS.map((d) => (numbers[d.building] ? <HouseNumber key={d.building} x={d.x} y={d.y} n={numbers[d.building]!} /> : null))}
       {/* nissar walking the paths between the houses */}
-          <Nisse path="M583 374 Q586 388 594 396 L725 395 Q724 386 725 374" dur={12} carry="lantern" />
-          {awake && <Nisse path="M725 374 Q724 386 725 395 L470 396 Q466 390 465 380" dur={14} delay={3} carry="gifts" flip />}
-          {busy && <Nisse path="M725 374 Q724 386 725 395 L924 395 Q920 390 921 380" dur={13} delay={6} carry="sack" />}
-          {busy && <Nisse path="M158 380 Q160 390 166 396 L312 397 Q300 380 283 358" dur={11} delay={1} carry="lantern" />}
-          {busy && <Nisse path="M921 380 Q920 390 924 395 L1200 397 Q1204 390 1205 380" dur={12} delay={2} carry="gifts" />}
+          <Nisse id="lantern" path="M583 374 Q586 388 594 396 L725 395 Q724 386 725 374" dur={12} carry="lantern" />
+          {awake && <Nisse id="gifts" path="M725 374 Q724 386 725 395 L470 396 Q466 390 465 380" dur={14} delay={3} carry="gifts" flip />}
+          {busy && <Nisse id="sack" path="M725 374 Q724 386 725 395 L924 395 Q920 390 921 380" dur={13} delay={6} carry="sack" />}
+          {busy && <Nisse id="lantern-left" path="M158 380 Q160 390 166 396 L312 397 Q300 380 283 358" dur={11} delay={1} carry="lantern" />}
+          {busy && <Nisse id="gifts-right" path="M921 380 Q920 390 924 395 L1200 397 Q1204 390 1205 380" dur={12} delay={2} carry="gifts" />}
           {/* someone has to keep the paths clear */}
-          <g>
-            <ellipse cx="802" cy="401" rx="9" ry="3.5" fill="#f4f8ff" />
-            <ellipse cx="804" cy="399" rx="5" ry="2.5" fill="#ffffff" />
-          </g>
-          {working && <Nisse x={782} y={402} carry="shovel" />}
+          <SnowPile x={806} y={403} />
+          <SnowPile x={548} y={416} />
+          <SnowPile x={160} y={414} />
+          <SnowPile x={1330} y={414} />
+          {working && <Nisse id="shoveler" x={782} y={402} carry="shovel" />}
           <Snowman x={618} base={430} />
           {landedAt && <LandedTeam at={landedAt} />}
         </>

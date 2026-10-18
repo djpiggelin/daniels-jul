@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Gift } from '../components/Gift'
+import { SnowballArena } from '../components/Snowballs'
 import { SkyTeam } from '../components/Santa'
 import { Aurora, Lappland, Moon, Stars, Sun, type Building } from '../components/Scenery'
 import { useDaypart } from '../lib/daypart'
@@ -42,6 +43,7 @@ export default function Home() {
         className="enter-zoom absolute inset-0"
         style={entering ? { transform: 'scale(7)', transformOrigin: `${entering.x}px ${entering.y}px` } : undefined}
       >
+        <SnowballArena>
         <Stars count={110} />
         <Aurora />
         <Moon className="absolute left-[8%] top-20 h-10 w-10 opacity-80 sm:h-14 sm:w-14" />
@@ -57,7 +59,10 @@ export default function Home() {
 
         <Village onEnter={enter} />
 
-        <p className="absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">Svep på släden för en tur · kliv in i husen</p>
+        <p className="pointer-events-none absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">
+          Svep på släden · kliv in i husen · kasta snöbollar från högarna
+        </p>
+        </SnowballArena>
       </div>
       <div
         className="enter-warm pointer-events-none absolute inset-0 z-50"
