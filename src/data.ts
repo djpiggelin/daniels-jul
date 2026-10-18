@@ -126,10 +126,13 @@ export const EVENTS: JulEvent[] = [
 // Utan foto visas gästens initial istället (och de är inte med i memory-spelet).
 export const GUESTS: { name: string; photo?: string }[] = [
   { name: 'Adde', photo: 'Adde.png' },
+  { name: 'Agnes' },
   { name: 'Ante', photo: 'Ante.png' },
   { name: 'Daniel', photo: 'Daniel.png' },
-  { name: 'Emma', photo: 'Emma.png' },
+  { name: 'David' },
+  { name: 'Elsa' },
   { name: 'Flaskis', photo: 'Flaskis.png' },
+  { name: 'Hanna' },
   { name: 'Ida', photo: 'Ida.png' },
   { name: 'Klara', photo: 'Klara.png' },
   { name: 'Lazar', photo: 'Lazar.png' },
