@@ -78,6 +78,7 @@ export default function Pepparkaksarkitekten() {
     return () => clearTimeout(t)
   }, [undo])
   const [sharing, setSharing] = useState(false)
+  const [pdfBusy, setPdfBusy] = useState(false)
   const [textures, setTextures] = useState<Record<string, string>>({})
   const { buildings, custom, sketches, team } = draft
 
@@ -191,6 +192,29 @@ export default function Pepparkaksarkitekten() {
       setNotice((e as Error).message || 'Kunde inte spara just nu. Ritningen finns kvar på den här enheten.')
     } finally {
       setSharing(false)
+    }
+  }
+
+  // The templates as an A4 PDF at 1:1 – works where window.print() is blocked
+  // (embedded browsers) and prints true to size from any PDF viewer.
+  const downloadPdf = async () => {
+    setPdfBusy(true)
+    try {
+      const [{ jsPDF }, { svg2pdf }] = await Promise.all([import('jspdf'), import('svg2pdf.js')])
+      const doc = new jsPDF({ unit: 'mm', format: 'a4', orientation: 'portrait' })
+      const svgs = [...document.querySelectorAll<SVGSVGElement>('.tpl-preview .tpl-page')]
+      for (let i = 0; i < svgs.length; i++) {
+        if (i) doc.addPage()
+        // the template SVGs are drawn in millimetres on a 190 × 277 area → place it inside 10 mm margins
+        await svg2pdf(svgs[i], doc, { x: 10, y: 10, width: 190, height: 277 })
+      }
+      const name = team.trim().toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-|-$/g, '')
+      doc.save(`pepparkaksmallar${name ? `-${name}` : ''}.pdf`)
+      setNotice('PDF:en är nedladdad. Skriv ut i faktisk storlek (100 %, ingen anpassning) och mät 5 cm-linjen.')
+    } catch {
+      setNotice('Kunde inte skapa PDF:en just nu – prova Skriv ut direkt i en vanlig webbläsare.')
+    } finally {
+      setPdfBusy(false)
     }
   }
 
@@ -511,12 +535,25 @@ export default function Pepparkaksarkitekten() {
                   {pages.length} A4-{pages.length === 1 ? 'sida' : 'sidor'} i skala 1:1. Skriv ut i faktisk storlek och mät 5 cm-linjen längst ner. Streckade linjer är dörrar och fönster.
                 </p>
               </div>
-              <button onClick={() => window.print()} disabled={empty} className="shrink-0 self-start disabled:opacity-40 rounded-full bg-[#3a2410] px-5 py-2.5 text-sm font-medium text-[#fbf3e4] transition-colors hover:bg-[#5a3420] sm:self-auto">
-                Skriv ut mallarna
-              </button>
+              <div className="flex shrink-0 flex-wrap gap-2 self-start sm:self-auto">
+                <button
+                  onClick={downloadPdf}
+                  disabled={empty || pdfBusy}
+                  className="rounded-full bg-[#3a2410] px-5 py-2.5 text-sm font-medium text-[#fbf3e4] transition-colors hover:bg-[#5a3420] disabled:opacity-40"
+                >
+                  {pdfBusy ? 'Skapar PDF …' : 'Ladda ner mallarna (PDF)'}
+                </button>
+                <button
+                  onClick={() => window.print()}
+                  disabled={empty}
+                  className="rounded-full border border-[#3a2410]/40 px-5 py-2.5 text-sm text-[#3a2410] transition-colors hover:border-[#3a2410] disabled:opacity-40"
+                >
+                  Skriv ut direkt
+                </button>
+              </div>
             </div>
             {empty && <div className="mt-6"><EmptyHint>Mallarna dyker upp här när det finns något att skära ut.</EmptyHint></div>}
-            <div className="mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
+            <div className="tpl-preview mt-6 grid grid-cols-2 gap-3 sm:grid-cols-3 sm:gap-5 lg:grid-cols-4">
               {pages.map((pg, i) => (
                 <div key={i} className="overflow-hidden rounded-sm shadow-[0_6px_24px_-8px_rgba(58,36,16,0.45)] ring-1 ring-[#3a2410]/10">
                   <TemplatePage page={pg} index={i} total={pages.length} title={title} />
