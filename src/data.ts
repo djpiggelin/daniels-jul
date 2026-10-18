@@ -139,6 +139,9 @@ export const GUESTS: { name: string; photo?: string }[] = [
   { name: 'Gäst' },
   { name: 'Gäst' },
   { name: 'Gäst' },
+  { name: 'Gäst' },
+  { name: 'Gäst' },
+  { name: 'Gäst' },
 ]
 
 export const PARTICIPANTS = GUESTS.map((g) => ({ name: g.name, image: g.photo ? `/Participants/${g.photo}` : null }))
