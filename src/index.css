@@ -441,3 +441,105 @@ html[data-daypart='kvall'] .sky {
 html[data-daypart='kvall'] .stars { opacity: 0.75; }
 html[data-daypart='kvall'] .aurora-layer { opacity: 0.6; }
 html[data-daypart='kvall'] .moon { opacity: 0.6; }
+
+/* ---------- Snowball fight on the front page ---------- */
+.aiming, .aiming .building, .aiming button { cursor: crosshair; }
+.snow-pile { pointer-events: auto; cursor: pointer; transition: filter 0.2s; }
+.snow-pile:hover { filter: drop-shadow(0 0 4px rgba(255, 255, 255, 0.9)); }
+.snowball {
+  width: 18px;
+  height: 18px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #eaf1fc 55%, #b9c8e2);
+  box-shadow: 0 3px 6px rgba(10, 20, 50, 0.3);
+  will-change: transform;
+}
+.snowball-icon {
+  display: inline-block;
+  width: 10px;
+  height: 10px;
+  border-radius: 9999px;
+  background: radial-gradient(circle at 35% 30%, #ffffff, #dbe6f6);
+}
+/* small powder puff where a snowball lands */
+.splat { position: absolute; width: 0; height: 0; }
+.splat i {
+  position: absolute;
+  left: -3px;
+  top: -3px;
+  width: 6px;
+  height: 6px;
+  border-radius: 9999px;
+  background: #fff;
+  animation: powder 0.8s ease-out forwards;
+}
+@keyframes powder {
+  from { transform: rotate(var(--a)) translateY(0) scale(1); opacity: 1 }
+  to { transform: rotate(var(--a)) translateY(-22px) scale(0.3); opacity: 0 }
+}
+/* thrown back: a big wet splat on the screen */
+.splat-big {
+  position: absolute;
+  width: 260px;
+  height: 230px;
+  margin: -115px 0 0 -130px;
+  background:
+    radial-gradient(circle at 50% 45%, #ffffff 0 34%, transparent 35%),
+    radial-gradient(circle at 22% 30%, #ffffff 0 11%, transparent 12%),
+    radial-gradient(circle at 80% 28%, #ffffff 0 9%, transparent 10%),
+    radial-gradient(circle at 75% 72%, #ffffff 0 12%, transparent 13%),
+    radial-gradient(circle at 26% 74%, #ffffff 0 8%, transparent 9%),
+    radial-gradient(ellipse 5% 22% at 44% 82%, #ffffff 0 99%, transparent 100%),
+    radial-gradient(ellipse 4% 16% at 60% 80%, #ffffff 0 99%, transparent 100%);
+  filter: drop-shadow(0 4px 10px rgba(10, 20, 50, 0.35));
+  animation: splat-big 2.6s ease-in forwards;
+}
+@keyframes splat-big {
+  0% { transform: scale(0.3); opacity: 0.95 }
+  8% { transform: scale(1.05) }
+  12% { transform: scale(1) }
+  70% { transform: scale(1) translateY(12px); opacity: 0.9 }
+  100% { transform: scale(1) translateY(40px); opacity: 0 }
+}
+/* speech bubble / emoji above a nisse that was hit */
+.snow-pop {
+  position: absolute;
+  transform: translate(-50%, -100%);
+  white-space: nowrap;
+  border-radius: 9999px;
+  background: #fff;
+  color: #1b1b22;
+  padding: 2px 9px;
+  font-size: 13px;
+  font-weight: 600;
+  box-shadow: 0 3px 10px rgba(10, 20, 50, 0.3);
+  animation: snow-pop 1.8s ease-out forwards;
+}
+@keyframes snow-pop {
+  0% { transform: translate(-50%, -60%) scale(0.4); opacity: 0 }
+  12% { transform: translate(-50%, -110%) scale(1.08); opacity: 1 }
+  20% { transform: translate(-50%, -105%) scale(1) }
+  80% { opacity: 1 }
+  100% { transform: translate(-50%, -170%) scale(1); opacity: 0 }
+}
+/* how a nisse reacts (transform origin = its feet) */
+.nisse-fx-flee { animation: nisse-flee 6s ease-in forwards; }
+@keyframes nisse-flee {
+  0% { transform: none; opacity: 1 }
+  4% { transform: translate(-3px, -6px) }
+  16% { transform: translate(90px, 0); opacity: 0 }
+  86% { transform: translate(90px, 0); opacity: 0 }
+  100% { transform: none; opacity: 1 }
+}
+.nisse-fx-fall { transform-origin: 0 0; animation: nisse-fall 2.8s ease-in-out forwards; }
+@keyframes nisse-fall {
+  0% { transform: rotate(0) }
+  12% { transform: rotate(-88deg) }
+  78% { transform: rotate(-88deg) }
+  90% { transform: rotate(8deg) }
+  100% { transform: rotate(0) }
+}
+.nisse-fx-hop { animation: nisse-hop 0.5s ease-out 2; }
+@keyframes nisse-hop { 0%, 100% { transform: none } 40% { transform: translateY(-9px) } }
+.nisse-fx-wobble { transform-origin: 0 0; animation: nisse-wobble 1.1s ease-in-out; }
+@keyframes nisse-wobble { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-9deg) } 45% { transform: rotate(7deg) } 70% { transform: rotate(-4deg) } }
