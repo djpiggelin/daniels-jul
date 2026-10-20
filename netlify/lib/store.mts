@@ -2,6 +2,10 @@ import { getStore } from '@netlify/blobs'
 
 export const store = () => getStore({ name: 'daniels-jul', consistency: 'strong' })
 
+/** This year's content.json, guest photos and event images – uploaded with `npm run upload-content`. */
+export const CONTENT_STORE = 'daniels-jul-content'
+export const contentStore = () => getStore({ name: CONTENT_STORE })
+
 /**
  * Read-modify-write a JSON blob with optimistic locking so two guests
  * claiming dishes at the same moment don't overwrite each other.
