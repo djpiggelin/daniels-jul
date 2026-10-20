@@ -87,13 +87,25 @@ export function FacadeEditor({
     return [((e.clientX - r.left) / r.width) * cw - MARGIN, ((e.clientY - r.top) / r.height) * ch - MARGIN] as const
   }
 
+  const press = (type: StampType, x: number, y: number) => {
+    const s = Math.floor(Math.random() * 1000)
+    const r = type === 'kanel' || type === 'mandel' ? Math.random() * Math.PI : (Math.random() - 0.5) * 0.5
+    onChange(piece.id, [...ops, { k: 't', t: type, x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, r: Math.round(r * 100) / 100, s }])
+  }
+
+  /** Picking a candy drops one in the middle of the piece straight away, so something happens. */
+  const pickCandy = (type: StampType) => {
+    setStamp(type)
+    setTool('stampel')
+    const jitter = () => (Math.random() - 0.5) * Math.min(piece.w, piece.h) * 0.3
+    press(type, piece.w / 2 + jitter(), piece.h / 2 + jitter())
+  }
+
   const down = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     const [x, y] = toCm(e)
     if (tool === 'stampel') {
-      const s = Math.floor(Math.random() * 1000)
-      const r = stamp === 'kanel' || stamp === 'mandel' ? Math.random() * Math.PI : (Math.random() - 0.5) * 0.5
-      onChange(piece.id, [...ops, { k: 't', t: stamp, x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, r: Math.round(r * 100) / 100, s }])
+      press(stamp, x, y)
       return
     }
     e.currentTarget.setPointerCapture(e.pointerId)
@@ -182,7 +194,7 @@ export function FacadeEditor({
                     title={s.name}
                     aria-label={s.name}
                     aria-pressed={stamp === s.type}
-                    onClick={() => setStamp(s.type)}
+                    onClick={() => pickCandy(s.type)}
                     className={`flex flex-col items-center gap-1 rounded-xl border p-1.5 text-[11px] leading-tight ${stamp === s.type ? 'border-[#3a2410] bg-[#b5713a]/25' : 'border-transparent hover:border-[#3a2410]/30'}`}
                   >
                     <span className="rounded-lg bg-[#b5713a] p-0.5">
@@ -192,6 +204,9 @@ export function FacadeEditor({
                   </button>
                 ))}
               </div>
+              <p className="mt-3 text-[13px] leading-relaxed text-[#3a2410]/70">
+                Tryck på ett godis så hamnar det mitt på biten. Klicka sedan var du vill på pepparkakan för att sätta dit fler av samma sort.
+              </p>
             </fieldset>
           )}
 
@@ -228,7 +243,7 @@ export function FacadeEditor({
             <canvas
               ref={canvas}
               style={{ width: cssW, height: cssH }}
-              className="mx-auto block touch-none"
+              className={`mx-auto block touch-none ${tool === 'stampel' ? 'cursor-copy' : 'cursor-crosshair'}`}
               onPointerDown={down}
               onPointerMove={move}
               onPointerUp={up}
