@@ -3,6 +3,7 @@ import { Reindeer } from './Reindeer'
 import { SantaSleigh } from './Santa'
 import { useDaypart, type Daypart } from '../lib/daypart'
 import { useNisseEffect } from './Snowballs'
+import { Player, type PlayerDoor } from './Player'
 
 export function Stars({ count = 90 }: { count?: number }) {
   const stars = useMemo(
@@ -152,6 +153,8 @@ function HouseNumber({ x, y, n }: { x: number; y: number; n: string }) {
 }
 
 export type Building = 'verkstad' | 'destilleri' | 'spel' | 'julbord' | 'julafton' | 'ritningar'
+/** Where a click (or the villager walking in) happened on screen – the zoom heads there. */
+export type EnterAt = { clientX: number; clientY: number }
 
 type HouseProps = {
   x: number
@@ -165,7 +168,7 @@ type HouseProps = {
   signColor?: string
   building?: Building
   title?: string
-  onEnter?: (b: Building, e: React.MouseEvent) => void
+  onEnter?: (b: Building, at: EnterAt) => void
   /** Seed for chimney smoke – leave out for a cold chimney. */
   smoke?: number
 }
@@ -241,6 +244,7 @@ function House({ x, base, w, h, wall, roof = '#3a1410', windows = 2, sign, signC
     <g
       transform={`translate(${x} ${base - h})`}
       className={clickable ? 'building' : undefined}
+      data-door={clickable ? building : undefined}
       onClick={clickable ? (e) => onEnter!(building!, e) : undefined}
     >
       {clickable && title && <title>{title}</title>}
@@ -532,6 +536,16 @@ const JUNCTIONS = [86, 166, 312, 470, 594, 725, 924, 1080, 1200, 1296, 1378]
 const CANES = Array.from({ length: 23 }, (_, i) => 58 + i * 60)
   .filter((x) => JUNCTIONS.every((j) => Math.abs(j - x) > 16))
   .map((x) => ({ x, y: pathY(x) - 9 }))
+// where the villager on the front page can go in: stand on the main path where the little path starts
+const PLAYER_DOORS: PlayerDoor[] = [
+  { id: 'spel', building: 'spel', x: 166, branch: BRANCHES[1], title: 'Kliv in i Spelstugan' },
+  { id: 'julafton', building: 'julafton', x: 470, branch: BRANCHES[3], title: 'Kliv in hos Tomten' },
+  { id: 'destilleri', building: 'destilleri', x: 594, branch: BRANCHES[4], title: 'Kliv in i destilleriet' },
+  { id: 'verkstad', building: 'verkstad', x: 725, branch: BRANCHES[5], title: 'Kliv in i verkstaden' },
+  { id: 'ritbord', building: 'ritningar', x: 782, branch: 'M782 386 Q 782 392 782 395', title: 'Rita ert pepparkakshus' },
+  { id: 'julbord', building: 'julbord', x: 924, branch: BRANCHES[6], title: 'Kliv in i långhuset' },
+  { id: 'ritningar', building: 'ritningar', x: 1200, branch: BRANCHES[8], title: 'Kliv in på Arkitektkontoret' },
+]
 const GARLAND = ['#ffd27a', '#ff5a5a', '#7fd1ff', '#9bff9b', '#ffb3f0']
 
 /** A little candy cane stuck in the snow. */
@@ -753,16 +767,19 @@ export function Lappland({
   onEnter,
   numbers,
   landedAt,
+  player,
 }: {
   className?: string
   /** Show Tomtens by: houses, the verkstad, destilleri, julgran and nissar. */
   village?: boolean
   /** Makes the buildings clickable. */
-  onEnter?: (b: Building, e: React.MouseEvent) => void
+  onEnter?: (b: Building, at: EnterAt) => void
   /** House number to paint by each event building's door – the day in December. */
   numbers?: Partial<Record<Building, string>>
   /** Park Santa's sleigh in front of this house. */
   landedAt?: Building
+  /** A villager you can walk around with the arrow keys (needs `onEnter`). */
+  player?: boolean
 }) {
   // who's out and about: everyone by day and evening, a few early risers, one lantern at night
   const daypart = useDaypart()
@@ -851,6 +868,7 @@ export function Lappland({
       <g
         transform="translate(520 318)"
         className={onEnter ? 'building' : undefined}
+        data-door="destilleri"
         onClick={onEnter ? (e) => onEnter('destilleri', e) : undefined}
       >
         {onEnter && <title>Kliv in i Tomtens destilleri</title>}
@@ -882,6 +900,7 @@ export function Lappland({
       <g
         transform="translate(640 296)"
         className={onEnter ? 'building' : undefined}
+        data-door="verkstad"
         onClick={onEnter ? (e) => onEnter('verkstad', e) : undefined}
       >
         {onEnter && <title>Kliv in i Tomtens verkstad</title>}
@@ -918,6 +937,7 @@ export function Lappland({
         <g
           transform="translate(770 360)"
           className={onEnter ? 'building' : undefined}
+          data-door="ritbord"
           onClick={onEnter ? (e) => onEnter('ritningar', e) : undefined}
         >
           {onEnter && <title>Rita ert pepparkakshus</title>}
@@ -952,6 +972,7 @@ export function Lappland({
           {busy && <Nisse id="sack" path="M725 374 Q724 386 725 395 L924 395 Q920 390 921 380" dur={13} delay={6} carry="sack" />}
           {busy && <Nisse id="lantern-left" path="M158 380 Q160 390 166 396 L312 397 Q300 380 283 358" dur={11} delay={1} carry="lantern" />}
           {busy && <Nisse id="gifts-right" path="M921 380 Q920 390 924 395 L1200 397 Q1204 390 1205 380" dur={12} delay={2} carry="gifts" />}
+          {player && onEnter && <Player doors={PLAYER_DOORS} groundY={pathY} onEnter={onEnter} />}
           {/* someone has to keep the paths clear */}
           <SnowPile x={806} y={403} />
           <SnowPile x={548} y={416} />
