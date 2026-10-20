@@ -700,6 +700,13 @@ function SnowPile({ x, y }: { x: number; y: number }) {
       ].map(([cx, cy, r]) => (
         <circle key={`${cx}`} cx={cx} cy={cy} r={r} fill="#ffffff" stroke="#c9d6ea" strokeWidth="0.6" />
       ))}
+      {/* a little glint so people notice they can pick up snow here */}
+      <path
+        d="M5 -22 L6 -19.6 L8.4 -18.6 L6 -17.6 L5 -15.2 L4 -17.6 L1.6 -18.6 L4 -19.6 Z"
+        fill="#ffffff"
+        className="animate-twinkle"
+        style={{ transformBox: 'fill-box', transformOrigin: 'center', animationDuration: '2.2s' }}
+      />
     </g>
   )
 }
