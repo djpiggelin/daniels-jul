@@ -49,6 +49,10 @@ export function FacadeEditor({
   const canvas = useRef<HTMLCanvasElement>(null)
   const current = useRef<Op | null>(null)
   const raf = useRef(0)
+  // a candy being dragged from the buttons (screen coordinates), and one being moved on the piece
+  const [carry, setCarry] = useState<{ type: StampType; x: number; y: number } | null>(null)
+  const moving = useRef<{ i: number; dx: number; dy: number; x: number; y: number } | null>(null)
+  const latest = useRef<{ press: (t: StampType, x: number, y: number) => void; center: (t: StampType) => void; cw: number; ch: number } | null>(null)
 
   const piece = pieces.find((p) => p.id === pieceId) ?? pieces[0]
   const ops = (piece && sketches[piece.id]) || []
@@ -75,7 +79,9 @@ export function FacadeEditor({
     cancelAnimationFrame(raf.current)
     raf.current = requestAnimationFrame(() => {
       if (!canvas.current || !piece || !ppc) return
-      renderPiece(canvas.current, piece, current.current ? [...ops, current.current] : ops, ppc)
+      const m = moving.current
+      const shown = m ? ops.map((o, j) => (j === m.i && o.k === 't' ? { ...o, x: m.x, y: m.y } : o)) : ops
+      renderPiece(canvas.current, piece, current.current ? [...shown, current.current] : shown, ppc)
     })
   }
   useEffect(redraw)
@@ -93,18 +99,64 @@ export function FacadeEditor({
     onChange(piece.id, [...ops, { k: 't', t: type, x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, r: Math.round(r * 100) / 100, s }])
   }
 
-  /** Picking a candy drops one in the middle of the piece straight away, so something happens. */
-  const pickCandy = (type: StampType) => {
-    setStamp(type)
-    setTool('stampel')
+  /** A plain tap on a candy button drops one in the middle of the piece, so something always happens. */
+  const center = (type: StampType) => {
     const jitter = () => (Math.random() - 0.5) * Math.min(piece.w, piece.h) * 0.3
     press(type, piece.w / 2 + jitter(), piece.h / 2 + jitter())
+  }
+  latest.current = { press, center, cw, ch }
+
+  /** Drag a candy from the buttons and drop it on the gingerbread (a tap puts it in the middle). */
+  const startCarry = (type: StampType, e: React.PointerEvent) => {
+    e.preventDefault()
+    setStamp(type)
+    setTool('stampel')
+    const sx = e.clientX
+    const sy = e.clientY
+    let dragged = false
+    const onMove = (ev: PointerEvent) => {
+      if (!dragged && Math.hypot(ev.clientX - sx, ev.clientY - sy) > 6) dragged = true
+      if (dragged) setCarry({ type, x: ev.clientX, y: ev.clientY })
+    }
+    const onUp = (ev: PointerEvent) => {
+      removeEventListener('pointermove', onMove)
+      removeEventListener('pointerup', onUp)
+      removeEventListener('pointercancel', onUp)
+      setCarry(null)
+      const l = latest.current
+      if (!l) return
+      if (!dragged) return l.center(type)
+      const r = canvas.current?.getBoundingClientRect()
+      if (!r || ev.clientX < r.left || ev.clientX > r.right || ev.clientY < r.top || ev.clientY > r.bottom) return
+      l.press(type, ((ev.clientX - r.left) / r.width) * l.cw - MARGIN, ((ev.clientY - r.top) / r.height) * l.ch - MARGIN)
+    }
+    addEventListener('pointermove', onMove)
+    addEventListener('pointerup', onUp)
+    addEventListener('pointercancel', onUp)
+  }
+
+  /** The candy under a point, topmost first (-1 if none). */
+  const candyAt = (x: number, y: number) => {
+    for (let j = ops.length - 1; j >= 0; j--) {
+      const o = ops[j]
+      if (o.k === 't' && Math.hypot(x - o.x, y - o.y) < 0.9) return j
+    }
+    return -1
   }
 
   const down = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     const [x, y] = toCm(e)
     if (tool === 'stampel') {
+      // grab a candy that's already there and move it – otherwise press a new one
+      const j = candyAt(x, y)
+      if (j >= 0) {
+        const o = ops[j] as Extract<Op, { k: 't' }>
+        e.currentTarget.setPointerCapture(e.pointerId)
+        moving.current = { i: j, dx: x - o.x, dy: y - o.y, x: o.x, y: o.y }
+        e.currentTarget.style.cursor = 'grabbing'
+        return
+      }
       press(stamp, x, y)
       return
     }
@@ -113,13 +165,32 @@ export function FacadeEditor({
     redraw()
   }
   const move = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const [mx, my] = toCm(e)
+    const m = moving.current
+    if (m) {
+      m.x = Math.round((mx - m.dx) * 100) / 100
+      m.y = Math.round((my - m.dy) * 100) / 100
+      redraw()
+      return
+    }
+    // show a hand over candy you can pick up
+    if (tool === 'stampel') e.currentTarget.style.cursor = candyAt(mx, my) >= 0 ? 'grab' : ''
     const c = current.current
     if (!c || c.k !== 's') return
-    const [x, y] = toCm(e)
+    const [x, y] = [mx, my]
     c.p.push(x, y)
     redraw()
   }
-  const up = () => {
+  const up = (e: React.PointerEvent<HTMLCanvasElement>) => {
+    const m = moving.current
+    if (m) {
+      moving.current = null
+      e.currentTarget.style.cursor = ''
+      // dragged off the gingerbread → gone; otherwise it stays where it was dropped
+      const off = m.x < -0.5 || m.y < -0.5 || m.x > piece.w + 0.5 || m.y > piece.h + 0.5
+      onChange(piece.id, off ? ops.filter((_, j) => j !== m.i) : ops.map((o, j) => (j === m.i && o.k === 't' ? { ...o, x: m.x, y: m.y } : o)))
+      return
+    }
     const c = current.current
     current.current = null
     if (c && c.k === 's') onChange(piece.id, [...ops, { ...c, p: compact(c.p) }])
@@ -194,8 +265,8 @@ export function FacadeEditor({
                     title={s.name}
                     aria-label={s.name}
                     aria-pressed={stamp === s.type}
-                    onClick={() => pickCandy(s.type)}
-                    className={`flex flex-col items-center gap-1 rounded-xl border p-1.5 text-[11px] leading-tight ${stamp === s.type ? 'border-[#3a2410] bg-[#b5713a]/25' : 'border-transparent hover:border-[#3a2410]/30'}`}
+                    onPointerDown={(e) => startCarry(s.type, e)}
+                    className={`flex touch-none cursor-grab flex-col items-center gap-1 rounded-xl border p-1.5 text-[11px] leading-tight ${stamp === s.type ? 'border-[#3a2410] bg-[#b5713a]/25' : 'border-transparent hover:border-[#3a2410]/30'}`}
                   >
                     <span className="rounded-lg bg-[#b5713a] p-0.5">
                       <StampIcon type={s.type} />
@@ -205,7 +276,7 @@ export function FacadeEditor({
                 ))}
               </div>
               <p className="mt-3 text-[13px] leading-relaxed text-[#3a2410]/70">
-                Tryck på ett godis så hamnar det mitt på biten. Klicka sedan var du vill på pepparkakan för att sätta dit fler av samma sort.
+                Dra ett godis till pepparkakan och släpp det där du vill ha det – eller tryck så hamnar det i mitten. Dra i godis som redan sitter för att flytta dem, och dra ut dem från kakan för att ta bort dem.
               </p>
             </fieldset>
           )}
@@ -235,6 +306,12 @@ export function FacadeEditor({
             Skissen hamnar direkt på huset i förhandsvisningen. Bitar som skärs i flera exemplar delar skiss.
           </p>
         </div>
+
+        {carry && (
+          <div className="pointer-events-none fixed z-[70] drop-shadow-lg" style={{ left: carry.x, top: carry.y, transform: 'translate(-50%, -50%) scale(1.6)' }} aria-hidden>
+            <StampIcon type={carry.type} />
+          </div>
+        )}
 
         {/* the gingerbread itself */}
         <div className="min-w-0">
