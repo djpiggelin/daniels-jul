@@ -558,3 +558,5 @@ html[data-daypart='kvall'] .moon { opacity: 0.6; }
 @keyframes player-float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-2px) } }
 .player-sign { transform-box: fill-box; transform-origin: 50% 100%; animation: player-sign 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
 @keyframes player-sign { from { transform: scale(0.4); opacity: 0 } }
+.player-ball { fill: #ffffff; stroke: #b9c8e0; stroke-width: 0.6; }
+.player-lump { animation: player-print 3s ease-in forwards; }

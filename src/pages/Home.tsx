@@ -42,7 +42,7 @@ export default function Home() {
   }
 
   return (
-    <section className="sky relative h-[100svh] min-h-[620px] overflow-hidden">
+    <section className="sky relative h-dvh overflow-hidden">
       <div
         className="enter-zoom absolute inset-0"
         style={entering ? { transform: 'scale(7)', transformOrigin: `${entering.x}px ${entering.y}px` } : undefined}
@@ -65,7 +65,7 @@ export default function Home() {
 
         <p className="pointer-events-none absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">
           Svep på släden · kliv in i husen · kasta snöbollar från högarna
-          {player && ' · gå runt med piltangenterna'}
+          {player && ' · gå runt med piltangenterna, håll in space för att kasta'}
         </p>
         </SnowballArena>
       </div>

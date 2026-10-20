@@ -1,11 +1,13 @@
 import { useEffect, useLayoutEffect, useRef, useState } from 'react'
 import type { Building } from './Scenery'
 import { blip } from '../lib/fx'
+import { useSnowballs } from './Snowballs'
 
 /*
  * A little villager you steer through Tomtens by with the keyboard on the front page.
- * ← → runs (keep holding for turbo), ↑ / space jumps – jump again in the air for a flip –
- * and by a door ↑ or Enter walks in. Everything moves in the village SVG's own units.
+ * ← → runs (keep holding for turbo), ↑ jumps – jump again in the air for a flip – and by a
+ * door ↑ or Enter walks in. Hold space to wind up a snowball (the longer, the harder) and let
+ * go to throw it. Everything moves in the village SVG's own units.
  */
 
 export type PlayerDoor = {
@@ -21,6 +23,7 @@ export type PlayerDoor = {
 
 type At = { clientX: number; clientY: number }
 type Anim = { door: PlayerDoor; dir: 'in' | 'out'; stage: number; t: number }
+type Ball = { el: SVGCircleElement; shadow: SVGEllipseElement; x: number; y: number; vx: number; vy: number; trail: number }
 
 const WALK = 165
 const TURBO = 285
@@ -30,6 +33,13 @@ const GRAVITY = 1400
 const JUMP = 390
 const JUMP2 = 340
 const REACH = 24
+// snowballs: a tap lobs one a few steps ahead, a full wind-up (CHARGE seconds) throws it far
+const CHARGE = 1
+const THROW_MIN = 150
+const THROW_MAX = 540
+const THROW_ANGLE = (38 * Math.PI) / 180
+const BALL_GRAVITY = 760
+const AIM_DOTS = 14
 const SVGNS = 'http://www.w3.org/2000/svg'
 
 // the door you last walked into, so you come back out of it
@@ -56,6 +66,13 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
   const scarf = useRef<SVGGElement>(null)
   const pom = useRef<SVGGElement>(null)
   const eyes = useRef<SVGGElement>(null)
+  const held = useRef<SVGCircleElement>(null)
+  const meter = useRef<SVGGElement>(null)
+  const meterFill = useRef<SVGRectElement>(null)
+  const aim = useRef<SVGGElement>(null)
+  const snow = useSnowballs()
+  const snowRef = useRef(snow)
+  snowRef.current = snow
   const enterRef = useRef(onEnter)
   enterRef.current = onEnter
 
@@ -91,7 +108,12 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
       nextBreath: 2,
       nextBlink: 1.5,
       blinkUntil: 0,
+      charging: false,
+      power: 0,
+      wind: 0,
+      throwT: -1,
     }
+    const balls: Ball[] = []
     let anim: Anim | null = back ? { door: back, dir: 'out', stage: 1, t: 0 } : null
     let nearId: string | undefined
     let lo = 14
@@ -167,11 +189,47 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
         blip(620, 0.12, 'triangle', 0.04)
       }
     }
+    // where the snowball leaves the hand, and how fast – shared by the aiming arc and the throw
+    const hand = () => [s.x + s.face * 7, groundY(s.x) - s.h - 34]
+    const launch = (power: number) => {
+      const v = THROW_MIN + (THROW_MAX - THROW_MIN) * power
+      return [s.face * v * Math.cos(THROW_ANGLE) + s.vx * 0.4, -v * Math.sin(THROW_ANGLE)]
+    }
+    const windUp = () => {
+      if (anim || s.charging) return
+      s.charging = true
+      s.power = 0
+      blip(300, 0.05, 'triangle', 0.025)
+    }
+    const throwBall = () => {
+      if (!s.charging) return
+      s.charging = false
+      const [x, y] = hand()
+      const [vx, vy] = launch(s.power)
+      const shadowEl = document.createElementNS(SVGNS, 'ellipse')
+      shadowEl.setAttribute('fill', '#1b2a44')
+      prints.current?.appendChild(shadowEl)
+      const el = document.createElementNS(SVGNS, 'circle')
+      el.setAttribute('r', '2.8')
+      el.setAttribute('class', 'player-ball')
+      fx.current?.appendChild(el)
+      balls.push({ el, shadow: shadowEl, x, y, vx, vy, trail: 0 })
+      s.throwT = 0
+      blip(240 + 360 * s.power, 0.12, 'triangle', 0.05)
+      s.power = 0
+    }
+    const dropBall = (b: Ball) => {
+      b.el.remove()
+      b.shadow.remove()
+      balls.splice(balls.indexOf(b), 1)
+    }
+
     const enter = (door: PlayerDoor) => {
       if (anim) return
       anim = { door, dir: 'in', stage: 0, t: 1 }
       lastDoor = door.id
       keys.clear()
+      s.charging = false
       blip(520, 0.1, 'triangle', 0.05)
     }
 
@@ -198,7 +256,7 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
       } else if (k === ' ' && !onControl) {
         e.preventDefault()
         setHint(false)
-        if (!e.repeat) jump()
+        if (!e.repeat) windUp()
       } else if (k === 'ArrowDown') {
         e.preventDefault()
       } else if (k === 'Enter' && door && !onControl) {
@@ -208,13 +266,17 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
     }
     const onKeyUp = (e: KeyboardEvent) => {
       if (KEY[e.key]) keys.delete(KEY[e.key])
+      if (e.key === ' ') throwBall()
       // let go early for a little hop
-      if ((e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W' || e.key === ' ') && s.holding) {
+      if ((e.key === 'ArrowUp' || e.key === 'w' || e.key === 'W') && s.holding) {
         s.holding = false
         if (s.vh > 120) s.vh *= 0.55
       }
     }
-    const release = () => keys.clear()
+    const release = () => {
+      keys.clear()
+      s.charging = false
+    }
     // coming back via the browser's back button may restore us mid-walk-in
     const onShow = () => {
       anim = null
@@ -240,13 +302,15 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
       if (!anim) {
         const dir = (keys.has('right') ? 1 : 0) - (keys.has('left') ? 1 : 0)
         const turning = dir !== 0 && Math.sign(s.vx) === -dir
+        // feet planted while winding up a throw – ← → just turns you to aim
+        const planted = s.charging && s.h === 0
         const max = s.run > 0.9 ? TURBO : WALK
-        const a = (dir === 0 ? BRAKE * 0.8 : turning ? BRAKE : ACCEL) * (s.h > 0 ? 0.55 : 1)
-        s.vx += clamp(dir * max - s.vx, -a * dt, a * dt)
+        const a = (dir === 0 || planted ? BRAKE * 0.8 : turning ? BRAKE : ACCEL) * (s.h > 0 ? 0.55 : 1)
+        s.vx += clamp((planted ? 0 : dir * max) - s.vx, -a * dt, a * dt)
         if (dir) s.face = dir
-        s.run = dir !== 0 && !turning ? s.run + dt : 0
+        s.run = dir !== 0 && !turning && !planted ? s.run + dt : 0
         // skidding to turn around at speed
-        if (turning && s.h === 0 && Math.abs(s.vx) > 140) {
+        if (turning && !planted && s.h === 0 && Math.abs(s.vx) > 140) {
           if (!s.skid) for (let i = 0; i < 5; i++) puff(s.x + s.face * 4, py - 1, s.face * (6 + Math.random() * 10), -(2 + Math.random() * 5), 1.8 + Math.random(), 0.55)
           s.skid = true
         } else s.skid = false
@@ -338,10 +402,27 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
       const mix = (run: number, air: number) => run + (air - run) * s.air
       const lA = mix(-sw, flipping ? -70 : -38)
       const lB = mix(sw, flipping ? -55 : 24)
-      const aA = waving ? -160 + Math.sin(time * 9) * 22 : mix(sw * 1.2, flipping ? -150 : rising ? -158 : -105 + flail)
-      const aB = mix(-sw * 1.2, flipping ? -130 : rising ? -138 : -72 - flail)
+      let aA = waving ? -160 + Math.sin(time * 9) * 22 : mix(sw * 1.2, flipping ? -150 : rising ? -158 : -105 + flail)
+      let aB = mix(-sw * 1.2, flipping ? -130 : rising ? -138 : -72 - flail)
+
+      // winding up: arm cocked back with the snowball, the other one out front to aim, a bit of a crouch
+      if (s.charging) s.power = Math.min(1, s.power + dt / CHARGE)
+      const full = s.charging && s.power >= 1
+      s.wind += ((s.charging ? 1 : 0) - s.wind) * Math.min(1, dt * 16)
+      const shake = full ? Math.sin(time * 70) * 5 : 0
+      aA += (150 + s.power * 15 + shake - aA) * s.wind
+      aB += (-62 - aB) * s.wind
+      // ...and the throw: whip the arm over the top, then settle back
+      if (s.throwT >= 0) {
+        s.throwT += dt
+        const k = s.throwT
+        aA = k < 0.07 ? 165 - 285 * (k / 0.07) : -120 + (aA + 120) * clamp((k - 0.07) / 0.28, 0, 1)
+        if (k > 0.35) s.throwT = -1
+      }
+      const throwLean = s.throwT >= 0 ? 12 * (1 - s.throwT / 0.35) : 0
+
       const bob = grounded ? -Math.abs(Math.cos(s.phase)) * 2.2 * speedN : 0
-      const leanTo = s.skid ? -12 : grounded ? speedN * (turbo ? 11 : 6) : rising ? 4 : -3
+      const leanTo = s.skid ? -12 : s.charging ? -4 - 4 * s.power : throwLean ? throwLean : grounded ? speedN * (turbo ? 11 : 6) : rising ? 4 : -3
       s.lean += (leanTo - s.lean) * Math.min(1, dt * 10)
       const scarfTo = -80 + speedN * (turbo ? 78 : 62) + (grounded ? 0 : rising ? 26 : -18) + Math.sin(time * 21) * 9 * speedN
       s.scarf += (scarfTo - s.scarf) * Math.min(1, dt * 9)
@@ -356,6 +437,8 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
         sx *= 1 - st * 0.6
       }
       if (s.idle > 0) sy *= 1 + Math.sin(time * 2.6) * 0.015
+      sy *= 1 - 0.07 * s.power * s.wind
+      sx *= 1 + 0.03 * s.power * s.wind
 
       if (time > s.nextBlink) {
         s.blinkUntil = time + 0.12
@@ -387,8 +470,84 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
         puff(px + s.face * 9, py - 33, s.face * 9, -6, 1.6, 1.4)
       }
 
+      // ---- snowballs in flight ------------------------------------------
+      for (const b of [...balls]) {
+        b.vy += BALL_GRAVITY * dt
+        b.x += b.vx * dt
+        b.y += b.vy * dt
+        const g = groundY(b.x)
+        b.el.setAttribute('cx', b.x.toFixed(2))
+        b.el.setAttribute('cy', b.y.toFixed(2))
+        const close = 1 - Math.min(1, (g - b.y) / 140)
+        b.shadow.setAttribute('cx', b.x.toFixed(2))
+        b.shadow.setAttribute('cy', (g + 0.6).toFixed(2))
+        b.shadow.setAttribute('rx', (1.4 + 2 * close).toFixed(2))
+        b.shadow.setAttribute('ry', (0.5 + 0.6 * close).toFixed(2))
+        b.shadow.setAttribute('opacity', (0.08 + 0.17 * close).toFixed(2))
+        if ((b.trail += dt) > 0.03) {
+          b.trail = 0
+          puff(b.x, b.y, -b.vx * 0.02, -b.vy * 0.02, 1.1, 0.35)
+        }
+        // whoever it hits on the way – nissar, the snowman – reacts like in the snowball fight
+        const c = screenPoint(b.x, b.y)
+        if (snowRef.current?.hitAt(c.clientX, c.clientY)) {
+          dropBall(b)
+          continue
+        }
+        if (b.vy > 0 && b.y >= g) {
+          burst(b.x, g, 7, 1)
+          spawn(prints.current, 'ellipse', { cx: b.x, cy: g + 0.6, rx: 3.6, ry: 1.3, fill: '#ffffff', class: 'player-lump' }, {}, 3000)
+          blip(200, 0.07, 'triangle', 0.035)
+          dropBall(b)
+        } else if (b.x < lo - 60 || b.x > hi + 60) dropBall(b)
+      }
+
+      // the aiming arc while winding up: where the ball would go if you let go now
+      if (aim.current) {
+        aim.current.style.display = s.charging ? '' : 'none'
+        if (s.charging) {
+          let [x, y] = hand()
+          let [vx, vy] = launch(s.power)
+          const pts: number[][] = []
+          for (let i = 0; i < 240; i++) {
+            vy += BALL_GRAVITY / 120
+            x += vx / 120
+            y += vy / 120
+            if (vy > 0 && y >= groundY(x)) {
+              y = groundY(x)
+              break
+            }
+            pts.push([x, y])
+          }
+          const dots = aim.current.children
+          for (let i = 0; i < AIM_DOTS; i++) {
+            const p = pts[Math.floor(((i + 1) / (AIM_DOTS + 1)) * pts.length)]
+            const d = dots[i] as SVGCircleElement
+            if (!p) {
+              d.setAttribute('opacity', '0')
+              continue
+            }
+            d.setAttribute('cx', p[0].toFixed(1))
+            d.setAttribute('cy', p[1].toFixed(1))
+            d.setAttribute('opacity', (0.95 - (i / AIM_DOTS) * 0.55).toFixed(2))
+          }
+          dots[AIM_DOTS]?.setAttribute('transform', `translate(${x.toFixed(1)} ${y.toFixed(1)})`)
+        }
+      }
+      if (held.current) held.current.style.display = s.charging ? '' : 'none'
+      if (meter.current) {
+        meter.current.style.display = s.charging ? '' : 'none'
+        meter.current.setAttribute('transform', `translate(${px.toFixed(2)} ${(py - s.h - 60).toFixed(2)})`)
+        meter.current.style.opacity = full && Math.sin(time * 30) > 0 ? '0.55' : '1'
+      }
+      if (meterFill.current) {
+        meterFill.current.setAttribute('width', (24 * s.power).toFixed(2))
+        meterFill.current.setAttribute('fill', `hsl(${Math.round(120 - 120 * s.power)} 85% 52%)`)
+      }
+
       // ---- write it all to the SVG -------------------------------------
-      root.current?.setAttribute('transform', `translate(${px.toFixed(2)} ${(py - s.h).toFixed(2)})`)
+      const tremble = full ? Math.sin(time * 90) * 0.5 : 0
+      root.current?.setAttribute('transform', `translate(${(px + tremble).toFixed(2)} ${(py - s.h).toFixed(2)})`)
       if (root.current) root.current.style.opacity = String(opacity)
       body.current?.setAttribute(
         'transform',
@@ -399,7 +558,7 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
       if (shadow.current) shadow.current.style.opacity = String(0.2 * (1 - lift * 0.7) * opacity)
       sign.current?.setAttribute('transform', `translate(${px.toFixed(2)} ${(py - 64).toFixed(2)})`)
       // the sign stays put when you jump – get out of the way rather than collide with it
-      if (sign.current) sign.current.style.opacity = String(clamp(1 - s.h / 22, 0, 1) * opacity)
+      if (sign.current) sign.current.style.opacity = String(clamp(1 - s.h / 22, 0, 1) * (1 - s.wind) * opacity)
       legA.current?.setAttribute('transform', `rotate(${lA.toFixed(1)} 0 -16)`)
       legB.current?.setAttribute('transform', `rotate(${lB.toFixed(1)} 0 -16)`)
       armA.current?.setAttribute('transform', `rotate(${aA.toFixed(1)} 0 -26.5)`)
@@ -427,6 +586,7 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
       ro.disconnect()
       timers.forEach((id) => clearTimeout(id))
       if (nearId) svg.querySelector(`[data-door="${nearId}"]`)?.classList.remove('near')
+      balls.forEach((b) => (b.el.remove(), b.shadow.remove()))
       removeEventListener('keydown', onKeyDown)
       removeEventListener('keyup', onKeyUp)
       removeEventListener('blur', release)
@@ -500,16 +660,35 @@ export function Player({ doors, groundY, onEnter, startX = 520 }: { doors: Playe
           {/* front arm */}
           <g ref={armA}>
             <rect x="-2.2" y="-26.5" width="4.4" height="11" rx="2.2" fill="#22b0a9" />
+            <circle ref={held} cx="0" cy="-13.4" r="2.8" className="player-ball" style={{ display: 'none' }} />
             <circle cx="0" cy="-15" r="2.5" fill="#e5383b" />
           </g>
         </g>
       </g>
 
+      <g ref={aim} style={{ display: 'none' }}>
+        {Array.from({ length: AIM_DOTS }, (_, i) => (
+          <circle key={i} r={1.7 - i * 0.04} fill="#ffffff" stroke="#24375a" strokeWidth="0.8" />
+        ))}
+        {/* where it lands */}
+        <g>
+          <ellipse rx="5" ry="1.8" fill="none" stroke="#e5383b" strokeWidth="0.9" strokeDasharray="1.6 1.2" />
+          <ellipse rx="1.4" ry="0.6" fill="#e5383b" />
+        </g>
+      </g>
+
       <g ref={fx} />
+
+      {/* how hard you'll throw */}
+      <g ref={meter} style={{ display: 'none' }}>
+        <rect x="-13.5" y="-3" width="27" height="6" rx="3" fill="#0d1a2e" fillOpacity="0.6" stroke="#ffffff" strokeWidth="0.7" />
+        <rect ref={meterFill} x="-12" y="-1.6" width="0" height="3.2" rx="1.6" />
+        <circle cx="-17.5" cy="0" r="2.6" className="player-ball" />
+      </g>
 
       <g ref={sign}>
         <g className="player-float">
-          {near ? <Sign key={near.id} text={near.title} keycap="↑" /> : hint ? <Sign key="hint" text="← → spring · ↑ hoppa" /> : null}
+          {near ? <Sign key={near.id} text={near.title} keycap="↑" /> : hint ? <Sign key="hint" text="← → spring · ↑ hoppa · håll space: snöboll" /> : null}
         </g>
       </g>
     </g>
