@@ -12,6 +12,8 @@ const links = [
 
 export function Layout() {
   const { pathname } = useLocation()
+  // the front page is one screen – the village – with nothing to scroll down to
+  const home = pathname === '/'
   useDaypart()
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
@@ -25,7 +27,7 @@ export function Layout() {
   }, [pathname])
 
   return (
-    <div className="relative min-h-dvh">
+    <div className={home ? 'relative h-dvh overflow-hidden' : 'relative min-h-dvh'}>
       <Snow density={pathname.startsWith('/spel/') ? 0.4 : 1} />
 
       <header
@@ -60,10 +62,12 @@ export function Layout() {
         <Outlet />
       </main>
 
-      <footer className="relative z-10 print:hidden bg-[#f7f9ff] px-4 pb-10 pt-4 text-center text-night-800">
-        <p className="font-serif text-lg">God Jul & Gott Nytt År {YEAR + 1}</p>
-        <p className="mt-1 text-sm opacity-60">Gjord med pepparkakor och kärlek av Daniel</p>
-      </footer>
+      {!home && (
+        <footer className="relative z-10 print:hidden bg-[#f7f9ff] px-4 pb-10 pt-4 text-center text-night-800">
+          <p className="font-serif text-lg">God Jul & Gott Nytt År {YEAR + 1}</p>
+          <p className="mt-1 text-sm opacity-60">Gjord med pepparkakor och kärlek av Daniel</p>
+        </footer>
+      )}
     </div>
   )
 }
