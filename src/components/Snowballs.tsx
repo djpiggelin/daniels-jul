@@ -162,8 +162,13 @@ export function SnowballArena({ children }: { children: React.ReactNode }) {
           ))}
         </div>
 
-        {(ammo > 0 || hits > 0) && (
-          <div data-snow-ui className="absolute bottom-10 left-4 z-30 flex items-center gap-3 rounded-full bg-night-950/55 px-3 py-1.5 text-xs text-snow/85 backdrop-blur">
+        <div data-snow-ui className="absolute bottom-10 left-4 z-30 flex items-center gap-3 rounded-full bg-night-950/55 px-3 py-1.5 text-xs text-snow/85 backdrop-blur">
+            {/* until you've picked up any snow: tell people the piles are there */}
+            {ammo === 0 && hits === 0 && (
+              <span>
+                <span className="snowball-icon mr-1.5 align-[-1px]" /> Klicka på en snöhög för att börja kasta
+              </span>
+            )}
             {ammo > 0 && (
               <>
                 <span className="flex gap-1" aria-label={`${ammo} snöbollar`}>
@@ -177,8 +182,7 @@ export function SnowballArena({ children }: { children: React.ReactNode }) {
               </>
             )}
             {hits > 0 && <span>Träffar: {hits}</span>}
-          </div>
-        )}
+        </div>
       </div>
     </SnowCtx.Provider>
   )
