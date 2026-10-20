@@ -3,3 +3,6 @@ dist
 .netlify
 *.log
 .DS_Store
+.env
+# Real content (guests, photos, event details) – lives in Netlify Blobs, see README
+content/
