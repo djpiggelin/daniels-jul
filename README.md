@@ -33,7 +33,7 @@ Ladda upp med:
 npm run upload-content
 ```
 
-Skriptet behöver `NETLIFY_SITE_ID` (Netlify → *Site configuration → Site ID*) och `NETLIFY_AUTH_TOKEN`
+Skriptet behöver `NETLIFY_SITE_ID` (Netlify → *Project configuration → General → Project ID*) och `NETLIFY_AUTH_TOKEN`
 (Netlify → *User settings → Applications → Personal access tokens*), t.ex. i en `.env`-fil i roten –
 den är gitignorerad. Ändringar syns på sajten inom någon minut, ingen ny deploy behövs. Lägg till
 `-- --prune` för att också ta bort filer som inte längre finns lokalt.
