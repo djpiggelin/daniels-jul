@@ -3,12 +3,15 @@ import { useNavigate } from 'react-router-dom'
 import { Gift } from '../components/Gift'
 import { SnowballArena } from '../components/Snowballs'
 import { SkyTeam } from '../components/Santa'
-import { Aurora, Lappland, Moon, Stars, Sun, type Building } from '../components/Scenery'
+import { Aurora, Lappland, Moon, Stars, Sun, type Building, type EnterAt } from '../components/Scenery'
 import { useDaypart } from '../lib/daypart'
 import { jingle } from '../lib/fx'
 import { HOUSE_NUMBERS, linkFor } from '../lib/village'
 
 // gifts float around the edges, clear of the sleigh
+// a keyboard to steer the villager with – leave phones and tablets alone
+const hasKeyboard = () => window.matchMedia('(pointer: fine)').matches
+
 const GIFTS = [
   { left: '7%', top: '50%', size: 44, mobile: true },
   { left: '92%', top: '40%', size: 40, mobile: true },
@@ -22,6 +25,7 @@ export default function Home() {
   const navigate = useNavigate()
   const daypart = useDaypart()
   const [entering, setEntering] = useState<{ x: number; y: number } | null>(null)
+  const [player] = useState(hasKeyboard)
 
   // coming back via the browser's back button may restore the zoomed-in page – reset it
   useEffect(() => {
@@ -31,14 +35,14 @@ export default function Home() {
   }, [])
 
   // zoom the whole scene into the clicked door, glow warm, then step inside
-  const enter = (b: Building, ev: React.MouseEvent) => {
+  const enter = (b: Building, ev: EnterAt) => {
     if (entering) return
     setEntering({ x: ev.clientX, y: ev.clientY })
     setTimeout(() => navigate(linkFor(b)), 1000)
   }
 
   return (
-    <section className="sky relative h-[100svh] min-h-[620px] overflow-hidden">
+    <section className="sky relative h-dvh overflow-hidden">
       <div
         className="enter-zoom absolute inset-0"
         style={entering ? { transform: 'scale(7)', transformOrigin: `${entering.x}px ${entering.y}px` } : undefined}
@@ -57,10 +61,11 @@ export default function Home() {
 
         <FlyingSanta />
 
-        <Village onEnter={enter} />
+        <Village onEnter={enter} player={player} />
 
         <p className="pointer-events-none absolute inset-x-0 bottom-3 z-10 text-center text-xs text-night-800/50">
           Svep på släden · kliv in i husen · kasta snöbollar från högarna
+          {player && ' · gå runt med piltangenterna, håll in space för att kasta'}
         </p>
         </SnowballArena>
       </div>
@@ -79,10 +84,10 @@ export default function Home() {
 /* Tomtens by – each event's house has the day in December as its number */
 /* ------------------------------------------------------------------ */
 
-function Village({ onEnter }: { onEnter: (b: Building, e: React.MouseEvent) => void }) {
+function Village({ onEnter, player }: { onEnter: (b: Building, at: EnterAt) => void; player?: boolean }) {
   return (
     <div className="absolute inset-x-0 bottom-0 h-[36%] min-h-[210px]">
-      <Lappland className="h-full" onEnter={onEnter} numbers={HOUSE_NUMBERS} />
+      <Lappland className="h-full" onEnter={onEnter} numbers={HOUSE_NUMBERS} player={player} />
     </div>
   )
 }
