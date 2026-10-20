@@ -20,7 +20,8 @@ function StampIcon({ type }: { type: StampType }) {
     c.width = 36 * dpr
     c.height = 36 * dpr
     const ctx = c.getContext('2d')!
-    const s = (36 * dpr) / 4
+    // show about 2.4 cm of gingerbread so the candy fills the button
+    const s = (36 * dpr) / 2.4
     ctx.setTransform(s, 0, 0, s, 18 * dpr, 18 * dpr)
     drawStamp(ctx, { k: 't', t: type, x: 0, y: 0, r: type === 'kanel' ? -0.6 : 0, s: 3 })
   }, [type])

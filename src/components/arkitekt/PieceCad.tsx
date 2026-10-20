@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import type { CustomPiece } from '../../lib/gingerbread'
 import { bounds, edgeMid, HOLE_PRESETS, moveShape, OUTLINE_PRESETS, shapeArea, splitEdge, toPolyline, type Shape } from '../../lib/shapes'
 
@@ -13,9 +13,10 @@ const sv = (n: number, d = 1) => n.toLocaleString('sv-SE', { maximumFractionDigi
 const pathOf = (s: Shape) => `M${toPolyline(s).map((p) => p.join(' ')).join('L')}Z`
 
 /**
- * A small CAD board for one free-form piece: drag corners, pull the diamond in
- * the middle of an edge to bend it into an arc, double-click an edge for a new
- * corner, and punch openings from the presets.
+ * A small CAD board for one free-form piece: draw the outline (or an opening)
+ * point by point on the grid, or start from a preset; drag corners, pull the
+ * diamond in the middle of an edge to bend it into an arc, double-click an edge
+ * for a new corner, and punch openings from the presets.
  */
 export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p: CustomPiece) => void }) {
   const svg = useRef<SVGSVGElement>(null)
@@ -24,6 +25,10 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
   const [snap, setSnap] = useState(true)
   const drag = useRef<Drag | null>(null)
   const frozen = useRef<string | null>(null)
+  // drawing a new outline or opening by clicking corners on the grid
+  const [drawing, setDrawing] = useState<{ target: 'outline' | 'hole'; pts: { x: number; y: number }[] } | null>(null)
+  const [hover, setHover] = useState<{ x: number; y: number } | null>(null)
+  const drawView = useRef('-2 -2 36 27')
 
   const shapeAt = (k: number) => (k < 0 ? piece.outline : piece.holes[k])
   const setShape = (k: number, s: Shape) =>
@@ -40,7 +45,7 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
   if (vw < 20) [vx, vw] = [vx - (20 - vw) / 2, 20]
   if (vh < 14) [vy, vh] = [vy - (14 - vh) / 2, 14]
   const live = `${vx} ${vy} ${vw} ${vh}`
-  const viewBox = frozen.current ?? live
+  const viewBox = drawing ? drawView.current : frozen.current ?? live
   const scale = parseFloat(viewBox.split(' ')[2]) / 26 // handle size follows the zoom
   const hr = 0.32 * scale
 
@@ -98,6 +103,61 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
 
   const selected = sel ? shapeAt(sel.shape) : null
   const vertex = sel && sel.kind === 'v' && selected ? selected[sel.i] : null
+
+  const startDrawing = (target: 'outline' | 'hole') => {
+    // an empty sheet to draw a new outline on; openings are drawn on the piece as it is
+    drawView.current = target === 'outline' ? '-2 -2 36 27' : live
+    setDrawing({ target, pts: [] })
+    setHover(null)
+    setSel(null)
+    setPendingShape(null)
+  }
+  const stopDrawing = () => {
+    setDrawing(null)
+    setHover(null)
+  }
+  const finishDrawing = () => {
+    if (!drawing) return
+    // drop repeated points (a double-click lands twice) and a closing point on top of the first
+    const pts = drawing.pts.filter((q, i, a) => i === 0 || q.x !== a[i - 1].x || q.y !== a[i - 1].y)
+    if (pts.length > 1 && pts[0].x === pts[pts.length - 1].x && pts[0].y === pts[pts.length - 1].y) pts.pop()
+    if (pts.length < 3) return
+    const shape: Shape = pts.map((q) => ({ x: q.x, y: q.y }))
+    if (drawing.target === 'outline') {
+      // keep the piece's coordinates starting at 0,0 like the presets
+      const dx = -Math.min(...pts.map((q) => q.x))
+      const dy = -Math.min(...pts.map((q) => q.y))
+      onChange({ ...piece, outline: moveShape(shape, dx, dy), holes: piece.holes.map((h) => moveShape(h, dx, dy)) })
+    } else {
+      onChange({ ...piece, holes: [...piece.holes, shape] })
+      setSel({ shape: piece.holes.length, kind: 'hole' })
+    }
+    stopDrawing()
+  }
+  const addPoint = (e: React.PointerEvent) => {
+    if (!drawing) return
+    const p = toCm(e)
+    const q = { x: snapV(p.x), y: snapV(p.y) }
+    const first = drawing.pts[0]
+    // clicking the first corner again closes the shape
+    if (first && drawing.pts.length >= 3 && Math.hypot(q.x - first.x, q.y - first.y) < hr * 2.5) return finishDrawing()
+    setDrawing({ ...drawing, pts: [...drawing.pts, q] })
+  }
+
+  useEffect(() => {
+    if (!drawing) return
+    const onKey = (e: KeyboardEvent) => {
+      if ((e.target as HTMLElement)?.closest?.('input, textarea')) return
+      if (e.key === 'Escape') stopDrawing()
+      else if (e.key === 'Enter') finishDrawing()
+      else if (e.key === 'Backspace') {
+        e.preventDefault()
+        setDrawing((d) => d && { ...d, pts: d.pts.slice(0, -1) })
+      }
+    }
+    addEventListener('keydown', onKey)
+    return () => removeEventListener('keydown', onKey)
+  })
 
   const deleteSelected = () => {
     if (!sel) return
@@ -165,6 +225,12 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
         <fieldset>
           <legend className="text-[11px] uppercase tracking-widest text-[#3a2410]/60">Börja från</legend>
           <div className="mt-2 flex flex-wrap gap-1.5">
+            <button
+              className={`${btn} border-[#b5713a] bg-[#b5713a]/15 ${drawing?.target === 'outline' ? '!border-[#d93a3d] !text-[#d93a3d]' : ''}`}
+              onClick={() => (drawing?.target === 'outline' ? stopDrawing() : startDrawing('outline'))}
+            >
+              ✎ Rita själv
+            </button>
             {OUTLINE_PRESETS.map((p) => (
               <button
                 key={p.name}
@@ -185,6 +251,12 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
         <fieldset>
           <legend className="text-[11px] uppercase tracking-widest text-[#3a2410]/60">Ta ur</legend>
           <div className="mt-2 flex flex-wrap gap-1.5">
+            <button
+              className={`${btn} ${drawing?.target === 'hole' ? '!border-[#d93a3d] !text-[#d93a3d]' : ''}`}
+              onClick={() => (drawing?.target === 'hole' ? stopDrawing() : startDrawing('hole'))}
+            >
+              ✎ Rita urtag
+            </button>
             {HOLE_PRESETS.map((p) => (
               <button
                 key={p.name}
@@ -201,7 +273,26 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
         </fieldset>
 
         <div className="border-t border-[#3a2410]/15 pt-4">
-          {!sel && <p className="text-[13px] leading-relaxed text-[#3a2410]/65">Dra i hörnen. Dra i ruterna mitt på kanterna för att böja dem till bågar. Dubbelklicka på en kant för ett nytt hörn. Dra i ett urtag för att flytta det.</p>}
+          {drawing && (
+            <div className="space-y-3">
+              <p className="text-[11px] uppercase tracking-widest text-[#d93a3d]">{drawing.target === 'outline' ? 'Ritar ny form' : 'Ritar urtag'}</p>
+              <p className="text-[13px] leading-relaxed text-[#3a2410]/75">
+                Klicka i rutnätet för att sätta ut hörnen. Klicka på första punkten igen, dubbelklicka eller tryck Enter för att stänga formen. Bågar gör du sedan med ruterna mitt på kanterna.
+              </p>
+              <div className="flex flex-wrap gap-1.5">
+                <button className={`${btn} border-[#3a2410] bg-[#3a2410] text-[#fbf3e4]`} disabled={drawing.pts.length < 3} onClick={finishDrawing}>
+                  Klar
+                </button>
+                <button className={btn} disabled={!drawing.pts.length} onClick={() => setDrawing({ ...drawing, pts: drawing.pts.slice(0, -1) })}>
+                  Ångra punkt
+                </button>
+                <button className={btn} onClick={stopDrawing}>
+                  Avbryt
+                </button>
+              </div>
+            </div>
+          )}
+          {!drawing && !sel && <p className="text-[13px] leading-relaxed text-[#3a2410]/65">Dra i hörnen. Dra i ruterna mitt på kanterna för att böja dem till bågar. Dubbelklicka på en kant för ett nytt hörn. Dra i ett urtag för att flytta det.</p>}
           {sel?.kind === 'v' && vertex && (
             <div className="space-y-3">
               <p className="text-[11px] uppercase tracking-widest text-[#3a2410]/60">Hörn</p>
@@ -277,12 +368,20 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
           <svg
             ref={svg}
             viewBox={viewBox}
-            className="block aspect-[4/3] w-full touch-none select-none"
-            onPointerMove={move}
+            className={`block aspect-[4/3] w-full touch-none select-none ${drawing ? 'cursor-crosshair' : ''}`}
+            onPointerMove={(e) => {
+              if (!drawing) return move(e)
+              const p = toCm(e)
+              setHover({ x: snapV(p.x), y: snapV(p.y) })
+            }}
+            onPointerLeave={() => drawing && setHover(null)}
             onPointerUp={end}
             onPointerCancel={end}
-            onPointerDown={() => setSel(null)}
-            onDoubleClick={() => sel?.kind === 'e' && setShape(sel.shape, splitEdge(shapeAt(sel.shape), sel.i))}
+            onPointerDown={(e) => (drawing ? addPoint(e) : setSel(null))}
+            onDoubleClick={() => {
+              if (drawing) return finishDrawing()
+              if (sel?.kind === 'e') setShape(sel.shape, splitEdge(shapeAt(sel.shape), sel.i))
+            }}
             role="img"
             aria-label={`Ritbord för ${piece.name}`}
           >
@@ -293,7 +392,15 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
               </pattern>
             </defs>
             <rect x={-200} y={-200} width={400} height={400} fill="url(#cad-grid)" />
-            <path d={pathOf(piece.outline)} fill="#b5713a" fillOpacity="0.85" stroke="#3a2410" strokeWidth={0.06 * scale} strokeLinejoin="round" />
+            <path
+              d={pathOf(piece.outline)}
+              fill="#b5713a"
+              fillOpacity={drawing?.target === 'outline' ? 0.15 : 0.85}
+              stroke="#3a2410"
+              strokeOpacity={drawing?.target === 'outline' ? 0.3 : 1}
+              strokeWidth={0.06 * scale}
+              strokeLinejoin="round"
+            />
             {piece.holes.map((h, k) => (
               <path
                 key={k}
@@ -309,12 +416,45 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
                 }}
               />
             ))}
-            {handles(-1)}
-            {sel && sel.shape >= 0 && piece.holes[sel.shape] && handles(sel.shape)}
+            {!drawing && handles(-1)}
+            {!drawing && sel && sel.shape >= 0 && piece.holes[sel.shape] && handles(sel.shape)}
+
+            {/* the shape being drawn, with a rubber band to the pointer */}
+            {drawing && (
+              <g pointerEvents="none">
+                {drawing.pts.length > 0 && (
+                  <polyline
+                    points={[...drawing.pts, ...(hover ? [hover] : [])].map((q) => `${q.x},${q.y}`).join(' ')}
+                    fill={drawing.target === 'outline' ? '#b5713a' : '#fbf3e4'}
+                    fillOpacity={drawing.pts.length >= 2 ? 0.35 : 0}
+                    stroke="#3a2410"
+                    strokeWidth={0.07 * scale}
+                    strokeDasharray={drawing.target === 'hole' ? `${0.25 * scale} ${0.15 * scale}` : undefined}
+                    strokeLinejoin="round"
+                  />
+                )}
+                {drawing.pts.map((q, i) => (
+                  <circle
+                    key={i}
+                    cx={q.x}
+                    cy={q.y}
+                    r={i === 0 && drawing.pts.length >= 3 ? hr * 1.6 : hr}
+                    fill={i === 0 && drawing.pts.length >= 3 ? '#d93a3d' : '#fff'}
+                    stroke="#3a2410"
+                    strokeWidth={hr * 0.3}
+                  />
+                ))}
+                {hover && <circle cx={hover.x} cy={hover.y} r={hr * 0.7} fill="#d93a3d" fillOpacity="0.6" />}
+              </g>
+            )}
           </svg>
         </div>
         <p className="mt-2 text-center text-xs text-[#3a2410]/55">
-          {sv(b.x1 - b.x0)} × {sv(b.y1 - b.y0)} cm · {sv(shapeArea(piece.outline), 0)} cm² · rutor om 1 cm
+          {drawing
+            ? hover
+              ? `${sv(hover.x)}, ${sv(hover.y)} cm · ${drawing.pts.length} hörn · rutor om 1 cm`
+              : `${drawing.pts.length} hörn · rutor om 1 cm`
+            : `${sv(b.x1 - b.x0)} × ${sv(b.y1 - b.y0)} cm · ${sv(shapeArea(piece.outline), 0)} cm² · rutor om 1 cm`}
         </p>
       </div>
     </div>
