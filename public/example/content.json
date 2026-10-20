@@ -1,0 +1,129 @@
+{
+  "year": 2026,
+  "events": [
+    {
+      "id": "julbak",
+      "name": "Julbak",
+      "emoji": "🍪",
+      "tagline": "Pepparkakshus i Tomtens verkstad & brygder från destilleriet",
+      "start": "2026-12-06T18:00:00",
+      "durationHours": 6,
+      "location": "Tomtens verkstad",
+      "description": "Exempelinnehåll! Det riktiga innehållet laddas från Netlify Blobs – se README.",
+      "image": "images/julbak.svg",
+      "reindeer": "Dasher",
+      "accent": "gold",
+      "competitions": [
+        {
+          "name": "Pepparkakstävling",
+          "emoji": "🏠",
+          "art": "verkstad",
+          "theme": {
+            "title": "Tomtens verkstad",
+            "intro": [
+              "Ett påhittat tema för att testa sidan lokalt."
+            ]
+          },
+          "notice": "Det här är exempeltext.",
+          "rules": [
+            "Allt ska vara ätbart.",
+            "Max 3 personer per lag."
+          ],
+          "criteria": [
+            "Estetik",
+            "Kreativitet",
+            "Temaenlighet"
+          ]
+        },
+        {
+          "name": "Drinktävling",
+          "emoji": "🍸",
+          "art": "destilleri",
+          "theme": {
+            "title": "Tomtens destilleri",
+            "intro": [
+              "Ett påhittat tema för att testa sidan lokalt."
+            ]
+          },
+          "rules": [
+            "Max 3 personer per lag.",
+            "Allt mixas på plats."
+          ],
+          "criteria": [
+            "Smak",
+            "Snygghet",
+            "Show"
+          ]
+        }
+      ]
+    },
+    {
+      "id": "julbord",
+      "name": "Julbord",
+      "emoji": "🍖",
+      "tagline": "Sill, skinka, snaps & sång",
+      "start": "2026-12-13T14:00:00",
+      "durationHours": 6,
+      "location": "Nordpolen",
+      "description": "Exempelinnehåll för julbordet. Välj vad du tar med på Knytis-listan.",
+      "image": "images/julbord.svg",
+      "reindeer": "Rudolf",
+      "accent": "red",
+      "potluck": true
+    },
+    {
+      "id": "julafton",
+      "name": "Julafton",
+      "emoji": "🎁",
+      "tagline": "Den stora finalen",
+      "start": "2026-12-24T15:00:00",
+      "durationHours": 9,
+      "location": "Där hjärtat är",
+      "description": "Exempelinnehåll för julafton.",
+      "image": "images/julafton.svg",
+      "reindeer": "Tomten",
+      "santa": true,
+      "accent": "green"
+    }
+  ],
+  "guests": [
+    {
+      "name": "Tomten",
+      "photo": "photos/tomten.svg"
+    },
+    {
+      "name": "Mor Tomte",
+      "photo": "photos/mor-tomte.svg"
+    },
+    {
+      "name": "Rudolf",
+      "photo": "photos/rudolf.svg"
+    },
+    {
+      "name": "Nisse",
+      "photo": "photos/nisse.svg"
+    },
+    {
+      "name": "Pepparkaksgubben",
+      "photo": "photos/pepparkaksgubben.svg"
+    },
+    {
+      "name": "Snögubben",
+      "photo": "photos/snogubben.svg"
+    },
+    {
+      "name": "Julgranen",
+      "photo": "photos/julgranen.svg"
+    },
+    {
+      "name": "Stjärnan",
+      "photo": "photos/stjarnan.svg"
+    },
+    {
+      "name": "Lucia"
+    },
+    {
+      "name": "Grinchen"
+    }
+  ]
+}
