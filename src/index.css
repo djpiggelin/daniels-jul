@@ -299,7 +299,7 @@ h1, h2, h3, h4 {
 
 /* clickable buildings on the front page */
 .building { pointer-events: auto; cursor: pointer; transition: filter 0.3s ease; }
-.building:hover { filter: drop-shadow(0 0 10px rgba(255, 190, 90, 0.9)) brightness(1.12); }
+.building:hover, .building.near { filter: drop-shadow(0 0 10px rgba(255, 190, 90, 0.9)) brightness(1.12); }
 
 /* front page → building: zoom through the door and warm up */
 .enter-zoom { transition: transform 0.9s cubic-bezier(0.6, 0, 0.8, 0.4); }
@@ -543,3 +543,20 @@ html[data-daypart='kvall'] .moon { opacity: 0.6; }
 @keyframes nisse-hop { 0%, 100% { transform: none } 40% { transform: translateY(-9px) } }
 .nisse-fx-wobble { transform-origin: 0 0; animation: nisse-wobble 1.1s ease-in-out; }
 @keyframes nisse-wobble { 0%, 100% { transform: rotate(0) } 20% { transform: rotate(-9deg) } 45% { transform: rotate(7deg) } 70% { transform: rotate(-4deg) } }
+
+/* the villager you steer with the arrow keys on the front page */
+.player-puff { transform-box: fill-box; transform-origin: center; animation: player-puff 0.6s ease-out forwards; }
+@keyframes player-puff {
+  from { transform: translate(0, 0) scale(0.5); opacity: 0.95 }
+  to { transform: translate(var(--dx), var(--dy)) scale(1.6); opacity: 0 }
+}
+.player-print { animation: player-print 6s ease-in forwards; }
+@keyframes player-print { from { opacity: 0.6 } to { opacity: 0 } }
+.player-line { animation: player-line 0.36s ease-out forwards; }
+@keyframes player-line { from { opacity: 0.9 } to { transform: translateX(var(--dx)); opacity: 0 } }
+.player-float { animation: player-float 2.4s ease-in-out infinite; }
+@keyframes player-float { 0%, 100% { transform: translateY(0) } 50% { transform: translateY(-2px) } }
+.player-sign { transform-box: fill-box; transform-origin: 50% 100%; animation: player-sign 0.3s cubic-bezier(0.3, 1.6, 0.5, 1) both; }
+@keyframes player-sign { from { transform: scale(0.4); opacity: 0 } }
+.player-ball { fill: #ffffff; stroke: #b9c8e0; stroke-width: 0.6; }
+.player-lump { animation: player-print 3s ease-in forwards; }
