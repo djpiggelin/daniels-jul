@@ -5,6 +5,12 @@
 [functions]
   directory = "netlify/functions"
 
+# Guest photos used to live in the repo – knytis claims saved before the move still point here
+[[redirects]]
+  from = "/Participants/*"
+  to = "/media/photos/:splat"
+  status = 301
+
 # SPA fallback – keep /api/* for functions
 [[redirects]]
   from = "/*"

@@ -16,7 +16,7 @@ export default async (req: Request) => {
     const body = await req.json().catch(() => ({}))
     const itemId = typeof body.itemId === 'string' ? body.itemId.slice(0, 60) : ''
     const name = cleanName(body.name)
-    const picture = typeof body.picture === 'string' && body.picture.startsWith('/Participants/') ? body.picture : null
+    const picture = typeof body.picture === 'string' && body.picture.startsWith('/media/photos/') ? body.picture : null
     if (!itemId || !name) return json({ error: 'itemId och name krävs' }, 400)
 
     const claims = await updateJSON<Claims>(key(), {}, (c) => {

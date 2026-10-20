@@ -510,7 +510,7 @@ export default function Pepparkaksarkitekten() {
               <p className="mt-10 text-lg leading-relaxed">
                 {packs > 0.5 ? (
                   <>
-                    Huset kräver ungefär <strong className="font-semibold">{sv(packs, 1)} paket</strong>. Det är mer än ett halvt – ta med egen extra deg till Vanadisvägen.
+                    Huset kräver ungefär <strong className="font-semibold">{sv(packs, 1)} paket</strong>. Det är mer än ett halvt – ta med egen extra deg till {JULBAK?.location ?? 'julbaket'}.
                   </>
                 ) : (
                   <>
