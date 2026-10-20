@@ -1,4 +1,4 @@
-import { createContext, useContext, useEffect, useRef, useState } from 'react'
+import { createContext, useContext, useEffect, useMemo, useRef, useState } from 'react'
 import { blip } from '../lib/fx'
 
 /*
@@ -16,6 +16,14 @@ export const useNisseEffect = (id?: string) => {
   const effects = useContext(SnowCtx)
   return id && effects ? effects[id] : undefined
 }
+
+type SnowApi = {
+  /** A snowball thrown from inside the scene is at this point on screen – hit whoever's there. */
+  hitAt: (clientX: number, clientY: number) => boolean
+}
+const SnowApiCtx = createContext<SnowApi | null>(null)
+/** Lets snowballs thrown from inside the scene (the villager's) join the fight. */
+export const useSnowballs = () => useContext(SnowApiCtx)
 
 type Flight = { id: number; x0: number; y0: number; x1: number; y1: number; back?: boolean }
 type Pop = { id: number; x: number; y: number; text: string }
@@ -56,13 +64,12 @@ export function SnowballArena({ children }: { children: React.ReactNode }) {
   }
 
   /** The visible nisse (or snowman) closest to a point on screen, within a small margin. */
-  const targetAt = (cx: number, cy: number) => {
+  const targetAt = (cx: number, cy: number, pad = 10) => {
     let best: { id: string; el: Element; d: number } | null = null
     document.querySelectorAll('[data-nisse]').forEach((el) => {
       if (parseFloat(getComputedStyle(el).opacity) < 0.3) return
       const r = el.getBoundingClientRect()
       if (!r.width) return
-      const pad = 10
       if (cx < r.left - pad || cx > r.right + pad || cy < r.top - pad || cy > r.bottom + pad) return
       const d = Math.hypot(cx - (r.left + r.width / 2), cy - (r.top + r.height / 2))
       if (!best || d < best.d) best = { id: el.getAttribute('data-nisse')!, el, d }
@@ -90,6 +97,11 @@ export function SnowballArena({ children }: { children: React.ReactNode }) {
       blip(240, 0.08, 'triangle', 0.04)
       return
     }
+    strike(hit)
+  }
+
+  /** Someone got a snowball on them: count it and let them react. */
+  const strike = (hit: { id: string; el: Element }) => {
     setHits((h) => h + 1)
     blip(700, 0.09, 'triangle', 0.06)
     const b = hit.el.getBoundingClientRect()
@@ -117,6 +129,19 @@ export function SnowballArena({ children }: { children: React.ReactNode }) {
     }
   }
 
+  const latest = useRef<SnowApi>(null!)
+  latest.current = {
+    hitAt: (cx, cy) => {
+      const hit = targetAt(cx, cy, 3)
+      if (!hit) return false
+      const p = local(cx, cy)
+      splat(p.x, p.y)
+      strike(hit)
+      return true
+    },
+  }
+  const api = useMemo<SnowApi>(() => ({ hitAt: (cx, cy) => latest.current.hitAt(cx, cy) }), [])
+
   const onClickCapture = (e: React.MouseEvent) => {
     const t = e.target as Element
     if (t.closest?.('[data-snow-ui]')) return
@@ -143,6 +168,7 @@ export function SnowballArena({ children }: { children: React.ReactNode }) {
 
   return (
     <SnowCtx.Provider value={effects}>
+      <SnowApiCtx.Provider value={api}>
       <div ref={box} className={`absolute inset-0 ${ammo > 0 ? 'aiming' : ''}`} onClickCapture={onClickCapture}>
         {children}
 
@@ -184,6 +210,7 @@ export function SnowballArena({ children }: { children: React.ReactNode }) {
             {hits > 0 && <span>Träffar: {hits}</span>}
         </div>
       </div>
+      </SnowApiCtx.Provider>
     </SnowCtx.Provider>
   )
 }
