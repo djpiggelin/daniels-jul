@@ -6,8 +6,11 @@ const CATS = ['Fisk', 'Kött', 'Tillbehör', 'Dryck'] as const
 const same = (a: string, b: string) => a.trim().toLowerCase() === b.trim().toLowerCase()
 const pictureFor = (name: string) => PARTICIPANTS.find((p) => same(p.name, name))?.image ?? null
 
-/** Ask the village to open the knytis panel (from a shopkeeper, the wall board or the menu). */
-export const openKnytis = () => dispatchEvent(new Event('jul:knytis'))
+/** Ask the village to open the knytis panel (from a shopkeeper, the wall board, the buffet or the menu) – with a dish to point at. */
+export const openKnytis = (dish?: string) => dispatchEvent(new CustomEvent('jul:knytis', { detail: typeof dish === 'string' ? dish : undefined }))
+
+/** Tell the room (chalkboard, buffet cards) who brings what. */
+const announce = (claims: Claims) => dispatchEvent(new CustomEvent('jul:claims', { detail: claims }))
 
 function el<K extends keyof HTMLElementTagNameMap>(tag: K, cls?: string, text?: string) {
   const e = document.createElement(tag)
@@ -42,7 +45,13 @@ export class KnytisPanel {
     this.nameEl.addEventListener('input', () => this.setMe(this.nameEl.value, false))
   }
 
-  async show() {
+  /** The dish you came from on the buffet: highlighted while the panel is open (or until you pick one). */
+  private focus: string | undefined
+  private scrolled = false
+
+  async show(focus?: string) {
+    this.focus = focus
+    this.scrolled = false
     this.me = rememberedName.get()
     this.nameEl.value = this.me
     this.status('')
@@ -51,6 +60,7 @@ export class KnytisPanel {
     try {
       this.claims = await getClaims()
       this.render()
+      announce(this.claims)
     } catch {
       this.status('Kunde inte hämta knytis-listan just nu – försök igen om en stund.')
     }
@@ -118,6 +128,12 @@ export class KnytisPanel {
     text.append(el('b', '', d.name), el('small', '', mine ? (who.length > 1 ? `Du + ${who.length - 1}` : 'Du tar med den ✓') : who.length ? who.map((c) => c.name).join(', ') : 'Ledig'))
     b.append(text)
     b.onclick = () => this.toggle(d, mine)
+    // came here from the buffet: point at that dish
+    if (this.focus === d.id) {
+      b.classList.add('focus')
+      if (!this.scrolled) requestAnimationFrame(() => b.scrollIntoView({ block: 'center', behavior: 'smooth' }))
+      this.scrolled = true
+    }
     return b
   }
 
@@ -129,9 +145,11 @@ export class KnytisPanel {
       return
     }
     this.busy = true
+    this.focus = undefined
     this.render()
     try {
       this.claims = await setClaim(d.id, this.me, pictureFor(this.me), mine ? 'unclaim' : 'claim')
+      announce(this.claims)
       this.status(mine ? `Okej, ${d.name} är släppt.` : `${d.emoji} Toppen – du tar med ${d.name}!`)
     } catch (err) {
       this.status(err instanceof Error ? err.message : 'Något gick fel – försök igen.')

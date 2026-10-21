@@ -248,7 +248,8 @@ function frameMat(color: number) {
 }
 
 /** A picture plane with a 3D frame around it. Height follows the image's aspect. */
-export function framed(src: HTMLCanvasElement | HTMLImageElement, width: number, opts: { frame?: number; border?: number; maxH?: number } = {}) {
+/** `live`: the picture is redrawn later (e.g. the knytis chalkboard) – keep its canvas as it is. */
+export function framed(src: HTMLCanvasElement | HTMLImageElement, width: number, opts: { frame?: number; border?: number; maxH?: number; live?: boolean } = {}) {
   const g = new THREE.Group()
   let w = width
   let h = (width * src.height) / src.width
@@ -256,7 +257,7 @@ export function framed(src: HTMLCanvasElement | HTMLImageElement, width: number,
     h = opts.maxH
     w = (h * src.width) / src.height
   }
-  const pic = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: toTexture(src), roughness: 0.6 }))
+  const pic = new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: toTexture(src, { live: opts.live }), roughness: 0.6 }))
   pic.position.z = 0.03
   g.add(pic)
   const b = opts.border ?? 0.09

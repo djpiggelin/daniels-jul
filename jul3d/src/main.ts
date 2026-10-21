@@ -18,7 +18,7 @@ import { refreshTeamHouse } from './teamhouse'
 import { Multiplayer } from './multiplayer'
 import { bakeStatic, mergeRigid } from './batch'
 import { PARTICIPANTS } from './data'
-import { rememberedName } from '../../src/lib/api'
+import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { VILLAGE_RADIUS, buildWorld } from './world'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
@@ -481,18 +481,27 @@ menu.onResume = closeMenu
 /* ---------- knytis ---------- */
 // A form you type in, so the mouse is let go while it's open (like the Esc menu).
 const knytis = new KnytisPanel()
-function openKnytisPanel() {
+function openKnytisPanel(e?: Event) {
   if (knytis.open || !started) return
+  const dish = e instanceof CustomEvent && typeof e.detail === 'string' ? e.detail : undefined
   pause(false)
   cursor.hide()
   menu.hide()
-  void knytis.show()
+  void knytis.show(dish)
   if (player.locked) {
     selfUnlock = true
     document.exitPointerLock()
   }
 }
 addEventListener('jul:knytis', openKnytisPanel)
+// who brings what: on the chalkboard and the buffet cards – fetched now and then (others claim too)
+function refreshClaims() {
+  if (document.hidden) return
+  getClaims()
+    .then((claims) => dispatchEvent(new CustomEvent('jul:claims', { detail: claims })))
+    .catch(() => {})
+}
+setInterval(refreshClaims, 30000)
 
 /* ---------- ritbordet (Pepparkaksarkitekten) ---------- */
 const ritbord = new RitbordPanel()
@@ -901,6 +910,7 @@ const go = $('go') as HTMLButtonElement
 build()
   .then(() => {
     updateHud()
+    refreshClaims()
     go.disabled = false
     go.textContent = 'Gå in i byn'
     if (new URLSearchParams(location.search).has('direkt')) go.click()
