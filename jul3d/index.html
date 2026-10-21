@@ -25,7 +25,9 @@
   </head>
   <body>
     <div id="app"></div>
+    <div id="cartoon" hidden><div class="frame"></div><canvas width="160" height="120"></canvas></div>
 
+    <div id="blindfold"></div>
     <div id="hud" hidden>
       <div id="next-event"></div>
       <div id="online" hidden></div>
@@ -59,6 +61,45 @@
           <span class="hint desk"><kbd>A</kbd><kbd>D</kbd> / mus sväng · <kbd>W</kbd><kbd>S</kbd> upp/ner · <kbd>Mellanslag</kbd> turbo</span>
           <span class="hint touch">Dra för att styra</span>
           <button id="flight-exit"><kbd class="desk">Q</kbd> Landa</button>
+        </div>
+      </div>
+      <div id="trip" hidden>
+        <div class="fl-top">
+          <div class="tr-food"><b>100 %</b><span>frukosten 🌽🍉☕</span><i><u></u></i></div>
+          <div class="tr-time"><b>0</b><span>sekunder</span></div>
+          <div class="fl-best">🏆 0</div>
+        </div>
+        <div class="fl-msg" hidden></div>
+        <div class="fl-bar">
+          <span class="hint desk"><kbd>W</kbd> gasa · <kbd>S</kbd> bromsa · <kbd>A</kbd><kbd>D</kbd> / mus styr</span>
+          <span class="hint touch">Dra för att styra</span>
+          <button id="trip-brake" class="touch">✋ Broms</button>
+          <button id="trip-exit"><kbd class="desk">Q</kbd> Hoppa ur</button>
+        </div>
+      </div>
+      <div id="corrida" hidden>
+        <div class="fl-top">
+          <div class="co-hearts"><b>❤️❤️❤️</b><span>liv</span></div>
+          <div class="co-bull"><b>Tjuren</b><span>tjurens ork</span><i><u></u></i></div>
+          <div class="fl-score"><b>0</b><span>poäng</span></div>
+          <div class="fl-best">🏆 0</div>
+        </div>
+        <div class="co-hit"></div>
+        <div class="co-danger"></div>
+        <div class="fl-arrow" hidden></div>
+        <div class="fl-msg" hidden></div>
+        <div class="co-stamp"></div>
+        <button class="co-skip" hidden></button>
+        <div class="co-pads touch">
+          <button id="co-left" aria-label="Hoppa åt vänster">⇠</button>
+          <button id="co-jump" aria-label="Hoppa">⤒</button>
+          <button id="co-right" aria-label="Hoppa åt höger">⇢</button>
+          <button id="co-cape" aria-label="Skynket">🟥</button>
+        </div>
+        <div class="fl-bar">
+          <span class="hint desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · håll musknappen skynket · <kbd>Shift</kbd> / dubbeltryck <kbd>A</kbd><kbd>D</kbd> sidohopp · <kbd>Mellanslag</kbd> hoppa</span>
+          <span class="hint touch">Tumme går · dra tittar</span>
+          <button id="corrida-exit"><kbd class="desk">Q</kbd> Fly fältet</button>
         </div>
       </div>
       <div id="arcade-bar" hidden>
