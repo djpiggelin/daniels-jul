@@ -34,6 +34,12 @@ skarpare. När tiden
 Tomtenissarna ([`src/elves.ts`](src/elves.ts)) springer runt på torget – två av dem leker kull. Träffar du en med en
 snöboll ramlar den omkull och kastar ofta tillbaka.
 
+## Fler i byn
+
+Är fler inne samtidigt syns de som nissar i sin egen färg med namnskylt (och sin bild, om de valt ett namn från
+gästlistan) – och snöbollar går att kasta på dem. Namnet skriver man på startskärmen (samma som på knytis).
+Koden är [`src/multiplayer.ts`](src/multiplayer.ts); servern ligger i [`../multiplayer/`](../multiplayer/README.md).
+
 ## Styrning
 
 - **Dator:** `W A S D` gå (håll framåt en stund så springer du), mus titta direkt, `E` eller klick prata/titta/spela,

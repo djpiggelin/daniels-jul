@@ -28,6 +28,7 @@
 
     <div id="hud" hidden>
       <div id="next-event"></div>
+      <div id="online" hidden></div>
       <div id="crosshair"></div>
       <div id="toast" hidden></div>
       <button id="prompt" hidden><kbd>E</kbd><span></span></button>
@@ -80,6 +81,10 @@
         <div class="kicker">Välkommen till</div>
         <h1>Daniels Jul</h1>
         <p class="lead">En liten snöig julby med en butik för varje händelse. Gå runt, kika på väggarna, prata med nissarna bakom disken – och spela vid granen.</p>
+        <label id="me" hidden>
+          <span>Ditt namn – syns för de andra i byn</span>
+          <input id="me-name" maxlength="24" autocomplete="nickname" enterkeyhint="go" placeholder="t.ex. Rudolf" />
+        </label>
         <button id="go" disabled>Laddar byn…</button>
         <p class="keys desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd> prata · håll <kbd>Shift</kbd> snöboll · <kbd>Esc</kbd> meny</p>
         <p class="keys touch">Vänster tumme går · dra för att titta · tryck på nissar och tavlor för att prata och titta · håll ❄️ för snöboll</p>
@@ -96,6 +101,7 @@
           <button id="m-music">♪ Musik</button>
           <button id="m-full" class="desk">⛶ Helskärm</button>
         </div>
+        <div id="m-players" hidden></div>
         <button id="m-quality" class="wide">✨ Grafik: fin</button>
         <button id="m-install" class="wide" hidden>📲 Lägg till på hemskärmen</button>
         <p id="install-help" class="hint" hidden></p>

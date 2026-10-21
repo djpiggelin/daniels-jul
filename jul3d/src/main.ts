@@ -15,6 +15,9 @@ import { Dialog, PauseMenu, Viewer, VirtualCursor, type Talk } from './ui'
 import { KnytisPanel } from './knytis'
 import { RitbordPanel } from './ritbord'
 import { refreshTeamHouse } from './teamhouse'
+import { Multiplayer } from './multiplayer'
+import { PARTICIPANTS } from './data'
+import { rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { VILLAGE_RADIUS, buildWorld } from './world'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
@@ -255,8 +258,9 @@ const thrower = new Thrower(player, camera, vm, snowballs, () => started && play
 sleigh.say = (text) => started && toast(text)
 // an elf got you: snow on your face and a little knock back
 let splatTimer = 0
-snowballs.onPlayerHit = () => {
+snowballs.onPlayerHit = (owner) => {
   if (!player.enabled) return // not while you're reading or playing
+  mp?.hitBy(owner)
   const el = $('splat')
   el.hidden = true
   void el.offsetWidth // restart the animation
@@ -265,6 +269,50 @@ snowballs.onPlayerHit = () => {
   clearTimeout(splatTimer)
   splatTimer = setTimeout(() => (el.hidden = true), 1800)
   thrower.knock()
+}
+
+/* ---------- other people in the village ---------- */
+// The server lives in multiplayer/ (Cloudflare). Without VITE_MP_URL the village stays one-player.
+const MP_URL: string = import.meta.env.VITE_MP_URL ?? (import.meta.env.DEV ? 'ws://localhost:8787/byn' : '')
+const mp = MP_URL ? new Multiplayer(MP_URL, scene) : null
+if (mp) {
+  mp.onAvatar = (group, added) => {
+    if (added) solids.push(group)
+    else if (solids.includes(group)) solids.splice(solids.indexOf(group), 1)
+  }
+  // a throw while you weren't looking (phone locked, other tab) never reaches you
+  mp.onThrow = (from, vel, owner) => document.hidden || snowballs.throw(from, vel, owner)
+  mp.onJoin = (name) => toast(`🎅 ${name} kom in i byn`)
+  mp.onLeave = (name) => toast(`👋 ${name} gick hem`)
+  mp.onHit = (by, on, mine) => toast(mine.by ? `❄️ Träff! Du prickade ${on}` : mine.on ? `❄️ ${by} träffade dig!` : `❄️ ${by} prickade ${on}`)
+  mp.onChange = showOthers
+  thrower.onThrow = (from, vel) => mp.sendThrow(from, vel)
+  $('me').hidden = false
+  ;($('me-name') as HTMLInputElement).value = rememberedName.get()
+  $('me-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') ($('go') as HTMLButtonElement).click()
+  })
+}
+/** Step in with a name (the same one knytis remembers) – and your photo if you're on the guest list. */
+function joinOthers() {
+  if (!mp) return
+  const typed = ($('me-name') as HTMLInputElement).value.trim()
+  if (typed) rememberedName.set(typed)
+  const name = typed || `Nisse ${10 + Math.floor(Math.random() * 90)}`
+  const photo = PARTICIPANTS.find((p) => p.name.toLowerCase() === name.toLowerCase())?.image ?? null
+  mp.join({ name, photo })
+}
+/** "👥 3 i byn" in the corner, and who's here (with their hits) in the menu. */
+function showOthers() {
+  const people = mp?.players ?? []
+  $('online').hidden = !mp?.online
+  $('online').textContent = `👥 ${people.length} i byn`
+  const list = $('m-players')
+  list.hidden = people.length < 2
+  list.replaceChildren(
+    Object.assign(document.createElement('div'), { className: 'kicker', textContent: 'I byn just nu' }),
+    ...people.map((p) => Object.assign(document.createElement('div'), { textContent: `${p.me ? '⭐ ' : ''}${p.name}${p.hits ? ` · ❄️ ${p.hits}` : ''}` })),
+  )
 }
 
 /* ---------- targeting + interaction ---------- */
@@ -729,6 +777,8 @@ function frame(now: number) {
   const dt = Math.min(clock.getDelta(), 0.05)
   const t = clock.elapsedTime
   player.update(dt, collidePlayer)
+  mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8)
+  mp?.update(t, dt)
   thrower.update(dt, t)
   arcade?.update(dt, t)
   flight.update(dt, t)
@@ -776,6 +826,7 @@ function fillScreen() {
 }
 go.addEventListener('click', () => {
   fillScreen()
+  joinOthers()
   started = true
   $('start').hidden = true
   $('hud').hidden = false
@@ -793,4 +844,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, world, talkers, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, world, talkers, mp, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })
