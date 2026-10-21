@@ -423,6 +423,10 @@ $('m-music').addEventListener('click', () => {
   toggleMusic()
   syncMenu()
 })
+// the 2D site lives next to the village – knytis, topplistor, ritningar
+$('m-knytis').addEventListener('click', () => location.assign('/knytis'))
+$('m-web').addEventListener('click', () => location.assign('/handelser'))
+
 $('m-full').addEventListener('click', async () => {
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
   else {
