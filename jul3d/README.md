@@ -9,6 +9,7 @@ spela vid granen och kasta snöboll på tomtenissarna som springer runt.
 | Tomtens destilleri | Julbak – drinktävling | Regler, bedömning, temat, kopparpannor som ångar |
 | Julbordet | Julbord + knytis | Knytis-listan, gästlistan som polaroids, dukat bord |
 | Tomtens stuga | Julafton | Att göra-lista, brasa, Kalle Anka på tv:n, minnesvägg |
+| Arkitektkontoret | Julbak – planera huset | Ritning, steg-för-steg-tavla, årets tema, ritbord. Ritnissen tar dig till Pepparkaksarkitekten |
 
 På torget: julgranen, en affischpelare med alla händelser och en vägvisare till butikerna.
 
