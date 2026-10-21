@@ -20,6 +20,10 @@ export class Player {
   private mouse: { x: number; y: number } | null = null
   private joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 }
   private look = { id: -1, x: 0, y: 0 }
+  /** Where and when a finger came down – a short touch that hardly moved is a tap. */
+  private press = new Map<number, { x: number; y: number; t: number; moved: number }>()
+  /** A tap on the scene (touch): talk to / look at whatever is under the finger. */
+  onTap: (x: number, y: number) => void = () => {}
   private bob = 0
   readonly touch = TOUCH
 
@@ -51,6 +55,7 @@ export class Player {
     dom.addEventListener('pointerdown', (e) => {
       if (!this.enabled) return
       if (e.pointerType === 'mouse') return
+      this.press.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 })
       try {
         dom.setPointerCapture(e.pointerId)
       } catch {
@@ -67,6 +72,8 @@ export class Player {
       }
     })
     dom.addEventListener('pointermove', (e) => {
+      const p = this.press.get(e.pointerId)
+      if (p) p.moved = Math.max(p.moved, Math.hypot(e.clientX - p.x, e.clientY - p.y))
       if (e.pointerId === this.joy.id) {
         let dx = e.clientX - this.joy.ox
         let dy = e.clientY - this.joy.oy
@@ -87,6 +94,9 @@ export class Player {
     })
     const end = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') return
+      const p = this.press.get(e.pointerId)
+      this.press.delete(e.pointerId)
+      if (p && e.type === 'pointerup' && this.enabled && p.moved < 12 && performance.now() - p.t < 350) this.onTap(e.clientX, e.clientY)
       if (e.pointerId === this.joy.id) {
         this.joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 }
         this.stick.classList.remove('on')
@@ -118,6 +128,7 @@ export class Player {
   /** Stop all movement input (keeps the mouse grabbed). */
   stop() {
     this.keys.clear()
+    this.press.clear()
     this.joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 }
     this.look.id = -1
     this.stick.classList.remove('on')
@@ -148,6 +159,8 @@ export class Player {
     const side = (k('KeyD') ? 1 : 0) - (k('KeyA') ? 1 : 0) + this.joy.x
     // running kicks in after walking forward for a moment
     this.runFor = this.enabled && fwd > 0.5 ? this.runFor + dt : 0
+    // the stick pushed all the way: run straight away
+    if (this.enabled && Math.hypot(this.joy.x, this.joy.y) > 0.92 && fwd > 0.5) this.runFor = Math.max(this.runFor, 1.8)
     const run = THREE.MathUtils.smoothstep(this.runFor, 1.1, 1.8)
     const f = this.forward
     const r = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw))

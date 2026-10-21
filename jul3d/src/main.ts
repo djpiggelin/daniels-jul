@@ -23,6 +23,13 @@ const $ = (id: string) => document.getElementById(id)!
 const touch = TOUCH
 document.body.classList.toggle('touch', touch)
 document.body.classList.add(`enhet-${PROFILE}`)
+/** Opened from the home screen – already fullscreen. */
+const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
+// pinch-zoom (iOS ignores user-scalable=no), double-tap zoom and long-press menus would pull you out of the game
+for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false })
+document.addEventListener('contextmenu', (e) => {
+  if (!(e.target as HTMLElement).closest('input, textarea')) e.preventDefault()
+})
 
 /* ---------- renderer ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: QUALITY.antialias, powerPreference: 'high-performance' })
@@ -304,6 +311,41 @@ function findTarget(): Target | null {
   return aimed
 }
 
+/** What's under a finger at (x, y): the thing you tapped, if it's close enough to reach. */
+function targetAt(x: number, y: number): Target | null {
+  const ndc = new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1)
+  ray.setFromCamera(ndc, camera)
+  const hit = ray.intersectObjects(rayRoots, true)[0]
+  let aimed: Target | null = null
+  for (let o: THREE.Object3D | null = hit?.object ?? null; o && !aimed; o = o.parent) aimed = exhibitOf.get(o) ?? null
+  // people are thin – take the one whose middle is nearest the finger on screen. Right under the
+  // finger (and in front of what the ray hit) they win; a near miss only counts when nothing else was hit.
+  let best: Target | null = null
+  let bestPx = aimed ? 45 : 90
+  const head = new THREE.Vector3()
+  const consider = (p: THREE.Vector3, t: Target) => {
+    const d = p.distanceTo(camera.position)
+    if (d > 5.5 || (aimed && hit && d > hit.distance + 0.3)) return
+    head.copy(p).project(camera)
+    if (head.z > 1) return
+    const px = Math.hypot(((head.x + 1) / 2) * innerWidth - x, ((1 - head.y) / 2) * innerHeight - y)
+    if (px < bestPx) {
+      bestPx = px
+      best = t
+    }
+  }
+  for (const s of talkers) consider(s.npc.group.position.clone().setY(1.1), { kind: 'npc', ...s })
+  if (sleigh.ready) consider(sleigh.seatWorld().setY(1.2), { kind: 'sleigh' })
+  return best ?? aimed
+}
+player.onTap = (x, y) => {
+  if (!player.enabled || !started) return
+  const t = targetAt(x, y)
+  if (!t) return
+  setTarget(t)
+  interact()
+}
+
 function setTarget(t: Target | null) {
   if (t === target) return
   target = t
@@ -473,6 +515,30 @@ $('m-music').addEventListener('click', () => {
 // the 2D site lives next to the village – knytis, topplistor, ritningar
 $('m-knytis').addEventListener('click', openKnytisPanel)
 $('m-web').addEventListener('click', () => location.assign('/handelser'))
+
+// Fullscreen works on Android and iPad too, not just with a mouse
+if (document.fullscreenEnabled) $('m-full').classList.remove('desk')
+
+// "Lägg till på hemskärmen": Android asks the browser, an iPhone needs the share menu
+type InstallPrompt = Event & { prompt: () => Promise<void> }
+let installPrompt: InstallPrompt | null = null
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  installPrompt = e as InstallPrompt
+})
+const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+$('m-install').hidden = !touch || standalone
+$('m-install').addEventListener('click', async () => {
+  if (installPrompt) {
+    await installPrompt.prompt().catch(() => {})
+    installPrompt = null
+    return
+  }
+  $('install-help').hidden = false
+  $('install-help').textContent = ios
+    ? 'Tryck på Dela-knappen (fyrkanten med pilen ⬆️) i Safari och välj "Lägg till på hemskärmen". Då öppnas byn i helskärm därifrån.'
+    : 'Öppna webbläsarens meny (⋮) och välj "Lägg till på startskärmen" eller "Installera app".'
+})
 
 $('m-full').addEventListener('click', async () => {
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
@@ -703,7 +769,13 @@ build()
   })
 requestAnimationFrame(frame)
 
+// Phones: fill the screen (Android – an iPhone only goes fullscreen from the home screen, see the menu)
+function fillScreen() {
+  if (!touch || standalone || !document.fullscreenEnabled || document.fullscreenElement) return
+  document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+}
 go.addEventListener('click', () => {
+  fillScreen()
   started = true
   $('start').hidden = true
   $('hud').hidden = false
