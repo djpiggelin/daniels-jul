@@ -48,15 +48,21 @@ snöboll ramlar den omkull och kastar ofta tillbaka.
 
 ## Innehåll
 
-Allt innehåll kommer från [`src/data.ts`](src/data.ts) (samma fil som 2D-sajten). Nissarnas repliker och vad som
-hänger på väggarna finns i [`src/shops.ts`](src/shops.ts). Teckningarna i `public/art/` är renderade från
-`ThemeArt.tsx` i 2D-sajten.
+Årets innehåll (händelser, gäster, bilder, minnen) hämtas via [`../src/data.ts`](../src/data.ts) – samma som 2D-sajten,
+från Netlify Blobs i produktion och från exemplet i `public/example/` lokalt. Se huvud-README:n. Nissarnas repliker och
+vad som hänger på väggarna finns i [`src/shops.ts`](src/shops.ts). Teckningarna i `public/art/` (i repots rot) är
+renderade från `ThemeArt.tsx` i 2D-sajten.
 
 ## Kör lokalt
 
+Från repots rot (beroendena delas med 2D-sajten):
+
 ```bash
 npm install
-npm run dev
+npm run dev:3d
 ```
+
+Byn är sajtens startsida: `npm run build` bygger den till `dist/by/`, och `netlify.toml` visar den på `/`.
+I menyn och på startskärmen finns länkar till 2D-sidorna (knytis, händelser).
 
 `?direkt` i adressen hoppar över startskärmen. I konsolen: `jul.goto(0)` teleporterar in i första butiken.

@@ -7,13 +7,17 @@ import type { JulEvent } from '../data'
 
 export type Guest = { name: string; photo?: string }
 
+/** A photo from an earlier year, pinned on the wall in the 3D village. */
+export type Memory = { image: string; label: string }
+
 /** Shape of content.json. `image` and `photo` are paths relative to the content folder. */
-export type Content = { year: number; events: JulEvent[]; guests: Guest[] }
+export type Content = { year: number; events: JulEvent[]; guests: Guest[]; memories?: Memory[] }
 
 const withBase = (c: Content, base: string): Content => ({
   ...c,
   events: c.events.map((e) => ({ ...e, image: base + e.image })),
   guests: c.guests.map((g) => (g.photo ? { ...g, photo: base + g.photo } : g)),
+  memories: c.memories?.map((m) => ({ ...m, image: base + m.image })),
 })
 
 async function fetchJSON<T>(url: string): Promise<T> {

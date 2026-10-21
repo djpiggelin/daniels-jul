@@ -1,6 +1,6 @@
 // What's inside each shop: the shopkeeper's lines and everything hanging on the walls.
 import * as THREE from 'three'
-import { DISHES, EVENTS, GUESTS, PARTICIPANTS, POTLUCK_IMAGE, YEAR, type Competition, type JulEvent } from './data'
+import { DISHES, EVENTS, GUESTS, MEMORIES, PARTICIPANTS, POTLUCK_IMAGE, YEAR, type Competition, type JulEvent } from './data'
 import { Nisse } from './npc'
 import { Shop, framed, sheet, D } from './shop'
 import { drawArrowSign, drawBoard, drawCorkboard, drawPoster, drawTvScreen, glowTexture, loadImage, loadSvg, makeCanvas, toTexture } from './tex'
@@ -519,6 +519,11 @@ async function buildJulbord(): Promise<BuiltShop> {
         ],
       },
       {
+        label: '✍️ Jag vill paxa en rätt',
+        pages: () => [],
+        go: () => location.assign('/knytis'),
+      },
+      {
         label: '👥 Vilka kommer?',
         pages: () => [html.p(`Vi är ${GUESTS.length} stycken i år: ${GUESTS.map((g) => g.name).join(', ')}.`) + html.p('Alla sitter uppnålade på anslagstavlan där borta.')],
       },
@@ -556,11 +561,7 @@ async function buildJulafton(): Promise<BuiltShop> {
   shop.exhibit(td, { title: 'Att göra på julafton', caption: e.description, image: dataUrl(todo) })
 
   const memories = await Promise.all(
-    [
-      ['/Images/Julbord/6d21c618-b99c-4b8f-baf6-824c712e9c9c.jpg', 'Julbord'],
-      ['/Images/Luciamorgon/2355c3d6-b644-4f21-bd59-ce1eabc4089d.jpg', 'Luciamorgon'],
-      ['/Images/Bla Hallen/8d8c5b16-143e-41de-a468-0f64b1c16577.jpg', 'Blå hallen'],
-    ].map(async ([url, label]) => ({ label, img: await loadImage(url).catch(() => null) })),
+    MEMORIES.slice(0, 3).map(async ({ image, label }) => ({ label, img: await loadImage(image).catch(() => null) })),
   )
   const mem = drawCorkboard({ title: 'Minnen', cards: memories, cols: 3, w: 1500, h: 900, seed: 30 })
   const m = shop.hang(framed(mem, 3.2, { frame: 0x5c3a20, border: 0.06 }), 'right', -1.3, 2.0)
