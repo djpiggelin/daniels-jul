@@ -1,5 +1,6 @@
 // The village square: night sky, aurora, falling snow, the big julgran, a forest ring and lamp posts.
 import * as THREE from 'three'
+import { keepApart } from './batch'
 import { glowTexture, makeCanvas, rng, toTexture } from './tex'
 
 export type Circle = { x: number; z: number; r: number }
@@ -201,7 +202,7 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     if (i === 0) starShape.moveTo(Math.cos(a) * r, Math.sin(a) * r)
     else starShape.lineTo(Math.cos(a) * r, Math.sin(a) * r)
   }
-  const star = new THREE.Mesh(new THREE.ExtrudeGeometry(starShape, { depth: 0.15, bevelEnabled: false }), new THREE.MeshBasicMaterial({ color: 0xffd76a, toneMapped: false }))
+  const star = keepApart(new THREE.Mesh(new THREE.ExtrudeGeometry(starShape, { depth: 0.15, bevelEnabled: false }), new THREE.MeshBasicMaterial({ color: 0xffd76a, toneMapped: false })))
   star.geometry.center()
   star.position.y = 8.55
   const starGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('rgba(255,220,120,1)', 'rgba(255,180,60,0)'), blending: THREE.AdditiveBlending, depthWrite: false }))

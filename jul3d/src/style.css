@@ -466,3 +466,49 @@ body.touch #menu .sens { display: none; }
   #start .lead { font-size: 15px; margin-bottom: 14px; }
   #start .keys { margin-top: 12px; }
 }
+
+/* ---------- other people in the village ---------- */
+#me { display: grid; gap: 6px; max-width: 300px; margin: 0 auto 16px; text-align: left; }
+#me span { font-size: 13px; opacity: 0.75; }
+#me input {
+  padding: 11px 16px; border-radius: 999px; border: 2px solid rgba(246, 196, 83, 0.5); background: rgba(255, 255, 255, 0.08);
+  color: var(--snow); font: 600 16px var(--sans); text-align: center;
+}
+#me input:focus { outline: none; border-color: var(--gold); background: rgba(255, 255, 255, 0.14); }
+#online {
+  position: absolute; top: calc(max(16px, env(safe-area-inset-top)) + 64px); left: 16px; padding: 5px 12px; border-radius: 999px;
+  background: rgba(7, 11, 29, 0.55); font: 600 13px var(--sans); border: 1px solid rgba(255, 255, 255, 0.15);
+}
+#hud.busy #online, #hud.flight #online { display: none; }
+#m-players { margin: 10px 0 12px; padding: 10px 12px; border-radius: 12px; background: rgba(255, 255, 255, 0.06); text-align: left; font-size: 14px; line-height: 1.7; }
+#m-players .kicker { font-size: 11px; margin-bottom: 2px; }
+@media (max-height: 500px) and (orientation: landscape) {
+  #me { margin-bottom: 10px; }
+  #me span { display: none; }
+  #me input { padding: 8px 14px; }
+}
+
+/* ---------- chat ---------- */
+#chat {
+  position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
+  display: flex; gap: 8px; width: min(560px, calc(100vw - 24px)); padding: 8px; border-radius: 999px;
+  background: rgba(7, 11, 29, 0.85); border: 1px solid rgba(246, 196, 83, 0.5); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+#chat input {
+  flex: 1; min-width: 0; padding: 10px 16px; border-radius: 999px; border: 0; background: rgba(255, 255, 255, 0.1);
+  color: var(--snow); font: 500 16px var(--sans);
+}
+#chat input:focus { outline: none; background: rgba(255, 255, 255, 0.16); }
+#chat button { padding: 0 18px; border-radius: 999px; border: 0; background: var(--red); color: #fff; font: 700 15px var(--sans); }
+#chat-log {
+  position: fixed; left: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 40px); z-index: 40; display: grid; gap: 4px;
+  max-width: min(420px, calc(100vw - 110px)); pointer-events: none;
+}
+#chat-log div {
+  padding: 5px 12px; border-radius: 14px; background: rgba(7, 11, 29, 0.6); font-size: 14px; line-height: 1.35;
+  overflow-wrap: anywhere; transition: opacity 1s; animation: fade 0.25s ease-out;
+}
+#chat-log div b { color: var(--gold); margin-right: 2px; }
+#chat-log div.mine b { color: #9fe0bf; }
+#chat-log div.old { opacity: 0; }
+body.touch #chat-log { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 170px); }
