@@ -31,6 +31,40 @@ skarpare. När tiden
 är slut landar du vid parkeringen igen (och tomten kliver tillbaka in, lite sur). Släden och renarna finns i
 [`src/sleigh.ts`](src/sleigh.ts), flygspelet i [`src/flight.ts`](src/flight.ts).
 
+Snett bakom dig till vänster står **Husvagnen** – en gräddvit husvagn efter en gammal bil, med Musse Pigg och Kalle Anka
+som vinkar bredvid (en hyllning till *Musse Pigg på camping* från Kalle Anka på julafton). Gå fram så frågar de
+"Redo att åka?" – tryck `E`. Då fryser byn till en målad kuliss som viks ihop som en solfjäder rakt in i husvagnen, och
+bakom den finns en soptipp vid foten av ett smalt, brant berg. Kör bil och husvagn uppför serpentinvägen till toppen
+utan att spilla frukosten: akta staketluckorna, stenarna och tåget vid järnvägsövergången (`W`/`S` gasa/bromsa,
+`A`/`D` eller musen styr). Uppe på toppen är frukosten klar – och medan du springer in lossnar kopplingen. Husvagnen
+rullar baklänges hela vägen ner (biten SVT alltid klippte bort) och du styr den: `A`/`D` lutar, `S` är handbromsen.
+Möt lastbilen, hinn före tåget, och om du kör ut i en staketlucka paddlar Musse er tillbaka. Längst ner kullerbyttar
+husvagnen rakt upp på kopplingen igen – "Jag körde ner er sakta och säkert, va?". `Q`/`Esc` hoppar ur. Husvagnen och figurerna finns i [`src/camper.ts`](src/camper.ts) och
+[`src/toons.ts`](src/toons.ts), kulissen i [`src/fan.ts`](src/fan.ts), berget i [`src/mountain.ts`](src/mountain.ts)
+och själva resan i [`src/trip.ts`](src/trip.ts). `?husvagn` i adressen hoppar rakt in i resan.
+
+Längs vänstra ytterväggen på Tomtens verkstad hänger **tre matadorer** och lutar sig mot väggen – en med foten uppe
+på väggen, en med armarna i kors och solglasögon, en på axeln – tuggar strå och knäpper upp mynt. Gå fram så frågar de
+"Vill du ha en utmaning?". Säg ja i dialogen så knyter de för ögonen på dig och du åker häst och vagn till Madrid: tio
+sekunder i mörker med hjärtslag och hovar, och suddiga glimtar under ögonbindeln (hästen och vägen, en tjur som sitter
+under en korkek och luktar på blommor, arenan som tornar upp sig) medan *PLAZA DE TOROS · MADRID* skrivs fram. Bindeln
+åker av mitt i arenan i bländande middagssol framför fulla läktare (publiken är tre målade bilder som byts när de
+jublar). Sen kommer tjurarna, en i taget: **Bravucón**, **Rayo** och **El Diablo**. Varje tjur skrapar med hoven en
+stund innan den rusar (det är varningen) och slutar styra de sista metrarna. Håll ut skynket så går den på det röda i
+stället för på dig – ¡Olé! (poäng gånger kombo). Bravucón är snäll, men varje tjur efter honom är svårare: snabbare,
+kortare varning, svänger efter dig om du hoppar undan för tidigt, kommer ibland tillbaka direkt utan att skrapa, orkar
+längre – och **krokar**: precis innan den når skynket svänger den hornen mot dig, så du måste kliva bort från skynket i
+sista stund. Ibland struntar den i skynket helt (då lyser ögonen rött). Hoppa åt sidan, eller hoppa rakt upp så hornen
+går under dig. Tre liv för hela kvällen; efter en stund (minst tio sekunder) orkar tjuren inte mer och travar ut. Efter
+tre tjurar kommer finalen: fanfar, du biter på naglarna och darrar, och in springer **Ferdinand** – luktar på en bukett
+som en señora kastar ner, sätter sig… på en humla, och blir galen. Han är snabbast av alla, sicksackar, tvärnitar,
+krokar hårdast och struntar oftast i skynket, med humlan surrande runt baken. Klarar du honom flyger humlan iväg, han
+sätter sig med blommorna igen och hela Madrid kastar ner hundratals blommor och buketter. I arenan byts byns musik mot
+en pasodoble (egen, syntad i webbläsaren i [`src/sfx.ts`](src/sfx.ts)). Matadorerna och tjurarna finns i [`src/matadors.ts`](src/matadors.ts) och [`src/bull.ts`](src/bull.ts), arenan
+och vägen dit i [`src/arena.ts`](src/arena.ts) och själva tjurfäktningen i [`src/corrida.ts`](src/corrida.ts).
+`?tjuren` i adressen hoppar rakt in; `jul.corrida.jumpTo(3)` i konsolen går direkt till Ferdinand. Andra gången kan
+du hoppa över filmsnuttarna med `Enter`.
+
 Tomtenissarna ([`src/elves.ts`](src/elves.ts)) springer runt på torget – två av dem leker kull. Träffar du en med en
 snöboll ramlar den omkull och kastar ofta tillbaka.
 
@@ -48,6 +82,9 @@ Koden är [`src/multiplayer.ts`](src/multiplayer.ts); servern ligger i [`../mult
   Musen låses när du går in i byn och förblir låst i popuperna (de får en egen muspekare).
 - **I släden:** `A D` / mus sväng, `W S` upp/ner, `Mellanslag` (eller `Shift`) turbo, `Q` / `Esc` landa.
   På mobil drar du för att styra.
+- **I arenan:** `W A S D` gå, mus titta, håll vänster musknapp (eller `F`) för skynket, `Shift`, högerklick eller
+  dubbeltryck `A`/`D` hoppar åt sidan, `Mellanslag` hoppar upp, `Q` / `Esc` flyr fältet. På mobil: vänster tumme går,
+  dra höger för att titta, knappar för skynket, sidohoppen och hoppet.
 - **`Esc`:** stänger det som är öppet (prat, bild, spel). Annars öppnas menyn – där är musen vanlig igen, och
   *Fortsätt* låser den och tar dig tillbaka in i byn. Menyn har också musik, helskärm, muskänslighet och
   *Grafik: fin / snål* (snål = färre pixlar och inga skuggor, för datorer som blir varma).
