@@ -414,3 +414,55 @@ body.touch #flight .fl-msg { font-size: 22px; }
 #lost p { opacity: 0.8; line-height: 1.5; }
 #lost button { margin: 12px 0; padding: 12px 20px; border-radius: 999px; border: 0; background: var(--red); color: #fff; font: 700 16px var(--sans); }
 #lost a { display: block; color: var(--cream); opacity: 0.75; }
+
+/* ---------- small screens ---------- */
+/* the number keys are a keyboard thing */
+body.touch #dialog .options button .n { display: none; }
+/* the mouse sensitivity slider is for mice (its own display: flex would otherwise win over .desk) */
+body.touch #menu .sens { display: none; }
+#menu .card { max-height: calc(100dvh - 24px); overflow: auto; }
+
+/* phone held upright */
+@media (max-width: 520px) {
+  #help { white-space: normal; width: calc(100vw - 32px); text-align: center; font-size: 12px; line-height: 1.35; }
+  #dialog { width: calc(100vw - 16px); bottom: max(8px, env(safe-area-inset-bottom)); max-height: 70dvh; padding: 14px 16px 12px; border-radius: 18px; }
+  #dialog .who { margin: -2px 0 8px; }
+  #dialog .avatar { width: 38px; height: 38px; font-size: 20px; }
+  #dialog .name { font-size: 14px; padding: 3px 12px; }
+  #dialog .text { font-size: 16.5px; line-height: 1.45; min-height: 0; }
+  #dialog .text h3 { font-size: 19px; }
+  #dialog .options { grid-template-columns: 1fr; gap: 6px; margin-top: 8px; }
+  #dialog .options button { padding: 9px 12px; font-size: 15px; border-radius: 10px; }
+  #menu .card { padding: 20px 18px 16px; }
+  #menu h2 { font-size: 28px; margin-bottom: 14px; }
+  #viewer { padding: 12px; }
+  #viewer figcaption { font-size: 17px; }
+  #viewer figcaption small { font-size: 14px; }
+}
+
+/* phone on its side: little height, so spread out instead of stacking */
+@media (max-height: 500px) and (orientation: landscape) {
+  #dialog {
+    width: min(900px, calc(100vw - 16px - env(safe-area-inset-left) - env(safe-area-inset-right)));
+    bottom: max(6px, env(safe-area-inset-bottom)); max-height: calc(100dvh - 12px); padding: 10px 16px; border-radius: 16px;
+  }
+  #dialog .who { margin: -2px 0 6px; }
+  #dialog .avatar { width: 32px; height: 32px; font-size: 17px; border-width: 2px; }
+  #dialog .name { font-size: 13px; padding: 2px 10px; }
+  #dialog .text { font-size: 15.5px; line-height: 1.4; min-height: 0; }
+  #dialog .text p { margin-bottom: 0.4em; }
+  #dialog .options { grid-template-columns: repeat(auto-fill, minmax(210px, 1fr)); gap: 6px; margin-top: 6px; }
+  #dialog .options button { padding: 7px 10px; font-size: 14px; border-radius: 10px; }
+  #menu { padding: 8px; }
+  #menu .card { width: min(560px, 100%); padding: 14px 18px 12px; }
+  #menu h2 { font-size: 24px; margin: 2px 0 10px; }
+  #menu .row { margin: 8px 0; }
+  #menu button { padding: 8px 12px; }
+  #menu button.wide { margin-bottom: 8px; }
+  #help { display: none; }
+  #viewer img { max-height: calc(100dvh - 90px); }
+  #start .card { max-height: 100dvh; overflow: auto; padding: 8px 0; }
+  #start h1 { font-size: clamp(36px, 9vh, 60px); margin: 2px 0 8px; }
+  #start .lead { font-size: 15px; margin-bottom: 14px; }
+  #start .keys { margin-top: 12px; }
+}
