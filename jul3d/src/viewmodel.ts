@@ -36,6 +36,12 @@ export class Viewmodel {
   private right = arm(new THREE.Vector3(0.3, -0.8, 0.5))
   private stick = new THREE.Group()
   private throwT = 9
+  // the bullring: a muleta (red cloth on a stick) in the right hand, the left free – or up at your mouth
+  private ring = new THREE.Group()
+  private capeArm = arm(new THREE.Vector3(0.3, -0.8, 0.5))
+  private freeArm = arm(new THREE.Vector3(-0.3, -0.8, 0.5))
+  private cloth: THREE.Mesh
+  private clothRest: Float32Array
 
   constructor() {
     this.scene.add(this.root)
@@ -59,6 +65,53 @@ export class Viewmodel {
     this.hands.add(this.stick, this.left.g, this.right.g)
     this.hands.visible = false
     this.root.add(this.hands)
+
+    // the muleta: a stick held across, the cloth hanging from it (mitt space: the stick runs out along +x)
+    const stick = new THREE.Mesh(new THREE.CylinderGeometry(0.008, 0.01, 0.62, 6), std(0x6b4226, 0.6))
+    stick.rotation.z = Math.PI / 2
+    stick.position.x = 0.29
+    const geo = new THREE.PlaneGeometry(0.62, 0.55, 10, 8)
+    geo.translate(0.31, -0.275, 0)
+    this.cloth = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({ color: 0xc8102e, roughness: 0.85, side: THREE.DoubleSide }))
+    this.clothRest = (geo.attributes.position.array as Float32Array).slice()
+    this.capeArm.mitt.add(stick, this.cloth)
+    this.ring.add(this.capeArm.g, this.freeArm.g)
+    this.ring.visible = false
+    this.root.add(this.ring)
+  }
+
+  /**
+   * In the bullring. `raise` 0..1 holds the muleta out to the right, `bite` 0..1 brings the left mitt up to
+   * your mouth (nails!), `whip` 0..1 is a bull tearing past the cloth, `shake` how much you tremble.
+   */
+  matador(on: boolean, t = 0, o: { raise?: number; bite?: number; whip?: number; shake?: number } = {}) {
+    this.ring.visible = on
+    if (!on) return
+    const raise = o.raise ?? 0
+    const bite = o.bite ?? 0
+    const whip = o.whip ?? 0
+    const shake = o.shake ?? 0
+    const jit = (f: number) => Math.sin(t * f) * 0.004 * shake
+    // cape arm: down by your side, or out to the right with the cloth hanging across your view
+    const ca = this.capeArm
+    ca.g.position.set(THREE.MathUtils.lerp(0.36, 0.2, raise) + jit(53), THREE.MathUtils.lerp(-0.6, -0.25, raise) + jit(41), THREE.MathUtils.lerp(-0.5, -0.68, raise))
+    ca.g.rotation.set(0, THREE.MathUtils.lerp(0.9, 0.5, raise), THREE.MathUtils.lerp(-1.1, 0.06, raise) + Math.sin(t * 2.1) * 0.03)
+    // the cloth sways, and flies up when the bull goes through it
+    const pos = this.cloth.geometry.attributes.position as THREE.BufferAttribute
+    const r = this.clothRest
+    for (let i = 0; i < pos.count; i++) {
+      const x = r[i * 3]
+      const y = r[i * 3 + 1]
+      const down = -y / 0.55
+      const wave = Math.sin(x * 9 - t * 5) * 0.03 * down + Math.sin(t * 3 + x * 4) * 0.02 * down
+      pos.setXYZ(i, x, y * (1 - whip * 0.5 * down), r[i * 3 + 2] + wave + whip * down * 0.35 * Math.sin(t * 30 + x * 8))
+    }
+    pos.needsUpdate = true
+    this.cloth.geometry.computeVertexNormals()
+    // free arm: out of sight, or up at your mouth
+    const fa = this.freeArm
+    fa.g.position.set(THREE.MathUtils.lerp(-0.4, -0.03, bite) + jit(61) * 2, THREE.MathUtils.lerp(-0.8, -0.17, bite) + Math.abs(Math.sin(t * 13)) * 0.012 * bite, THREE.MathUtils.lerp(-0.5, -0.26, bite))
+    fa.g.rotation.set(-0.4 * bite, 0, -0.6 * bite)
   }
 
   /**
@@ -108,7 +161,7 @@ export class Viewmodel {
   }
 
   render(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
-    if (!this.throwArm.g.visible && !this.hands.visible) return
+    if (!this.throwArm.g.visible && !this.hands.visible && !this.ring.visible) return
     this.root.position.copy(camera.position)
     this.root.quaternion.copy(camera.quaternion)
     renderer.clearDepth()
