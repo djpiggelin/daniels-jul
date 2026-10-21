@@ -310,3 +310,69 @@ body.touch #flight .fl-msg { font-size: 22px; }
 #menu .controls li { display: flex; gap: 10px; padding: 4px 0; opacity: 0.85; }
 #menu .controls li span { min-width: 120px; color: var(--gold); }
 #menu .hint { margin: 12px 0 0; font-size: 13px; opacity: 0.55; }
+
+/* ---------- Knytis ---------- */
+#knytis {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+  background: rgba(4, 6, 16, 0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: menu-in 0.28s ease-out;
+}
+#knytis .card {
+  position: relative; width: min(900px, 100%); max-height: calc(100dvh - 32px); overflow: auto;
+  padding: 22px 24px 16px; border-radius: 20px; color: var(--ink);
+  background:
+    radial-gradient(120% 140% at 0% 0%, rgba(255, 255, 255, 0.5), transparent 60%),
+    linear-gradient(180deg, #fbf1dc, #efdcb6);
+  border: 3px solid #7a4c2a; box-shadow: 0 0 0 3px #f6c453 inset, 0 30px 80px rgba(0, 0, 0, 0.6);
+  animation: rise-card 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#knytis .close {
+  position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; border-radius: 50%;
+  border: 2px solid rgba(122, 76, 42, 0.35); background: rgba(255, 255, 255, 0.6); color: var(--ink); font-size: 16px;
+}
+#knytis .close:hover, #knytis .close:focus-visible { background: #fff; border-color: #b3202a; outline: none; }
+#knytis .kicker { font: 600 12px var(--sans); letter-spacing: 0.25em; text-transform: uppercase; color: #8e1b1b; }
+#knytis h2 { margin: 2px 0 2px; font: 700 30px/1.1 var(--serif); }
+#knytis .progress { margin: 0 0 12px; font-size: 14px; opacity: 0.7; }
+#knytis .me { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; padding: 10px 0 12px; border-top: 1px solid rgba(122, 76, 42, 0.2); border-bottom: 1px solid rgba(122, 76, 42, 0.2); }
+#knytis .me .label { flex-basis: 100%; font: 700 13px var(--sans); color: #7a4c2a; }
+#knytis .guests { display: contents; }
+#knytis .guest {
+  display: inline-flex; align-items: center; gap: 6px; padding: 3px 10px 3px 3px; border-radius: 999px;
+  border: 2px solid rgba(122, 76, 42, 0.25); background: rgba(255, 255, 255, 0.55); color: var(--ink); font: 600 13px var(--sans);
+}
+#knytis .guest img, #knytis .guest .initial {
+  width: 24px; height: 24px; border-radius: 50%; object-fit: cover; display: grid; place-items: center;
+  background: #7a4c2a; color: var(--cream); font-size: 12px;
+}
+#knytis .guest:hover, #knytis .guest:focus-visible { background: #fff; outline: none; }
+#knytis .guest.on { border-color: #b3202a; background: #fff; box-shadow: 0 0 0 2px rgba(179, 32, 42, 0.2); }
+#knytis .name {
+  flex: 1 1 180px; min-width: 0; padding: 7px 12px; border-radius: 999px; border: 2px solid rgba(122, 76, 42, 0.3);
+  background: #fffaf0; color: var(--ink); font: 500 14px var(--sans);
+}
+#knytis .name:focus { outline: none; border-color: #b3202a; }
+#knytis .dishes { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 14px; margin-top: 12px; }
+#knytis .cat h3 { margin: 0 0 6px; font: 600 18px var(--serif); color: #8e1b1b; }
+#knytis .dish {
+  width: 100%; display: flex; align-items: center; gap: 8px; margin-bottom: 6px; padding: 6px 8px; text-align: left;
+  border-radius: 10px; border: 2px solid rgba(122, 76, 42, 0.22); background: rgba(255, 255, 255, 0.55); color: var(--ink);
+  transition: background 0.15s, border-color 0.15s, transform 0.1s;
+}
+#knytis .dish:hover:not(:disabled), #knytis .dish:focus-visible { background: #fff; border-color: #b3202a; outline: none; transform: translateX(2px); }
+#knytis .dish:disabled { cursor: progress; opacity: 0.75; }
+#knytis .dish .emoji { font-size: 20px; }
+#knytis .dish .text { display: grid; min-width: 0; }
+#knytis .dish b { font: 600 14px/1.2 var(--sans); }
+#knytis .dish small { font-size: 12px; opacity: 0.65; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+#knytis .dish.taken { background: rgba(122, 76, 42, 0.08); }
+#knytis .dish.mine { border-color: var(--green); background: #e9f7ef; }
+#knytis .dish.mine small { color: #1d6e48; opacity: 1; font-weight: 700; }
+#knytis .status { min-height: 1.4em; margin: 8px 0 0; font: 600 15px var(--sans); color: #1d6e48; }
+@media (max-width: 720px) {
+  #knytis .dishes { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+}
+@media (max-width: 420px) {
+  #knytis .card { padding: 18px 14px 12px; }
+  #knytis .dishes { gap: 8px; }
+}
