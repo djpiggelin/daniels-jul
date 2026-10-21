@@ -516,3 +516,13 @@ body.touch #chat-log { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 170
 /* came from the buffet: the dish you clicked */
 #knytis .dish.focus { border-color: #d4a64a; box-shadow: 0 0 0 3px rgba(212, 166, 74, 0.45); animation: dish-focus 1.2s ease-in-out 3; }
 @keyframes dish-focus { 50% { box-shadow: 0 0 0 7px rgba(212, 166, 74, 0.2); } }
+
+/* jump button (touch), above the snowball */
+#jump {
+  pointer-events: auto; position: absolute; right: 34px; bottom: max(176px, calc(env(safe-area-inset-bottom) + 156px));
+  width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(7, 11, 29, 0.55); color: #fff; font-size: 24px; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+#jump:active { background: rgba(246, 196, 83, 0.35); }
+body:not(.touch) #jump { display: none; }
+#hud.busy #jump, #hud.flight #jump, #hud.arcade #jump { display: none; }

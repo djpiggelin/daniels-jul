@@ -23,13 +23,13 @@ export const LIMITS = {
 export const TICK_MS = 100
 
 export type PlayerInfo = { id: string; name: string; color: number; photo: string | null; hits: number }
-/** [id, x, z, yaw, speed 0..1] */
-export type PlayerState = [string, number, number, number, number]
+/** [id, x, z, yaw, speed 0..1, feet above the snow (jumping)] – the last one may be missing from older villages. */
+export type PlayerState = [string, number, number, number, number, number?]
 export type V3 = [number, number, number]
 
 export type ClientMessage =
   | { t: 'hi'; name: string; color: number; photo: string | null }
-  | { t: 's'; x: number; z: number; y: number; m: number }
+  | { t: 's'; x: number; z: number; y: number; m: number; h?: number }
   | { t: 'th'; f: V3; v: V3 }
   /** "I was hit by `by`" – the one who got hit decides, so nobody can score on others by cheating. */
   | { t: 'hit'; by: string }
