@@ -16,6 +16,7 @@ import { KnytisPanel } from './knytis'
 import { RitbordPanel } from './ritbord'
 import { refreshTeamHouse } from './teamhouse'
 import { Multiplayer } from './multiplayer'
+import { bakeStatic, mergeRigid } from './batch'
 import { PARTICIPANTS } from './data'
 import { rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
@@ -169,6 +170,15 @@ async function build() {
     QUALITY.elves,
   )
   for (const e of elves) solids.push(e.group)
+
+  // fewer draw calls (batch.ts): each shop's still meshes merged, every nisse merged part by part
+  for (const s of shops) bakeStatic(s.shop.group, new Set(s.shop.exhibits.map((e) => e.target)))
+  for (const n of [...talkers.map((t) => t.npc), ...elves.map((e) => e.nisse), sleigh.santa]) mergeRigid(n.group)
+  mergeRigid(sleigh.group)
+  // and everything else on the square that stands still (the tree, lamps, gifts, the poster column…)
+  const moving = new Set<THREE.Object3D>([...shops.map((s) => s.shop.group), ...talkers.map((t) => t.npc.group), ...elves.map((e) => e.nisse.group), sleigh.group, sleigh.santa.group, ...(arcade?.cabinets.map((c) => c.group) ?? [])])
+  const posters = new Set(square.exhibits.map((e) => e.target))
+  for (const o of [...scene.children]) if ((o as THREE.Group).isGroup && !moving.has(o)) bakeStatic(o, posters)
 
   // tiny things barely show in the moon's shadow map (~3.5 cm a pixel): leave them out of the shadow pass
   const scale = new THREE.Vector3()
@@ -849,7 +859,10 @@ renderer.shadowMap.needsUpdate = true
 function frame(now: number) {
   requestAnimationFrame(frame)
   const idle = !started || menu.open
-  if (now - lastFrame < (idle ? 1000 / 15 : 1000 / 90)) return
+  // a computer draws every frame the screen asks for (144 Hz → 144); phones stop at 60 to spare the battery
+  // (2 ms slack, or a 60 Hz screen would skip every other frame)
+  const cap = idle ? 15 : PROFILE === 'dator' ? 0 : 60
+  if (cap && now - lastFrame < 1000 / cap - 2) return
   lastFrame = now
   frameNo++
   const dt = Math.min(clock.getDelta(), 0.05)

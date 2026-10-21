@@ -3,6 +3,7 @@
 // glide back to where the sleigh was parked (and Tomten climbs back in).
 import * as THREE from 'three'
 import { TOUCH, walkFov } from './device'
+import { keepApart } from './batch'
 import type { Player } from './player'
 import { blip, whoosh } from './sfx'
 import { EYE, PARK, type Sleigh } from './sleigh'
@@ -126,7 +127,7 @@ export class Flight {
       const mat = new THREE.MeshStandardMaterial({ map: candy, emissive: 0xffffff, emissiveMap: candy, emissiveIntensity: 0.55, roughness: 0.35, transparent: true })
       const spin = new THREE.Mesh(tube, mat)
       const halo = new THREE.Mesh(haloGeo, new THREE.MeshBasicMaterial({ color: 0xffd76a, transparent: true, opacity: 0.22, blending: THREE.AdditiveBlending, depthWrite: false }))
-      const group = new THREE.Group()
+      const group = keepApart(new THREE.Group())
       group.add(spin, halo)
       group.visible = false
       scene.add(group)

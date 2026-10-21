@@ -9,6 +9,7 @@ import { html, type Talk, type Topic } from './ui'
 import { openKnytis } from './knytis'
 import { openRitbord } from './ritbord'
 import { setHouseSlot } from './teamhouse'
+import { keepApart } from './batch'
 
 const JULBAK = EVENTS.find((e) => e.id === 'julbak')!
 const JULBORD = EVENTS.find((e) => e.potluck)!
@@ -75,6 +76,7 @@ function counter(shop: Shop, color: number) {
   const flame = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd38a, toneMapped: false }))
   flame.position.set(0, 1.04, -0.9)
   flame.scale.y = 1.8
+  keepApart(flame)
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false }))
   glow.position.copy(flame.position)
   glow.scale.setScalar(0.5)
@@ -155,7 +157,7 @@ function copperPot(shop: Shop, x: number, z: number, s = 1) {
   const copper = std(0xd98a4a, 0.35, 0.35)
   const stone = std(0x55555e, 0.95)
   g.add(box(1.0 * s, 0.3, 1.0 * s, stone, 0, 0.15, 0))
-  const fire = new THREE.Mesh(new THREE.ConeGeometry(0.22 * s, 0.35, 8), new THREE.MeshBasicMaterial({ color: 0xff7a2a, toneMapped: false }))
+  const fire = keepApart(new THREE.Mesh(new THREE.ConeGeometry(0.22 * s, 0.35, 8), new THREE.MeshBasicMaterial({ color: 0xff7a2a, toneMapped: false })))
   fire.position.y = 0.42
   const pot = new THREE.Mesh(new THREE.SphereGeometry(0.42 * s, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), copper)
   pot.rotation.x = Math.PI
@@ -248,7 +250,7 @@ function fireplace(shop: Shop) {
   g.add(box(1.4, 0.8, 0.62, std(0x140b07, 1), 0, 0.42, 0.31))
   g.add(box(2.9, 0.12, 0.75, wood, 0, 1.36, 0.35))
   g.add(box(2.2, 0.06, 0.6, stone, 0, 0.03, 0.85))
-  const fire = new THREE.Group()
+  const fire = keepApart(new THREE.Group())
   for (const [x, s, c] of [[-0.25, 0.8, 0xff7a2a], [0.05, 1, 0xffa53a], [0.3, 0.7, 0xff5a1a], [0, 0.55, 0xffd36a]] as const) {
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.16 * s, 0.55 * s, 8), new THREE.MeshBasicMaterial({ color: c, toneMapped: false }))
     f.position.set(x, 0.3 * s, 0.78)
@@ -694,7 +696,8 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
   paper.rotation.set(-Math.PI / 2, 0, 0.12)
   paper.position.set(-0.45, 0.842, 0.1)
   t.add(paper)
-  const slot = new THREE.Group()
+  // rebuilt from your plan whenever the drawing board closes
+  const slot = keepApart(new THREE.Group())
   slot.position.set(0.42, 0.84, 0)
   slot.rotation.y = -0.6
   t.add(slot)

@@ -4,6 +4,7 @@
 import * as THREE from 'three'
 import { COLORS, LIMITS, cleanName, cleanText, type ClientMessage, type PlayerInfo, type PlayerState, type ServerMessage, type V3 } from '../../multiplayer/src/protocol'
 import { Nisse } from './npc'
+import { mergeRigid } from './batch'
 import { loadImage, makeCanvas, toTexture } from './tex'
 
 export type Me = { name: string; photo: string | null }
@@ -112,6 +113,7 @@ class Avatar {
     // a snowball from you: they flinch here, and their own village decides whether it counts
     this.nisse.group.userData.onSnowball = () => this.nisse.flinch()
     this.nisse.group.visible = false
+    mergeRigid(this.nisse.group)
     scene.add(this.nisse.group)
     void nameTag(info.name, info.color, info.photo).then((tag) => {
       tag.position.y = 2.35 / SCALE

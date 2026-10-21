@@ -79,6 +79,10 @@ renderade från `ThemeArt.tsx` i 2D-sajten.
   minne alla canvas får använda – så bildvisaren visar samma canvas, bara mindre. Skyltar och skärmar som ritas om hela
   tiden (`toTexture(c, { live: true })`) lämnas orörda.
 - **Synfältet** hålls brett när telefonen hålls upp och ner (`walkFov`), annars ser man byn som genom ett rör.
+- **Färre ritanrop** ([`src/batch.ts`](src/batch.ts)): när byn är byggd slås allt som står still ihop – en mesh per
+  material per butik, nissarna del för del (huvud, armar, ben) – och glödlamporna är en instansad mesh. Torget gick
+  från ~1 360 till ~620 ritanrop och från ~45 till ~8 ms per bild. Det som rör sig markeras med `keepApart()`.
+- På dator ritas varje bild skärmen ber om (144 Hz → 144 fps); telefoner stannar vid 60.
 - Tar grafiken slut på minne visas *Byn behöver en paus* med en knapp för att ladda om.
 
 Testa: `?enhet=telefon`, `?enhet=surfplatta` eller `?enhet=dator` tvingar en profil (`?enhet=auto` släpper den).

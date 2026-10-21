@@ -149,20 +149,29 @@ export class Shop {
     }
 
     // string lights along the gable edge
-    const bulbGeo = new THREE.SphereGeometry(0.07, 8, 6)
-    const cols = [0xff4d4d, 0xffd34d, 0x5dff9a, 0x5db8ff]
-    const bulbMats = cols.map((c) => new THREE.MeshBasicMaterial({ color: c, toneMapped: false }))
-    const bulbs: THREE.Mesh[] = []
-    for (let i = 0; i <= 30; i++) {
-      const k = i / 30
+    // (one instanced mesh: 31 bulbs in a single draw call, each still twinkling on its own)
+    const cols = [0xff4d4d, 0xffd34d, 0x5dff9a, 0x5db8ff].map((c) => new THREE.Color(c))
+    const N = 31
+    const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.07, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false }), N)
+    const spots: THREE.Vector3[] = []
+    for (let i = 0; i < N; i++) {
+      const k = i / (N - 1)
       const x = THREE.MathUtils.lerp(-W / 2 - 0.3, W / 2 + 0.3, k)
       const y = H + RIDGE * (1 - Math.abs(x) / (W / 2)) - 0.18 - Math.sin(k * Math.PI * 6) ** 2 * 0.12
-      const b = new THREE.Mesh(bulbGeo, bulbMats[i % 4])
-      b.position.set(x, y, D / 2 + 0.25)
-      bulbs.push(b)
-      g.add(b)
+      spots.push(new THREE.Vector3(x, y, D / 2 + 0.25))
+      bulbs.setColorAt(i, cols[i % 4])
     }
-    this.updaters.push((t) => bulbs.forEach((b, i) => b.scale.setScalar(0.7 + 0.5 * Math.max(0, Math.sin(t * 3 + i)))))
+    g.add(bulbs)
+    const one = new THREE.Object3D()
+    this.updaters.push((t) => {
+      for (let i = 0; i < N; i++) {
+        one.position.copy(spots[i])
+        one.scale.setScalar(0.7 + 0.5 * Math.max(0, Math.sin(t * 3 + i)))
+        one.updateMatrix()
+        bulbs.setMatrixAt(i, one.matrix)
+      }
+      bulbs.instanceMatrix.needsUpdate = true
+    })
 
     // sign on the gable
     const canvas = drawSign(title, '')
