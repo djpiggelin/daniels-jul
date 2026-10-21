@@ -7,6 +7,8 @@ import { drawArrowSign, drawBoard, drawCorkboard, drawPoster, drawTvScreen, glow
 import { downloadIcs, formatDate, formatShortDate, formatTime, untilText } from './time'
 import { html, type Talk, type Topic } from './ui'
 import { openKnytis } from './knytis'
+import { openRitbord } from './ritbord'
+import { setHouseSlot } from './teamhouse'
 
 const JULBAK = EVENTS.find((e) => e.id === 'julbak')!
 const JULBORD = EVENTS.find((e) => e.potluck)!
@@ -661,7 +663,7 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
 
   const print = drawBlueprint(3)
   const bp = shop.hang(framed(print, 4.2, { frame: 0xfff3dc, border: 0.05 }), 'back', 0.4, 2.0)
-  shop.exhibit(bp, { title: 'Ritning', caption: 'Rita ert hus på Pepparkaksarkitekten och skriv ut mallarna i skala 1:1.', image: dataUrl(print) })
+  shop.exhibit(bp, { title: 'Ritning', caption: 'Rita ert hus och skriv ut mallarna i skala 1:1.', image: dataUrl(print), open: openRitbord, prompt: 'Sätt dig vid ritbordet' })
 
   const steps = drawBoard({
     style: 'chalk',
@@ -685,18 +687,23 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
   const n = shop.hang(sheet(note, 1.2, -0.05), 'right', 1.6, 2.1)
   shop.exhibit(n, { title: 'OBS!', caption: 'Planera hur mycket ni vill – men bygget och pyntet sker först på plats.', image: dataUrl(note) })
 
-  // the drafting table: a blueprint and a finished house to compare with
+  // the drafting table: a blueprint, and the house you're drawing (built from your plan)
   const t = table(shop, 1.4, -1.2, 1.8, 1.1)
   const sheetTex = toTexture(drawBlueprint(7))
-  const paper = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.78), new THREE.MeshStandardMaterial({ map: sheetTex, roughness: 0.9 }))
+  const paper = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.57), new THREE.MeshStandardMaterial({ map: sheetTex, roughness: 0.9 }))
   paper.rotation.set(-Math.PI / 2, 0, 0.12)
-  paper.position.set(-0.25, 0.842, 0)
+  paper.position.set(-0.45, 0.842, 0.1)
   t.add(paper)
-  const house = gingerbreadHouse()
-  house.position.set(0.55, 0.84, 0.1)
-  house.rotation.y = -0.6
-  house.scale.setScalar(0.9)
-  t.add(house)
+  const slot = new THREE.Group()
+  slot.position.set(0.42, 0.84, 0)
+  slot.rotation.y = -0.6
+  t.add(slot)
+  setHouseSlot(slot, () => {
+    const h = gingerbreadHouse()
+    h.scale.setScalar(0.9)
+    return h
+  })
+  shop.exhibit(t, { title: 'Ritbordet', caption: 'Huset ni ritar står här på bordet.', image: dataUrl(print), open: openRitbord, prompt: 'Rita ert hus vid ritbordet' })
 
   const npc = new Nisse({ coat: 0x1f4f8a, hat: 0xc98a2b, apron: 0xfff3dc })
   const talk: Talk = {
@@ -711,13 +718,13 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
       {
         label: '✏️ Jag vill rita vårt hus',
         pages: () => [],
-        go: () => location.assign('/pepparkaksarkitekten'),
+        go: openRitbord,
       },
       {
         label: '📐 Vad gör ni här inne?',
         pages: () => [
           html.p('Rita huset innan ni står med degen. Bygg ihop flera byggnader, rita egna bitar med bågar och urtag, skissa glasyren och skriv ut mallarna i skala 1:1.') +
-            html.p('Spara ritningen med ert lagnamn så kan resten av laget öppna den.'),
+            html.p('Huset ni ritar byggs upp på ritbordet här inne. Spara ritningen med ert lagnamn så kan resten av laget öppna den.'),
         ],
       },
       ...(c?.theme ? [{ label: '🏠 Vad är årets tema?', pages: () => [html.h(c.theme!.title) + html.p(c.theme!.intro[0]), ...c.theme!.intro.slice(1).map(html.p)] }] : []),

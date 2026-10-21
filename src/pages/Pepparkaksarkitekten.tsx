@@ -16,6 +16,7 @@ import { renderPiece, type Op, type Sketches } from '../lib/icing'
 import { OUTLINE_PRESETS } from '../lib/shapes'
 import { getHouse, shareHouse, type SavedHouse } from '../lib/api'
 import { JULBAK } from '../lib/village'
+import { EMBEDDED } from '../lib/embed'
 import { Preview3D } from '../components/arkitekt/Preview3D'
 import { FacadeEditor } from '../components/arkitekt/FacadeEditor'
 import { PieceCad } from '../components/arkitekt/PieceCad'
@@ -237,12 +238,16 @@ export default function Pepparkaksarkitekten() {
     <div className="relative bg-[#170b06] text-jul-cream print:bg-white">
       <div className="pointer-events-none absolute inset-0 opacity-[0.07] print:hidden" style={{ backgroundImage: 'radial-gradient(#f0b878 1px, transparent 1px)', backgroundSize: '22px 22px' }} />
 
-      <div className="relative mx-auto max-w-6xl px-4 pb-24 pt-28 sm:px-6 sm:pt-32 print:hidden">
+      <div className={`relative mx-auto max-w-6xl px-4 pb-24 sm:px-6 print:hidden ${EMBEDDED ? 'pt-8 sm:pt-10' : 'pt-28 sm:pt-32'}`}>
         <header className="max-w-2xl">
           <p className="text-xs font-semibold uppercase tracking-[0.3em] text-[#f0b878]">
-            <Link to={`/event/${JULBAK?.id ?? 'julbak'}#verkstad`} className="hover:text-jul-cream">
-              Julbak · Tomtens verkstad
-            </Link>
+            {EMBEDDED ? (
+              'Julbak · Arkitektkontoret'
+            ) : (
+              <Link to={`/event/${JULBAK?.id ?? 'julbak'}#verkstad`} className="hover:text-jul-cream">
+                Julbak · Tomtens verkstad
+              </Link>
+            )}
           </p>
           <h1 className="mt-3 text-4xl font-normal sm:text-6xl">Pepparkaksarkitekten</h1>
           <p className="mt-5 text-lg leading-relaxed text-jul-cream/80">

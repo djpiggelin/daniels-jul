@@ -9,7 +9,7 @@ spela vid granen och kasta snöboll på tomtenissarna som springer runt.
 | Tomtens destilleri | Julbak – drinktävling | Regler, bedömning, temat, kopparpannor som ångar |
 | Julbordet | Julbord + knytis | Knytis-listan (klicka på tavlan eller fråga Skinknissen för att paxa en rätt), gästlistan som polaroids, dukat bord |
 | Tomtens stuga | Julafton | Att göra-lista, brasa, Kalle Anka på tv:n, minnesvägg |
-| Arkitektkontoret | Julbak – planera huset | Ritning, steg-för-steg-tavla, årets tema, ritbord. Ritnissen tar dig till Pepparkaksarkitekten |
+| Arkitektkontoret | Julbak – planera huset | Ritbordet: Pepparkaksarkitekten öppnas mitt i byn (fråga Ritnissen eller klicka på ritningen/bordet), och huset ni ritar står i 3D på bordet – med fönster, dörrar och glasyr |
 
 På torget: julgranen, en affischpelare med alla händelser och en vägvisare till butikerna.
 
@@ -62,6 +62,11 @@ Från repots rot (beroendena delas med 2D-sajten):
 npm install
 npm run dev:3d
 ```
+
+Ritbordet visar 2D-sajtens `/pepparkaksarkitekten` i en iframe. Med `dev:3d` hämtas den från 2D-dev-servern –
+starta `npm run dev` i ett annat fönster (eller sätt `VITE_SITE_URL` i `jul3d/.env.development.local` om den kör på en
+annan port). Lokalt ligger de på olika portar, så huset på bordet följer inte med det du ritar – det gör det i produktion
+(och i Netlify-previews), där allt ligger på samma domän.
 
 Byn är sajtens startsida: `npm run build` bygger den till `dist/by/`, och `netlify.toml` visar den på `/`.
 I menyn och på startskärmen finns länkar till 2D-sidorna (knytis, händelser).
