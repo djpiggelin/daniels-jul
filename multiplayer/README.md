@@ -46,12 +46,9 @@ Sedan (och efter varje ändring här):
 npm run deploy:mp
 ```
 
-Wrangler skriver ut adressen, t.ex. `https://daniels-jul-byn.<ditt-konto>.workers.dev`. Lägg in den som
-miljövariabel i Netlify (*Site configuration → Environment variables*) och bygg om sajten:
-
-```
-VITE_MP_URL = wss://daniels-jul-byn.<ditt-konto>.workers.dev/byn
-```
+Servern ligger på `https://daniels-jul-byn.daniels-jul.workers.dev`. Byn hittar den via `VITE_MP_URL` i
+[`jul3d/.env.production`](../jul3d/.env.production) – adressen är ingen hemlighet (den syns ändå i sidans kod). Flyttar
+servern, ändra den där (eller sätt `VITE_MP_URL` i Netlify, som går före).
 
 Fler tillåtna adresser (t.ex. en egen domän) sätts med variabeln `ALLOWED_ORIGINS` på Workern
 (kommaseparerad), i Cloudflare eller med `wrangler secret put ALLOWED_ORIGINS`.
