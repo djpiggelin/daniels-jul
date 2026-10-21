@@ -455,7 +455,7 @@ function Closing({ event: e }: { event: JulEvent }) {
           {formatDate(e.start)} · {formatTime(e.start)}
         </p>
         <p className="mt-8 text-sm text-snow/60">Kliv in i ett annat hus i byn – eller</p>
-        <Link to="/" className="mt-1 inline-block text-sm text-snow/80 underline-offset-4 hover:text-white hover:underline">
+        <Link to="/handelser" className="mt-1 inline-block text-sm text-snow/80 underline-offset-4 hover:text-white hover:underline">
           ← tillbaka till släden
         </Link>
       </div>

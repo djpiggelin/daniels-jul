@@ -44,6 +44,8 @@ export const GUESTS = content.guests
 
 export const PARTICIPANTS = GUESTS.map((g) => ({ name: g.name, image: g.photo ?? null }))
 
+export const MEMORIES = content.memories ?? []
+
 export type Dish = { id: string; name: string; emoji: string; category: 'Fisk' | 'Kött' | 'Tillbehör' | 'Dryck'; x: number; y: number }
 
 // x/y = position i procent på julbordsbilden (för den interaktiva kartan)
