@@ -12,6 +12,7 @@ import { clockText, eventStatus, formatShortDate } from './time'
 import { Snowballs } from './snowballs'
 import { Thrower } from './throw'
 import { Dialog, PauseMenu, Viewer, VirtualCursor, type Talk } from './ui'
+import { KnytisPanel } from './knytis'
 import { Viewmodel } from './viewmodel'
 import { VILLAGE_RADIUS, buildWorld } from './world'
 
@@ -61,7 +62,7 @@ flight.onDone = () => resume()
 /* ---------- build the village ---------- */
 type Target =
   | { kind: 'npc'; npc: Nisse; talk: Talk }
-  | { kind: 'exhibit'; title: string; caption?: string; image: () => string }
+  | { kind: 'exhibit'; title: string; caption?: string; image: () => string; open?: () => void; prompt?: string }
   | { kind: 'arcade'; cab: Cabinet }
   | { kind: 'sleigh' }
 const exhibitOf = new Map<THREE.Object3D, Target>()
@@ -309,7 +310,7 @@ function setTarget(t: Target | null) {
         ? `Spela ${t.cab.def.name}`
         : t.kind === 'sleigh'
           ? 'Knuffa ut tomten och ta släden'
-          : `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`
+          : t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -367,6 +368,23 @@ function closeMenu() {
   resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
 }
 menu.onResume = closeMenu
+
+/* ---------- knytis ---------- */
+// A form you type in, so the mouse is let go while it's open (like the Esc menu).
+const knytis = new KnytisPanel()
+function openKnytisPanel() {
+  if (knytis.open || !started) return
+  pause(false)
+  cursor.hide()
+  menu.hide()
+  void knytis.show()
+  if (player.locked) {
+    selfUnlock = true
+    document.exitPointerLock()
+  }
+}
+addEventListener('jul:knytis', openKnytisPanel)
+knytis.onClose = () => resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
 $('menu-btn').addEventListener('click', openMenu)
 
 // One place decides what Esc means. It arrives either as a key press or – while the mouse is
@@ -377,6 +395,7 @@ function onEsc() {
   if (now - lastEsc < 300) return
   lastEsc = now
   if (menu.open) return closeMenu()
+  if (knytis.open) return knytis.close()
   if (dialog.open) return dialog.close()
   if (viewer.open) return viewer.close()
   if (arcade?.active) return arcade.leave()
@@ -424,7 +443,7 @@ $('m-music').addEventListener('click', () => {
   syncMenu()
 })
 // the 2D site lives next to the village – knytis, topplistor, ritningar
-$('m-knytis').addEventListener('click', () => location.assign('/knytis'))
+$('m-knytis').addEventListener('click', openKnytisPanel)
 $('m-web').addEventListener('click', () => location.assign('/handelser'))
 
 $('m-full').addEventListener('click', async () => {
@@ -459,6 +478,7 @@ function interact() {
     sleigh.say('🎅 Hallå!? Det där är MIN släde!')
     flight.start()
   }
+  else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
 }
 promptEl.addEventListener('click', interact)
@@ -469,7 +489,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || arcade?.active || flight.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || arcade?.active || flight.active || !started) return
   if (e.code === 'KeyE' || e.code === 'Enter') interact()
   if (e.code === 'KeyM') toggleMusic()
 })

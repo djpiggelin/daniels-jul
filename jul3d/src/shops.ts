@@ -6,6 +6,7 @@ import { Shop, framed, sheet, D } from './shop'
 import { drawArrowSign, drawBoard, drawCorkboard, drawPoster, drawTvScreen, glowTexture, loadImage, loadSvg, makeCanvas, toTexture } from './tex'
 import { downloadIcs, formatDate, formatShortDate, formatTime, untilText } from './time'
 import { html, type Talk, type Topic } from './ui'
+import { openKnytis } from './knytis'
 
 const JULBAK = EVENTS.find((e) => e.id === 'julbak')!
 const JULBORD = EVENTS.find((e) => e.potluck)!
@@ -492,7 +493,7 @@ async function buildJulbord(): Promise<BuiltShop> {
   const items = cats.flatMap((cat) => [`# ${cat}`, ...DISHES.filter((d) => d.category === cat).map((d) => `${d.emoji} ${d.name}`)])
   const list = drawBoard({ style: 'chalk', title: 'Knytis – vem tar med vad?', items, marker: 'check', w: 1024, h: 1300, seed: 14 })
   const l = shop.hang(framed(list, 2.3, { frame: 0x6b4226, border: 0.05 }), 'left', 2.05, 1.85)
-  shop.exhibit(l, { title: 'Knytis-listan', caption: 'Välj en rätt och paxa den – alla tar med något till julbordet.', image: dataUrl(list) })
+  shop.exhibit(l, { title: 'Knytis-listan', caption: 'Välj en rätt och paxa den – alla tar med något till julbordet.', image: dataUrl(list), open: openKnytis, prompt: 'Paxa en rätt på knytis-listan' })
 
   const imgs = await Promise.all(PARTICIPANTS.map((g) => (g.image ? loadImage(g.image).catch(() => null) : Promise.resolve(null))))
   const guests = drawCorkboard({ title: 'Gästlistan', cards: PARTICIPANTS.map((g, i) => ({ label: g.name, img: imgs[i] })), cols: 6 })
@@ -515,13 +516,13 @@ async function buildJulbord(): Promise<BuiltShop> {
         pages: () => [
           html.p('Knytkalas! Alla tar med sig en rätt till julbordet. Listan på tavlan visar allt som behövs:'),
           ...cats.map((cat) => html.h(cat) + html.list(DISHES.filter((d) => d.category === cat).map((d) => `${d.emoji} ${d.name}`))),
-          html.p('Välj något som ingen annan har tagit – och paxa det på hemsidan så vi inte får fem skålar Jansson.'),
+          html.p('Välj något som ingen annan har tagit – och paxa det här hos mig så vi inte får fem skålar Jansson.'),
         ],
       },
       {
         label: '✍️ Jag vill paxa en rätt',
         pages: () => [],
-        go: () => location.assign('/knytis'),
+        go: openKnytis,
       },
       {
         label: '👥 Vilka kommer?',

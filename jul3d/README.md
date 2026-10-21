@@ -7,7 +7,7 @@ spela vid granen och kasta snöboll på tomtenissarna som springer runt.
 | --- | --- | --- |
 | Tomtens verkstad | Julbak – pepparkakstävling | Verkstadsordning (regler), bedömning, verkstaden + de fyra rummen som tavlor, pepparkakshus |
 | Tomtens destilleri | Julbak – drinktävling | Regler, bedömning, temat, kopparpannor som ångar |
-| Julbordet | Julbord + knytis | Knytis-listan, gästlistan som polaroids, dukat bord |
+| Julbordet | Julbord + knytis | Knytis-listan (klicka på tavlan eller fråga Skinknissen för att paxa en rätt), gästlistan som polaroids, dukat bord |
 | Tomtens stuga | Julafton | Att göra-lista, brasa, Kalle Anka på tv:n, minnesvägg |
 
 På torget: julgranen, en affischpelare med alla händelser och en vägvisare till butikerna.
