@@ -10,6 +10,7 @@ import { openKnytis } from './knytis'
 import { openRitbord } from './ritbord'
 import { setHouseSlot } from './teamhouse'
 import { keepApart } from './batch'
+import { julbakHouse } from './pepparkakshus'
 import { furnishJulbord, knytisBoardItems, showClaimsOnBuffet } from './julbord'
 import type { Claims } from '../../src/lib/api'
 
@@ -348,10 +349,11 @@ async function buildVerkstad(): Promise<BuiltShop> {
   )
 
   const t = table(shop, 1.4, -1.2, 1.6, 1.1, 0xe5383b)
-  const house = gingerbreadHouse()
-  house.position.y = 0.84
-  house.rotation.y = 0.5
-  house.scale.setScalar(1.3)
+  // the house from the Julbak photo (NO JUSTICE · NO JINGLE)
+  const house = julbakHouse()
+  house.position.y = 0.845
+  house.rotation.y = 0.45
+  house.scale.setScalar(1.25)
   t.add(house)
 
   const npc = new Nisse({ coat: 0x2fa36b, hat: 0xe5383b, apron: 0xfff3dc })
