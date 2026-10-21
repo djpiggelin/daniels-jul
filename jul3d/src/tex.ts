@@ -176,7 +176,7 @@ function boardBackground(ctx: CanvasRenderingContext2D, W: number, H: number, st
   }
 }
 
-function drawMarker(ctx: CanvasRenderingContext2D, kind: BoardSpec['marker'], x: number, y: number, fs: number, i: number, color: string, rand: () => number) {
+function drawMarker(ctx: CanvasRenderingContext2D, kind: BoardSpec['marker'], x: number, y: number, fs: number, i: number, color: string, rand: () => number, done = false, doneColor = color) {
   ctx.save()
   ctx.strokeStyle = color
   ctx.fillStyle = color
@@ -192,6 +192,16 @@ function drawMarker(ctx: CanvasRenderingContext2D, kind: BoardSpec['marker'], x:
     ctx.lineTo(x + j(), y + j())
     ctx.closePath()
     ctx.stroke()
+    if (done) {
+      // ticked off: a quick chalk tick over the box
+      ctx.strokeStyle = doneColor
+      ctx.lineWidth = Math.max(3, fs * 0.11)
+      ctx.beginPath()
+      ctx.moveTo(x + s * 0.1, y - s * 0.45)
+      ctx.lineTo(x + s * 0.42, y - s * 0.05)
+      ctx.lineTo(x + s * 1.1, y - s * 1.15)
+      ctx.stroke()
+    }
   } else if (kind === 'bullet') {
     ctx.beginPath()
     ctx.arc(x + s / 2, y - s / 2, s * 0.22, 0, Math.PI * 2)
@@ -220,7 +230,7 @@ export function drawBoard(spec: BoardSpec) {
   const marker = spec.marker ?? 'check'
   const indent = marker === 'none' ? 0 : 1
 
-  type Op = { font: string; color: string; text: string; x: number; y: number; align?: CanvasTextAlign; mark?: { i: number; x: number; y: number; fs: number } }
+  type Op = { font: string; color: string; text: string; x: number; y: number; align?: CanvasTextAlign; mark?: { i: number; x: number; y: number; fs: number; done: boolean } }
   const layout = (fs: number) => {
     const ops: Op[] = []
     let y = pad * (spec.style === 'parchment' ? 1.25 : 1)
@@ -250,12 +260,15 @@ export function drawBoard(spec: BoardSpec) {
         y += hfs * 1.35
         continue
       }
+      // "✓ …" = ticked off (on a check list)
+      const done = item.startsWith('✓ ')
+      const text = done ? item.slice(2) : item
       ctx.font = bodyFont(fs)
       const ix = pad + indent * fs * 1.05
-      const lines = wrapText(ctx, item, W - pad - ix)
+      const lines = wrapText(ctx, text, W - pad - ix)
       lines.forEach((l, li) => {
         y += fs * 1.18
-        ops.push({ font: bodyFont(fs), color: ink.text, text: l, x: ix, y, mark: li === 0 && indent ? { i: n, x: pad, y, fs } : undefined })
+        ops.push({ font: bodyFont(fs), color: ink.text, text: l, x: ix, y, mark: li === 0 && indent ? { i: n, x: pad, y, fs, done } : undefined })
       })
       n++
       y += fs * 0.42
@@ -293,7 +306,7 @@ export function drawBoard(spec: BoardSpec) {
       ctx.fillText(op.text, op.x + 1.5, y + 1)
       ctx.globalAlpha = 1
     } else ctx.fillText(op.text, op.x, y)
-    if (op.mark) drawMarker(ctx, marker, op.mark.x, y - op.mark.fs * 0.12, op.mark.fs, op.mark.i, ink.mark, rand)
+    if (op.mark) drawMarker(ctx, marker, op.mark.x, y - op.mark.fs * 0.12, op.mark.fs, op.mark.i, ink.mark, rand, op.mark.done, ink.head)
   }
   // underline the title
   const first = res.ops[0]

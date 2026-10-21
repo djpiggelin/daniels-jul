@@ -512,3 +512,7 @@ body.touch #menu .sens { display: none; }
 #chat-log div.mine b { color: #9fe0bf; }
 #chat-log div.old { opacity: 0; }
 body.touch #chat-log { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 170px); }
+
+/* came from the buffet: the dish you clicked */
+#knytis .dish.focus { border-color: #d4a64a; box-shadow: 0 0 0 3px rgba(212, 166, 74, 0.45); animation: dish-focus 1.2s ease-in-out 3; }
+@keyframes dish-focus { 50% { box-shadow: 0 0 0 7px rgba(212, 166, 74, 0.2); } }
