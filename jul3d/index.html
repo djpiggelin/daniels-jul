@@ -2,7 +2,13 @@
 <html lang="sv">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Daniels Jul" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <title>Daniels Jul – Byn</title>
     <meta name="theme-color" content="#070b1d" />
@@ -27,7 +33,7 @@
       <button id="prompt" hidden><kbd>E</kbd><span></span></button>
       <div id="help">
         <span class="desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd>/klick prata · håll <kbd>Shift</kbd> kasta snöboll · <kbd>Esc</kbd> meny</span>
-        <span class="touch">Vänster tumme går · dra höger för att titta · håll ❄️ för snöboll</span>
+        <span class="touch">Vänster tumme går · dra för att titta · tryck på nissar och tavlor · håll ❄️ för snöboll</span>
       </div>
       <div class="corner">
         <button id="music" title="Musik (M)">♪</button>
@@ -76,7 +82,7 @@
         <p class="lead">En liten snöig julby med en butik för varje händelse. Gå runt, kika på väggarna, prata med nissarna bakom disken – och spela vid granen.</p>
         <button id="go" disabled>Laddar byn…</button>
         <p class="keys desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd> prata · håll <kbd>Shift</kbd> snöboll · <kbd>Esc</kbd> meny</p>
-        <p class="keys touch">Vänster tumme går · dra höger för att titta · tryck på knappen för att prata · håll ❄️ för snöboll</p>
+        <p class="keys touch">Vänster tumme går · dra för att titta · tryck på nissar och tavlor för att prata och titta · håll ❄️ för snöboll</p>
         <p class="keys"><a href="/handelser">Hellre den vanliga sidan utan 3D? →</a></p>
       </div>
     </div>
@@ -91,6 +97,8 @@
           <button id="m-full" class="desk">⛶ Helskärm</button>
         </div>
         <button id="m-quality" class="wide">✨ Grafik: fin</button>
+        <button id="m-install" class="wide" hidden>📲 Lägg till på hemskärmen</button>
+        <p id="install-help" class="hint" hidden></p>
         <div class="row">
           <button id="m-knytis">🧺 Paxa på knytis</button>
           <button id="m-web">📄 Vanliga sidan</button>

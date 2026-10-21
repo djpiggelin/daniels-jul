@@ -44,8 +44,10 @@ snöboll ramlar den omkull och kastar ofta tillbaka.
 - **`Esc`:** stänger det som är öppet (prat, bild, spel). Annars öppnas menyn – där är musen vanlig igen, och
   *Fortsätt* låser den och tar dig tillbaka in i byn. Menyn har också musik, helskärm, muskänslighet och
   *Grafik: fin / snål* (snål = färre pixlar och inga skuggor, för datorer som blir varma).
-- **Mobil:** vänster tumme går, dra med höger för att titta, tryck på knappen för att prata, håll ❄️ för snöboll,
-  ☰ öppnar menyn.
+- **Mobil:** tummen på vänster halva är en joystick där den landar (hela vägen ut = spring), dra för att titta,
+  **tryck direkt på en nisse, tavla, automat eller släden** för att prata/titta/spela, håll ❄️ för snöboll, ☰ öppnar
+  menyn. På Android går byn i helskärm när du kliver in; menyn har *📲 Lägg till på hemskärmen* (på iPhone är det enda
+  sättet att få helskärm). Zoom-, studs- och långtrycksgester är avstängda så att man inte råkar lämna spelet.
 
 ## Innehåll
 
