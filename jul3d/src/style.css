@@ -398,3 +398,15 @@ body.touch #flight .fl-msg { font-size: 22px; }
 @media (max-width: 520px) {
   #ritbord .title small { display: none; }
 }
+
+/* ---------- ?diag and lost graphics ---------- */
+#diag {
+  position: fixed; left: 8px; top: max(60px, calc(env(safe-area-inset-top) + 52px)); z-index: 90; margin: 0; padding: 6px 8px;
+  border-radius: 8px; background: rgba(0, 0, 0, 0.65); color: #9fe0bf; font: 11px/1.35 ui-monospace, monospace; pointer-events: none; white-space: pre;
+}
+#lost { position: fixed; inset: 0; z-index: 100; display: grid; place-items: center; padding: 20px; background: rgba(4, 6, 16, 0.92); }
+#lost .card { max-width: 380px; text-align: center; }
+#lost h2 { font: 700 28px var(--serif); margin: 0 0 10px; }
+#lost p { opacity: 0.8; line-height: 1.5; }
+#lost button { margin: 12px 0; padding: 12px 20px; border-radius: 999px; border: 0; background: var(--red); color: #fff; font: 700 16px var(--sans); }
+#lost a { display: block; color: var(--cream); opacity: 0.75; }

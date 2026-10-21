@@ -2,6 +2,7 @@
 // The mouse looks around straight away: grabbed (pointer lock) when the browser allows it,
 // otherwise plain mouse movement turns the view, with the screen edges turning you further.
 import * as THREE from 'three'
+import { TOUCH } from './device'
 
 export class Player {
   readonly pos = new THREE.Vector3(0, 0, 25)
@@ -20,7 +21,7 @@ export class Player {
   private joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 }
   private look = { id: -1, x: 0, y: 0 }
   private bob = 0
-  readonly touch = matchMedia('(pointer: coarse)').matches
+  readonly touch = TOUCH
 
   constructor(
     private camera: THREE.PerspectiveCamera,
