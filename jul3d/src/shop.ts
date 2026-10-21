@@ -166,7 +166,7 @@ export class Shop {
 
     // sign on the gable
     const canvas = drawSign(title, '')
-    const tex = toTexture(canvas)
+    const tex = toTexture(canvas, { live: true })
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.29), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.18 }))
     sign.position.set(0, H + 0.78, D / 2 + 0.13)
     g.add(sign)
