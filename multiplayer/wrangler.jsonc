@@ -1,0 +1,13 @@
+// The multiplayer server for the 3D village – deploy with `npm run deploy:mp` (see multiplayer/README.md).
+{
+  "$schema": "../node_modules/wrangler/config-schema.json",
+  "name": "daniels-jul-byn",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-10-01",
+  "durable_objects": {
+    "bindings": [{ "name": "BYN", "class_name": "Byn" }]
+  },
+  // the free plan needs SQLite-backed Durable Objects
+  "migrations": [{ "tag": "v1", "new_sqlite_classes": ["Byn"] }],
+  "observability": { "enabled": true }
+}

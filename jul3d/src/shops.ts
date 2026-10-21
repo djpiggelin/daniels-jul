@@ -9,6 +9,10 @@ import { html, type Talk, type Topic } from './ui'
 import { openKnytis } from './knytis'
 import { openRitbord } from './ritbord'
 import { setHouseSlot } from './teamhouse'
+import { keepApart } from './batch'
+import { julbakHouse } from './pepparkakshus'
+import { furnishJulbord, knytisBoardItems, showClaimsOnBuffet } from './julbord'
+import type { Claims } from '../../src/lib/api'
 
 const JULBAK = EVENTS.find((e) => e.id === 'julbak')!
 const JULBORD = EVENTS.find((e) => e.potluck)!
@@ -75,6 +79,7 @@ function counter(shop: Shop, color: number) {
   const flame = new THREE.Mesh(new THREE.SphereGeometry(0.025, 8, 6), new THREE.MeshBasicMaterial({ color: 0xffd38a, toneMapped: false }))
   flame.position.set(0, 1.04, -0.9)
   flame.scale.y = 1.8
+  keepApart(flame)
   const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture(), blending: THREE.AdditiveBlending, depthWrite: false }))
   glow.position.copy(flame.position)
   glow.scale.setScalar(0.5)
@@ -155,7 +160,7 @@ function copperPot(shop: Shop, x: number, z: number, s = 1) {
   const copper = std(0xd98a4a, 0.35, 0.35)
   const stone = std(0x55555e, 0.95)
   g.add(box(1.0 * s, 0.3, 1.0 * s, stone, 0, 0.15, 0))
-  const fire = new THREE.Mesh(new THREE.ConeGeometry(0.22 * s, 0.35, 8), new THREE.MeshBasicMaterial({ color: 0xff7a2a, toneMapped: false }))
+  const fire = keepApart(new THREE.Mesh(new THREE.ConeGeometry(0.22 * s, 0.35, 8), new THREE.MeshBasicMaterial({ color: 0xff7a2a, toneMapped: false })))
   fire.position.y = 0.42
   const pot = new THREE.Mesh(new THREE.SphereGeometry(0.42 * s, 20, 14, 0, Math.PI * 2, 0, Math.PI * 0.62), copper)
   pot.rotation.x = Math.PI
@@ -196,51 +201,6 @@ function bottleShelf(shop: Shop, along: number, y: number) {
   shop.hang(g, 'right', along, y)
 }
 
-function banquet(shop: Shop) {
-  const t = table(shop, 1.4, -0.9, 1.4, 3.6, 0xfbf3e2)
-  const plate = new THREE.CylinderGeometry(0.16, 0.13, 0.03, 18)
-  const white = std(0xfdfcf8, 0.3)
-  for (const z of [-1.3, -0.45, 0.4, 1.25]) {
-    for (const x of [-0.48, 0.48]) {
-      const p = new THREE.Mesh(plate, white)
-      p.position.set(x, 0.86, z)
-      t.add(p)
-    }
-  }
-  // the ham
-  const ham = new THREE.Mesh(new THREE.SphereGeometry(0.24, 18, 12), std(0xe9a3a0, 0.6))
-  ham.scale.set(1.3, 0.75, 1)
-  ham.position.set(0, 1.0, -0.2)
-  const crust = new THREE.Mesh(new THREE.SphereGeometry(0.245, 18, 12, 0, Math.PI * 2, 0, 1.0), std(0xc8862f, 0.5))
-  crust.scale.copy(ham.scale)
-  crust.position.copy(ham.position)
-  t.add(ham, crust)
-  // meatballs
-  const bowl = new THREE.Mesh(new THREE.CylinderGeometry(0.2, 0.12, 0.12, 18), std(0x2b6cb0, 0.4))
-  bowl.position.set(0, 0.92, 0.75)
-  t.add(bowl)
-  for (let i = 0; i < 9; i++) {
-    const mb = new THREE.Mesh(new THREE.SphereGeometry(0.045, 8, 6), std(0x6b3a1e, 0.8))
-    mb.position.set(Math.cos(i) * 0.1, 0.98 + (i % 3) * 0.02, 0.75 + Math.sin(i) * 0.1)
-    t.add(mb)
-  }
-  // herring jars
-  for (const [i, c] of [0xf6c453, 0xe5383b, 0xfff3dc].entries()) {
-    const jar = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.07, 0.18, 12), new THREE.MeshStandardMaterial({ color: c, transparent: true, opacity: 0.8, roughness: 0.1 }))
-    jar.position.set(-0.15 + i * 0.15, 0.94, -1.0)
-    t.add(jar)
-  }
-  // snaps glasses + candles
-  for (const z of [-1.6, 1.6]) {
-    const holder = new THREE.Mesh(new THREE.CylinderGeometry(0.035, 0.035, 0.32, 8), std(0xfdfcf8))
-    holder.position.set(0, 1.0, z)
-    const fl = new THREE.Mesh(new THREE.SphereGeometry(0.02, 6, 6), new THREE.MeshBasicMaterial({ color: 0xffd38a, toneMapped: false }))
-    fl.position.set(0, 1.19, z)
-    fl.scale.y = 1.8
-    t.add(holder, fl)
-  }
-}
-
 function fireplace(shop: Shop) {
   const g = new THREE.Group()
   const stone = std(0x8a7f78, 0.95)
@@ -248,7 +208,7 @@ function fireplace(shop: Shop) {
   g.add(box(1.4, 0.8, 0.62, std(0x140b07, 1), 0, 0.42, 0.31))
   g.add(box(2.9, 0.12, 0.75, wood, 0, 1.36, 0.35))
   g.add(box(2.2, 0.06, 0.6, stone, 0, 0.03, 0.85))
-  const fire = new THREE.Group()
+  const fire = keepApart(new THREE.Group())
   for (const [x, s, c] of [[-0.25, 0.8, 0xff7a2a], [0.05, 1, 0xffa53a], [0.3, 0.7, 0xff5a1a], [0, 0.55, 0xffd36a]] as const) {
     const f = new THREE.Mesh(new THREE.ConeGeometry(0.16 * s, 0.55 * s, 8), new THREE.MeshBasicMaterial({ color: c, toneMapped: false }))
     f.position.set(x, 0.3 * s, 0.78)
@@ -389,10 +349,11 @@ async function buildVerkstad(): Promise<BuiltShop> {
   )
 
   const t = table(shop, 1.4, -1.2, 1.6, 1.1, 0xe5383b)
-  const house = gingerbreadHouse()
-  house.position.y = 0.84
-  house.rotation.y = 0.5
-  house.scale.setScalar(1.3)
+  // the house from the Julbak photo (NO JUSTICE · NO JINGLE)
+  const house = julbakHouse()
+  house.position.y = 0.845
+  house.rotation.y = 0.45
+  house.scale.setScalar(1.25)
   t.add(house)
 
   const npc = new Nisse({ coat: 0x2fa36b, hat: 0xe5383b, apron: 0xfff3dc })
@@ -480,22 +441,32 @@ async function buildDestilleri(): Promise<BuiltShop> {
 
 async function buildJulbord(): Promise<BuiltShop> {
   const e = JULBORD
-  const shop = new Shop('Julbordet', { wall: '#a8282c', trim: 0xfdfcf8, roof: 0x3a2a24, inner: '#d6b48a' })
+  // white panelled walls inside, like the dining room in the photo
+  const shop = new Shop('Julbordet', { wall: '#a8282c', trim: 0xfdfcf8, roof: 0x3a2a24, inner: '#ece3d3' })
   shop.place(26, 17)
   counter(shop, 0xe5383b)
 
   const photo = await loadImage(e.image)
-  const p = shop.hang(framed(photo, 1.85, { frame: 0xd4a64a, maxH: 2.5 }), 'back', -2.3, 1.95)
+  // (hung high enough to clear the buffet along the back wall)
+  const p = shop.hang(framed(photo, 1.85, { frame: 0xd4a64a, maxH: 1.7 }), 'back', -2.3, 2.15)
   shop.exhibit(p, { title: `${e.emoji} ${e.name}`, caption: e.tagline, image: () => encodeURI(e.image) })
 
   const knytis = await loadImage(POTLUCK_IMAGE)
-  const k = shop.hang(framed(knytis, 2.3, { frame: 0xd4a64a }), 'back', 1.9, 1.95)
+  const k = shop.hang(framed(knytis, 2.3, { frame: 0xd4a64a, maxH: 1.6 }), 'back', 1.9, 2.15)
   shop.exhibit(k, { title: 'Knytis-bordet', caption: 'Så här ska julbordet se ut när alla tagit med sig något.', image: () => encodeURI(POTLUCK_IMAGE) })
 
   const cats = ['Fisk', 'Kött', 'Tillbehör', 'Dryck'] as const
-  const items = cats.flatMap((cat) => [`# ${cat}`, ...DISHES.filter((d) => d.category === cat).map((d) => `${d.emoji} ${d.name}`)])
-  const list = drawBoard({ style: 'chalk', title: 'Knytis – vem tar med vad?', items, marker: 'check', w: 1024, h: 1300, seed: 14 })
-  const l = shop.hang(framed(list, 2.3, { frame: 0x6b4226, border: 0.05 }), 'left', 2.05, 1.85)
+  // the chalkboard ticks dishes off (with who) as they're claimed – here, on the buffet and on /knytis alike
+  const boardSpec = (claims: Claims) => ({ style: 'chalk' as const, title: 'Knytis – vem tar med vad?', items: knytisBoardItems(claims), marker: 'check' as const, w: 1024, h: 1300, seed: 14 })
+  const list = drawBoard(boardSpec({}))
+  const l = shop.hang(framed(list, 2.3, { frame: 0x6b4226, border: 0.05, live: true }), 'left', 2.05, 1.85)
+  const boardTex = ((l.children[0] as THREE.Mesh).material as THREE.MeshStandardMaterial).map!
+  addEventListener('jul:claims', (ev) => {
+    const claims = (ev as CustomEvent<Claims>).detail
+    list.getContext('2d')!.drawImage(drawBoard(boardSpec(claims)), 0, 0)
+    boardTex.needsUpdate = true
+    showClaimsOnBuffet(claims)
+  })
   shop.exhibit(l, { title: 'Knytis-listan', caption: 'Välj en rätt och paxa den – alla tar med något till julbordet.', image: dataUrl(list), open: openKnytis, prompt: 'Paxa en rätt på knytis-listan' })
 
   const imgs = await Promise.all(PARTICIPANTS.map((g) => (g.image ? loadImage(g.image).catch(() => null) : Promise.resolve(null))))
@@ -503,7 +474,7 @@ async function buildJulbord(): Promise<BuiltShop> {
   const gw = shop.hang(framed(guests, 3.7, { frame: 0x5c3a20, border: 0.06 }), 'right', -1.0, 1.95)
   shop.exhibit(gw, { title: 'Gästlistan', caption: `${GUESTS.length} gäster i år`, image: dataUrl(guests) })
 
-  banquet(shop)
+  furnishJulbord(shop)
 
   const npc = new Nisse({ coat: 0xfdfcf8, hat: 0xe5383b, apron: 0xe5383b, pants: 0x2b2b33 })
   const talk: Talk = {
@@ -694,7 +665,8 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
   paper.rotation.set(-Math.PI / 2, 0, 0.12)
   paper.position.set(-0.45, 0.842, 0.1)
   t.add(paper)
-  const slot = new THREE.Group()
+  // rebuilt from your plan whenever the drawing board closes
+  const slot = keepApart(new THREE.Group())
   slot.position.set(0.42, 0.84, 0)
   slot.rotation.y = -0.6
   t.add(slot)

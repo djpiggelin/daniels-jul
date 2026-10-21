@@ -5,6 +5,7 @@ Nedräkning, info och lite julkaos inför årets julbak och julbord.
 - **Byn (3D)** – startsidan: en snöig julby i three.js med en butik per händelse, spelautomater och en släde att flyga
   (i [`jul3d/`](jul3d), se [dess README](jul3d/README.md))
 - **Händelser** (`/handelser`) – flygande släde (tryck på den!), nedräkning och alla händelser
+- **Multiplayer** – se varandra i byn och kasta snöboll på varandra (server i [`multiplayer/`](multiplayer), se [dess README](multiplayer/README.md))
 - **Event-sidor** – tider, plats, tävlingsregler, årets tema och "Lägg till i kalendern" (.ics)
 - **Knytis** – klicka på en rätt på julbordsbilden och paxa den
 - **Spel** – Klappfångst, Rudolfs Flygtur och Tomtememory, med topplistor

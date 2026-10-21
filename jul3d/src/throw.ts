@@ -58,6 +58,9 @@ export class Thrower {
     this.charge = 0
   }
 
+  /** A snowball left your hand (for the other players to see). */
+  onThrow: (from: THREE.Vector3, vel: THREE.Vector3) => void = () => {}
+
   release() {
     if (!this.charging) return
     this.charging = false
@@ -70,6 +73,7 @@ export class Thrower {
     from.y -= 0.05
     const vel = dir.multiplyScalar(9 + c * 15).add(this.player.vel)
     this.balls.throw(from, vel)
+    this.onThrow(from, vel)
     this.vm.release()
     whoosh()
     // lurch forward with the throw

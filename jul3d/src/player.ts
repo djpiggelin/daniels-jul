@@ -11,6 +11,8 @@ export class Player {
   enabled = false
   /** Mouse sensitivity multiplier (Esc menu). */
   sens = 1
+  /** How far zoomed in (1 = not at all): looking around slows down to match, so you can aim. */
+  zoom = 1
   /** Throw wind-up: >0 leans back, <0 lurches forward. */
   lean = 0
   readonly vel = new THREE.Vector3()
@@ -20,7 +22,14 @@ export class Player {
   private mouse: { x: number; y: number } | null = null
   private joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 }
   private look = { id: -1, x: 0, y: 0 }
+  /** Where and when a finger came down – a short touch that hardly moved is a tap. */
+  private press = new Map<number, { x: number; y: number; t: number; moved: number }>()
+  /** A tap on the scene (touch): talk to / look at whatever is under the finger. */
+  onTap: (x: number, y: number) => void = () => {}
   private bob = 0
+  /** Feet above the snow (jumping), and how fast that is changing. */
+  height = 0
+  private vy = 0
   readonly touch = TOUCH
 
   constructor(
@@ -32,6 +41,10 @@ export class Player {
     addEventListener('keydown', (e) => {
       if (!this.enabled || e.metaKey || e.ctrlKey) return
       this.keys.add(e.code)
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault() // no page scroll
+        this.jump()
+      }
       // a key press counts as a user gesture, so it can grab the mouse again (not Esc – the browser keeps that one)
       if (e.code !== 'Escape') this.lock()
     })
@@ -51,6 +64,7 @@ export class Player {
     dom.addEventListener('pointerdown', (e) => {
       if (!this.enabled) return
       if (e.pointerType === 'mouse') return
+      this.press.set(e.pointerId, { x: e.clientX, y: e.clientY, t: performance.now(), moved: 0 })
       try {
         dom.setPointerCapture(e.pointerId)
       } catch {
@@ -67,6 +81,8 @@ export class Player {
       }
     })
     dom.addEventListener('pointermove', (e) => {
+      const p = this.press.get(e.pointerId)
+      if (p) p.moved = Math.max(p.moved, Math.hypot(e.clientX - p.x, e.clientY - p.y))
       if (e.pointerId === this.joy.id) {
         let dx = e.clientX - this.joy.ox
         let dy = e.clientY - this.joy.oy
@@ -87,6 +103,9 @@ export class Player {
     })
     const end = (e: PointerEvent) => {
       if (e.pointerType === 'mouse') return
+      const p = this.press.get(e.pointerId)
+      this.press.delete(e.pointerId)
+      if (p && e.type === 'pointerup' && this.enabled && p.moved < 12 && performance.now() - p.t < 350) this.onTap(e.clientX, e.clientY)
       if (e.pointerId === this.joy.id) {
         this.joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 }
         this.stick.classList.remove('on')
@@ -116,14 +135,22 @@ export class Player {
   }
 
   /** Stop all movement input (keeps the mouse grabbed). */
+  /** Jump – if your feet are on the ground. (Same pull of gravity as the snowballs.) */
+  jump() {
+    if (!this.enabled || this.height > 0.001 || this.vy !== 0) return
+    this.vy = 4.6
+  }
+
   stop() {
     this.keys.clear()
+    this.press.clear()
     this.joy = { id: -1, ox: 0, oy: 0, x: 0, y: 0 }
     this.look.id = -1
     this.stick.classList.remove('on')
   }
 
   private turn(dx: number, dy: number, k: number) {
+    k /= this.zoom
     this.yaw -= dx * k
     this.pitch = THREE.MathUtils.clamp(this.pitch - dy * k, -1.3, 1.2)
   }
@@ -148,6 +175,8 @@ export class Player {
     const side = (k('KeyD') ? 1 : 0) - (k('KeyA') ? 1 : 0) + this.joy.x
     // running kicks in after walking forward for a moment
     this.runFor = this.enabled && fwd > 0.5 ? this.runFor + dt : 0
+    // the stick pushed all the way: run straight away
+    if (this.enabled && Math.hypot(this.joy.x, this.joy.y) > 0.92 && fwd > 0.5) this.runFor = Math.max(this.runFor, 1.8)
     const run = THREE.MathUtils.smoothstep(this.runFor, 1.1, 1.8)
     const f = this.forward
     const r = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw))
@@ -160,10 +189,20 @@ export class Player {
 
     const speed = this.vel.length()
     this.bob += dt * speed * 2.2
-    const bobY = Math.sin(this.bob) * 0.045 * Math.min(1, speed / 4)
+    // up and down: about 80 cm at the top of a jump
+    if (this.vy !== 0 || this.height > 0) {
+      this.vy -= 13 * dt
+      this.height += this.vy * dt
+      if (this.height <= 0) {
+        this.height = 0
+        this.vy = 0
+      }
+    }
+    const airborne = this.height > 0
+    const bobY = airborne ? 0 : Math.sin(this.bob) * 0.045 * Math.min(1, speed / 4)
     // lean back while winding up a throw (head goes back and up a little)
     const back = this.lean * 0.16
-    this.camera.position.set(this.pos.x + Math.sin(this.yaw) * back, 1.62 + bobY - Math.abs(this.lean) * 0.04, this.pos.z + Math.cos(this.yaw) * back)
+    this.camera.position.set(this.pos.x + Math.sin(this.yaw) * back, 1.62 + this.height + bobY - Math.abs(this.lean) * 0.04, this.pos.z + Math.cos(this.yaw) * back)
     this.camera.rotation.set(this.pitch + this.lean * 0.13, this.yaw, -this.lean * 0.05, 'YXZ')
   }
 }

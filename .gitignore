@@ -6,3 +6,5 @@ dist
 .env
 # Real content (guests, photos, event details) – lives in Netlify Blobs, see README
 content/
+# wrangler dev state
+.wrangler/

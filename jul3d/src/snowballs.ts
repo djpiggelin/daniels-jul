@@ -10,7 +10,8 @@ const R = 0.08
 /** Put this on a group's userData to hear about hits (characters use it and get no splat). */
 export type SnowballHit = (from: THREE.Vector3, point: THREE.Vector3) => void
 
-type Ball = { mesh: THREE.Mesh; vel: THREE.Vector3; owner: THREE.Object3D | null; age: number }
+/** `born`: wall-clock time – a ball left hanging while the page wasn't drawn (phone locked, tab hidden) must not land later as a hit. */
+type Ball = { mesh: THREE.Mesh; vel: THREE.Vector3; owner: THREE.Object3D | null; age: number; born: number }
 type Decal = { mesh: THREE.Mesh; age: number }
 type Puff = { sprite: THREE.Sprite; age: number }
 
@@ -74,8 +75,8 @@ export class Snowballs {
   private pSize = new Float32Array(this.N)
   private pNext = 0
   private points: THREE.Points
-  /** Called when an elf's snowball reaches you. */
-  onPlayerHit: () => void = () => {}
+  /** Called when someone else's snowball reaches you – an elf's, or another player's nisse. */
+  onPlayerHit: (owner: THREE.Object3D | null) => void = () => {}
 
   constructor(
     private scene: THREE.Scene,
@@ -132,7 +133,7 @@ export class Snowballs {
     mesh.position.copy(from)
     mesh.castShadow = true
     this.scene.add(mesh)
-    this.balls.push({ mesh, vel: vel.clone(), owner, age: 0 })
+    this.balls.push({ mesh, vel: vel.clone(), owner, age: 0, born: performance.now() })
   }
 
   update(dt: number, head: THREE.Vector3) {
@@ -140,6 +141,10 @@ export class Snowballs {
     for (let i = this.balls.length - 1; i >= 0; i--) {
       const b = this.balls[i]
       b.age += dt
+      if (performance.now() - b.born > 4000) {
+        this.remove(i)
+        continue
+      }
       const p0 = b.mesh.position.clone()
       b.vel.y -= GRAVITY * dt
       const step = b.vel.clone().multiplyScalar(dt)
@@ -154,7 +159,7 @@ export class Snowballs {
           this.remove(i)
           this.splash(closest, step.clone().negate().normalize(), 10)
           puff(0.5)
-          this.onPlayerHit()
+          this.onPlayerHit(b.owner)
           continue
         }
       }

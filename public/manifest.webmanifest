@@ -1,0 +1,20 @@
+{
+  "name": "Daniels Jul",
+  "short_name": "Daniels Jul",
+  "description": "Julbyn i 3D – julbak, julbord, knytis och julspel.",
+  "start_url": "/",
+  "scope": "/",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#070b1d",
+  "theme_color": "#070b1d",
+  "lang": "sv",
+  "icons": [
+    {
+      "src": "/favicon.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
+    }
+  ]
+}
