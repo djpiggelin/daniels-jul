@@ -323,7 +323,7 @@ function tv(shop: Shop, along: number) {
   const set = box(1.0, 0.8, 0.5, std(0x3a2a20, 0.6), 0, 1.0, 0.25)
   g.add(set)
   const [c] = makeCanvas(512, 384)
-  const tex = toTexture(c)
+  const tex = toTexture(c, { live: true })
   const screen = new THREE.Mesh(new THREE.PlaneGeometry(0.8, 0.6), new THREE.MeshBasicMaterial({ map: tex, toneMapped: false }))
   screen.position.set(0, 1.0, 0.51)
   g.add(screen)

@@ -2,6 +2,7 @@
 // rings in the sky round the village. Every ring buys a few more seconds; when the clock runs out you
 // glide back to where the sleigh was parked (and Tomten climbs back in).
 import * as THREE from 'three'
+import { TOUCH, walkFov } from './device'
 import type { Player } from './player'
 import { blip, whoosh } from './sfx'
 import { EYE, PARK, type Sleigh } from './sleigh'
@@ -20,7 +21,7 @@ const FOG = { walk: 0.021, fly: 0.0065 }
 const BEST_KEY = 'jul3d.best.slade'
 /** Points until it's as hard as it gets: faster, tighter turns, smaller rings. */
 const HARDEST = 40
-const touch = matchMedia('(pointer: coarse)').matches
+const touch = TOUCH
 
 type State = 'board' | 'takeoff' | 'fly' | 'over' | 'fade'
 type Ring = {
@@ -516,7 +517,9 @@ export class Flight {
     // clear the haze so you can see far out over the forest
     const fog = this.scene.fog as THREE.FogExp2
     if (s !== 'board') fog.density = damp(fog.density, FOG.fly, 1.5, dt)
-    const fov = s === 'board' ? 70 : Math.min(92, 72 + (this.speed - SPEED) * 0.6)
+    // as when walking, a phone held upright gets a wider view
+    const base = walkFov(this.camera.aspect)
+    const fov = s === 'board' ? base : Math.min(base + 22, base + 2 + (this.speed - SPEED) * 0.6)
     this.camera.fov = damp(this.camera.fov, fov, 4, dt)
     this.camera.updateProjectionMatrix()
 
@@ -573,7 +576,7 @@ export class Flight {
     this.sparks.pos.fill(-999)
     this.sparks.pts.geometry.attributes.position.needsUpdate = true
     ;(this.scene.fog as THREE.FogExp2).density = FOG.walk
-    this.camera.fov = 70
+    this.camera.fov = walkFov(this.camera.aspect)
     this.camera.updateProjectionMatrix()
     this.sleigh.park()
     this.sleigh.reseat()

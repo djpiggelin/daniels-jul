@@ -1,6 +1,7 @@
 // Everything drawn on a 2D canvas before it becomes a texture: chalkboards, parchments,
 // sticky notes, signs, posters and the polaroid wall.
 import * as THREE from 'three'
+import { QUALITY, fitTexture } from './device'
 
 export const FONT = {
   chalk: '"Caveat", "Comic Sans MS", cursive',
@@ -21,10 +22,12 @@ export function makeCanvas(w: number, h: number) {
   return [c, c.getContext('2d')!] as const
 }
 
-export function toTexture(src: HTMLCanvasElement | HTMLImageElement) {
-  const t = src instanceof HTMLCanvasElement ? new THREE.CanvasTexture(src) : new THREE.Texture(src)
+/** `live`: the canvas is redrawn later (signs, screens) – never shrink it to fit the budget. */
+export function toTexture(src: HTMLCanvasElement | HTMLImageElement, opts: { live?: boolean } = {}) {
+  const img = fitTexture(src, opts.live)
+  const t = img instanceof HTMLCanvasElement ? new THREE.CanvasTexture(img) : new THREE.Texture(img)
   t.colorSpace = THREE.SRGBColorSpace
-  t.anisotropy = 8
+  t.anisotropy = QUALITY.anisotropy
   t.needsUpdate = true
   return t
 }

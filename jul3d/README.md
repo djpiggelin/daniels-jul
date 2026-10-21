@@ -54,6 +54,27 @@ från Netlify Blobs i produktion och från exemplet i `public/example/` lokalt. 
 vad som hänger på väggarna finns i [`src/shops.ts`](src/shops.ts). Teckningarna i `public/art/` (i repots rot) är
 renderade från `ThemeArt.tsx` i 2D-sajten.
 
+## Telefon, surfplatta och dator
+
+[`src/device.ts`](src/device.ts) avgör en gång vad byn körs på och hur mycket den får kosta:
+
+| | Telefon | Surfplatta | Dator |
+| --- | --- | --- | --- |
+| Pixeltäthet (max → min) | 1,25 → 0,6 | 1,25 → 0,75 | 1,5 → 1 |
+| Största textur | 512 px (384 med lite minne) | 1024 px | full |
+| Skuggor / kantutjämning | nej / nej | nej / ja | ja / ja |
+| Tomtenissar | 4 | 5 | 8 |
+
+- **Upplösningen följer bildfrekvensen**: under ~40 fps sänks den, över ~56 fps höjs den igen (aldrig över taket).
+- **Texturbudgeten** krymper statiska ritytor *på plats* när de blir texturer – iOS Safari har ett hårt tak för hur mycket
+  minne alla canvas får använda – så bildvisaren visar samma canvas, bara mindre. Skyltar och skärmar som ritas om hela
+  tiden (`toTexture(c, { live: true })`) lämnas orörda.
+- **Synfältet** hålls brett när telefonen hålls upp och ner (`walkFov`), annars ser man byn som genom ett rör.
+- Tar grafiken slut på minne visas *Byn behöver en paus* med en knapp för att ladda om.
+
+Testa: `?enhet=telefon`, `?enhet=surfplatta` eller `?enhet=dator` tvingar en profil (`?enhet=auto` släpper den).
+`?diag` visar profil, fps, upplösning, ritanrop, texturminne och grafikkort – bra att läsa av på en riktig telefon.
+
 ## Kör lokalt
 
 Från repots rot (beroendena delas med 2D-sajten):

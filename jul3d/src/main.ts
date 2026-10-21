@@ -17,30 +17,35 @@ import { RitbordPanel } from './ritbord'
 import { refreshTeamHouse } from './teamhouse'
 import { Viewmodel } from './viewmodel'
 import { VILLAGE_RADIUS, buildWorld } from './world'
+import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 
 const $ = (id: string) => document.getElementById(id)!
-const touch = matchMedia('(pointer: coarse)').matches
+const touch = TOUCH
 document.body.classList.toggle('touch', touch)
+document.body.classList.add(`enhet-${PROFILE}`)
 
 /* ---------- renderer ---------- */
-const renderer = new THREE.WebGLRenderer({ antialias: true, powerPreference: 'high-performance' })
-// 1.5 is sharp enough on a retina screen and draws ~45% fewer pixels than 2
-const SHARP = Math.min(devicePixelRatio, 1.5)
+const renderer = new THREE.WebGLRenderer({ antialias: QUALITY.antialias, powerPreference: 'high-performance' })
+// 1.5 is sharp enough on a retina screen and draws ~45% fewer pixels than 2 (phones: 1.25, see device.ts)
+const SHARP = QUALITY.pixelRatio
 renderer.setPixelRatio(SHARP)
 renderer.setSize(innerWidth, innerHeight)
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
 renderer.toneMappingExposure = 1.15
-renderer.shadowMap.enabled = !touch
+renderer.shadowMap.enabled = QUALITY.shadows
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 // the world and then your own arms on top (see viewmodel.ts)
 renderer.autoClear = false
+// count a whole frame (world + arms) for ?diag, not just the last render call
+renderer.info.autoReset = false
 $('app').appendChild(renderer.domElement)
 
 const scene = new THREE.Scene()
-const camera = new THREE.PerspectiveCamera(70, innerWidth / innerHeight, 0.05, 800)
+const camera = new THREE.PerspectiveCamera(walkFov(innerWidth / innerHeight), innerWidth / innerHeight, 0.05, 800)
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight
+  if (!flight.active) camera.fov = walkFov(camera.aspect)
   camera.updateProjectionMatrix()
   renderer.setSize(innerWidth, innerHeight)
   sizeSpray()
@@ -53,7 +58,7 @@ const player = new Player(camera, renderer.domElement, $('stick'), $('knob'))
 const cursor = new VirtualCursor(() => player.locked)
 const menu = new PauseMenu()
 
-const world = buildWorld(scene, { lowPower: touch })
+const world = buildWorld(scene, { lowPower: QUALITY.lowPower })
 camera.position.set(0, 1.62, 25)
 const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
@@ -151,7 +156,7 @@ async function build() {
         snowballs.throw(from, new THREE.Vector3(d.x / T, (d.y + 0.5 * 13 * T * T) / T, d.z / T), owner)
       },
     },
-    touch ? 5 : 8,
+    QUALITY.elves,
   )
   for (const e of elves) solids.push(e.group)
 
@@ -568,6 +573,53 @@ function cullSmall() {
 }
 
 /* ---------- graphics: fin / snål ---------- */
+/* ---------- resolution ---------- */
+// Phones vary wildly, so the resolution follows the frame rate: fewer pixels when it struggles,
+// back up when there's room – never above the cap (the device's, or "snål").
+let pixelCap = SHARP
+let pixels = SHARP
+function setPixels(pr: number) {
+  pixels = Math.round(Math.min(pixelCap, Math.max(QUALITY.minPixelRatio, pr)) * 100) / 100
+  renderer.setPixelRatio(pixels)
+  sizeSpray()
+}
+const fpsWin = { frames: 0, since: 0, fps: 0 }
+function adaptResolution(now: number) {
+  if (document.hidden) return void (fpsWin.since = 0)
+  if (!fpsWin.since) return void Object.assign(fpsWin, { since: now, frames: 0 })
+  fpsWin.frames++
+  const span = now - fpsWin.since
+  if (span < 2000) return
+  fpsWin.fps = (fpsWin.frames * 1000) / span
+  Object.assign(fpsWin, { since: now, frames: 0 })
+  if (fpsWin.fps < 40 && pixels > QUALITY.minPixelRatio) setPixels(pixels - 0.15)
+  else if (fpsWin.fps > 56 && pixels < pixelCap) setPixels(pixels + 0.1)
+}
+
+/* ---------- when the graphics give up ---------- */
+// A phone that runs out of graphics memory drops the WebGL context: say so instead of freezing.
+renderer.domElement.addEventListener('webglcontextlost', (e) => {
+  e.preventDefault()
+  $('lost').hidden = false
+})
+
+/* ---------- ?diag: numbers to read off a phone ---------- */
+const diag = new URLSearchParams(location.search).has('diag') ? $('diag') : null
+if (diag) diag.hidden = false
+function updateDiag() {
+  if (!diag) return
+  const gl = renderer.getContext()
+  const dbg = gl.getExtension('WEBGL_debug_renderer_info')
+  const gpu = dbg ? String(gl.getParameter(dbg.UNMASKED_RENDERER_WEBGL)) : '?'
+  diag.textContent = [
+    `${PROFILE} · ${touch ? 'touch' : 'mus'} · ${innerWidth}×${innerHeight} @${devicePixelRatio}`,
+    `${fpsWin.fps.toFixed(0)} fps · upplösning ${pixels} (max ${pixelCap})`,
+    `${renderer.info.render.calls} anrop · ${Math.round(renderer.info.render.triangles / 1000)}k trianglar`,
+    `texturer ${renderer.info.memory.textures} st · ~${Math.round(textureMB())} MB · fov ${camera.fov.toFixed(0)}°`,
+    gpu,
+  ].join('\n')
+}
+
 // "Snål" (thrifty) draws fewer pixels and no moon shadows, for laptops that get hot.
 const QUALITY_KEY = 'jul3d.quality'
 let thrifty = false
@@ -577,9 +629,9 @@ try {
   /* no storage – fine */
 }
 function applyQuality() {
-  renderer.setPixelRatio(thrifty ? Math.min(devicePixelRatio, 1) : SHARP)
-  world.shadows(!thrifty)
-  sizeSpray()
+  pixelCap = thrifty ? Math.min(devicePixelRatio, 1, SHARP) : SHARP
+  setPixels(pixelCap)
+  world.shadows(QUALITY.shadows && !thrifty)
   $('m-quality').textContent = thrifty ? '🔋 Grafik: snål' : '✨ Grafik: fin'
 }
 $('m-quality').addEventListener('click', () => {
@@ -624,13 +676,16 @@ function frame(now: number) {
   if ((hudTimer -= dt) <= 0) {
     hudTimer = 0.5
     updateHud()
+    updateDiag()
   }
   world.showFar(flight.active)
   if (frameNo % 4 === 0) cullSmall()
   if (frameNo % 2 === 0) renderer.shadowMap.needsUpdate = true
+  renderer.info.reset()
   renderer.clear()
   renderer.render(scene, camera)
   vm.render(renderer, camera)
+  if (!idle) adaptResolution(now)
 }
 
 /* ---------- start ---------- */
