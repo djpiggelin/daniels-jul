@@ -2,7 +2,13 @@
 <html lang="sv">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+    <meta name="apple-mobile-web-app-title" content="Daniels Jul" />
+    <link rel="apple-touch-icon" href="/favicon.png" />
     <link rel="icon" type="image/png" href="/favicon.png" />
     <title>Daniels Jul – Byn</title>
     <meta name="theme-color" content="#070b1d" />
@@ -22,18 +28,22 @@
 
     <div id="hud" hidden>
       <div id="next-event"></div>
+      <div id="online" hidden></div>
       <div id="crosshair"></div>
       <div id="toast" hidden></div>
       <button id="prompt" hidden><kbd>E</kbd><span></span></button>
       <div id="help">
-        <span class="desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd>/klick prata · håll <kbd>Shift</kbd> kasta snöboll · <kbd>Esc</kbd> meny</span>
-        <span class="touch">Vänster tumme går · dra höger för att titta · håll ❄️ för snöboll</span>
+        <span class="desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd>/klick prata · håll <kbd>Shift</kbd> kasta snöboll · <kbd>Space</kbd> hoppa · håll högerklick zooma · <kbd>Enter</kbd> chatta · <kbd>Esc</kbd> meny</span>
+        <span class="touch">Vänster tumme går · dra för att titta · tryck på nissar och tavlor · håll ❄️ för snöboll · ⤴ hoppa · 🔍 zooma</span>
       </div>
       <div class="corner">
+        <button id="chat-btn" title="Chatta (Enter)" hidden>💬</button>
         <button id="music" title="Musik (M)">♪</button>
         <button id="menu-btn" title="Meny (Esc)">☰</button>
       </div>
       <button id="throw" class="touch" aria-label="Kasta snöboll">❄️</button>
+      <button id="jump" class="touch" aria-label="Hoppa">⤴</button>
+      <button id="zoom" class="touch" aria-label="Zooma">🔍</button>
       <div id="charge"><i></i></div>
       <div id="stick"><div id="knob"></div></div>
       <div id="flight" hidden>
@@ -74,9 +84,13 @@
         <div class="kicker">Välkommen till</div>
         <h1>Daniels Jul</h1>
         <p class="lead">En liten snöig julby med en butik för varje händelse. Gå runt, kika på väggarna, prata med nissarna bakom disken – och spela vid granen.</p>
+        <label id="me" hidden>
+          <span>Ditt namn – syns för de andra i byn</span>
+          <input id="me-name" maxlength="24" autocomplete="nickname" enterkeyhint="go" placeholder="t.ex. Rudolf" />
+        </label>
         <button id="go" disabled>Laddar byn…</button>
-        <p class="keys desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd> prata · håll <kbd>Shift</kbd> snöboll · <kbd>Esc</kbd> meny</p>
-        <p class="keys touch">Vänster tumme går · dra höger för att titta · tryck på knappen för att prata · håll ❄️ för snöboll</p>
+        <p class="keys desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd> prata · håll <kbd>Shift</kbd> snöboll · <kbd>Space</kbd> hoppa · <kbd>Enter</kbd> chatta · <kbd>Esc</kbd> meny</p>
+        <p class="keys touch">Vänster tumme går · dra för att titta · tryck på nissar och tavlor för att prata och titta · håll ❄️ för snöboll</p>
         <p class="keys"><a href="/handelser">Hellre den vanliga sidan utan 3D? →</a></p>
       </div>
     </div>
@@ -90,7 +104,10 @@
           <button id="m-music">♪ Musik</button>
           <button id="m-full" class="desk">⛶ Helskärm</button>
         </div>
+        <div id="m-players" hidden></div>
         <button id="m-quality" class="wide">✨ Grafik: fin</button>
+        <button id="m-install" class="wide" hidden>📲 Lägg till på hemskärmen</button>
+        <p id="install-help" class="hint" hidden></p>
         <div class="row">
           <button id="m-knytis">🧺 Paxa på knytis</button>
           <button id="m-web">📄 Vanliga sidan</button>
@@ -101,6 +118,9 @@
           <li><span>mus</span> titta runt</li>
           <li><span><kbd>E</kbd> / klick</span> prata, titta, spela</li>
           <li><span>håll <kbd>Shift</kbd></span> sikta snöboll – släpp för att kasta</li>
+          <li><span><kbd>Space</kbd></span> hoppa</li>
+          <li><span>håll högerklick / <kbd>Z</kbd></span> zooma in</li>
+          <li><span><kbd>Enter</kbd></span> chatta med de andra i byn</li>
           <li><span><kbd>M</kbd></span> musik</li>
           <li><span><kbd>Esc</kbd></span> stäng / meny</li>
         </ul>
@@ -141,6 +161,12 @@
         <a href="/handelser">Vanliga sidan →</a>
       </div>
     </div>
+
+    <div id="chat-log" aria-live="polite"></div>
+    <form id="chat" hidden autocomplete="off">
+      <input id="chat-input" maxlength="120" enterkeyhint="send" placeholder="Säg något till de andra…" />
+      <button type="submit">Skicka</button>
+    </form>
 
     <div id="splat" hidden></div>
     <div id="fade"></div>

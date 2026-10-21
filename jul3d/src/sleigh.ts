@@ -2,6 +2,7 @@
 // Tomten himself in the seat. Walk up, press E, push him out into the snow and take the reins –
 // the flying is in flight.ts. Everything here is in sleigh space: -z forward, the sleigh's middle at the origin.
 import * as THREE from 'three'
+import { keepApart } from './batch'
 import { Nisse } from './npc'
 import { blip } from './sfx'
 import { glowTexture } from './tex'
@@ -64,7 +65,7 @@ class Reindeer {
       bell.position.set(x, 1.2, -0.6)
       this.body.add(bell)
     }
-    this.tail = new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), std(0xf7f4ee, 0.9))
+    this.tail = keepApart(new THREE.Mesh(new THREE.SphereGeometry(0.08, 8, 6), std(0xf7f4ee, 0.9)))
     this.tail.position.set(0, 1.18, 0.66)
     this.body.add(torso, chest, neck, belly, collar, this.tail)
 

@@ -15,6 +15,10 @@ import { Dialog, PauseMenu, Viewer, VirtualCursor, type Talk } from './ui'
 import { KnytisPanel } from './knytis'
 import { RitbordPanel } from './ritbord'
 import { refreshTeamHouse } from './teamhouse'
+import { Multiplayer } from './multiplayer'
+import { bakeStatic, mergeRigid } from './batch'
+import { PARTICIPANTS } from './data'
+import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { VILLAGE_RADIUS, buildWorld } from './world'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
@@ -23,6 +27,13 @@ const $ = (id: string) => document.getElementById(id)!
 const touch = TOUCH
 document.body.classList.toggle('touch', touch)
 document.body.classList.add(`enhet-${PROFILE}`)
+/** Opened from the home screen – already fullscreen. */
+const standalone = matchMedia('(display-mode: fullscreen), (display-mode: standalone)').matches || (navigator as Navigator & { standalone?: boolean }).standalone === true
+// pinch-zoom (iOS ignores user-scalable=no), double-tap zoom and long-press menus would pull you out of the game
+for (const ev of ['gesturestart', 'gesturechange', 'dblclick']) document.addEventListener(ev, (e) => e.preventDefault(), { passive: false })
+document.addEventListener('contextmenu', (e) => {
+  if (!(e.target as HTMLElement).closest('input, textarea')) e.preventDefault()
+})
 
 /* ---------- renderer ---------- */
 const renderer = new THREE.WebGLRenderer({ antialias: QUALITY.antialias, powerPreference: 'high-performance' })
@@ -45,7 +56,7 @@ const scene = new THREE.Scene()
 const camera = new THREE.PerspectiveCamera(walkFov(innerWidth / innerHeight), innerWidth / innerHeight, 0.05, 800)
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight
-  if (!flight.active) camera.fov = walkFov(camera.aspect)
+  if (!flight.active) camera.fov = walkFov(camera.aspect) / player.zoom
   camera.updateProjectionMatrix()
   renderer.setSize(innerWidth, innerHeight)
   sizeSpray()
@@ -160,6 +171,15 @@ async function build() {
   )
   for (const e of elves) solids.push(e.group)
 
+  // fewer draw calls (batch.ts): each shop's still meshes merged, every nisse merged part by part
+  for (const s of shops) bakeStatic(s.shop.group, new Set(s.shop.exhibits.map((e) => e.target)))
+  for (const n of [...talkers.map((t) => t.npc), ...elves.map((e) => e.nisse), sleigh.santa]) mergeRigid(n.group)
+  mergeRigid(sleigh.group)
+  // and everything else on the square that stands still (the tree, lamps, gifts, the poster column…)
+  const moving = new Set<THREE.Object3D>([...shops.map((s) => s.shop.group), ...talkers.map((t) => t.npc.group), ...elves.map((e) => e.nisse.group), sleigh.group, sleigh.santa.group, ...(arcade?.cabinets.map((c) => c.group) ?? [])])
+  const posters = new Set(square.exhibits.map((e) => e.target))
+  for (const o of [...scene.children]) if ((o as THREE.Group).isGroup && !moving.has(o)) bakeStatic(o, posters)
+
   // tiny things barely show in the moon's shadow map (~3.5 cm a pixel): leave them out of the shadow pass
   const scale = new THREE.Vector3()
   scene.traverse((o) => {
@@ -248,8 +268,9 @@ const thrower = new Thrower(player, camera, vm, snowballs, () => started && play
 sleigh.say = (text) => started && toast(text)
 // an elf got you: snow on your face and a little knock back
 let splatTimer = 0
-snowballs.onPlayerHit = () => {
+snowballs.onPlayerHit = (owner) => {
   if (!player.enabled) return // not while you're reading or playing
+  mp?.hitBy(owner)
   const el = $('splat')
   el.hidden = true
   void el.offsetWidth // restart the animation
@@ -258,6 +279,52 @@ snowballs.onPlayerHit = () => {
   clearTimeout(splatTimer)
   splatTimer = setTimeout(() => (el.hidden = true), 1800)
   thrower.knock()
+}
+
+/* ---------- other people in the village ---------- */
+// The server lives in multiplayer/ (Cloudflare). Without VITE_MP_URL the village stays one-player.
+const MP_URL: string = import.meta.env.VITE_MP_URL ?? (import.meta.env.DEV ? 'ws://localhost:8787/byn' : '')
+const mp = MP_URL ? new Multiplayer(MP_URL, scene) : null
+if (mp) {
+  mp.onAvatar = (group, added) => {
+    if (added) solids.push(group)
+    else if (solids.includes(group)) solids.splice(solids.indexOf(group), 1)
+  }
+  // a throw while you weren't looking (phone locked, other tab) never reaches you
+  mp.onThrow = (from, vel, owner) => document.hidden || snowballs.throw(from, vel, owner)
+  mp.onJoin = (name) => toast(`🎅 ${name} kom in i byn`)
+  mp.onLeave = (name) => toast(`👋 ${name} gick hem`)
+  mp.onHit = (by, on, mine) => toast(mine.by ? `❄️ Träff! Du prickade ${on}` : mine.on ? `❄️ ${by} träffade dig!` : `❄️ ${by} prickade ${on}`)
+  mp.onChange = showOthers
+  mp.onSay = (name, text, mine) => chatLine(name, text, mine)
+  thrower.onThrow = (from, vel) => mp.sendThrow(from, vel)
+  $('me').hidden = false
+  ;($('me-name') as HTMLInputElement).value = rememberedName.get()
+  $('me-name').addEventListener('keydown', (e) => {
+    if (e.key === 'Enter') ($('go') as HTMLButtonElement).click()
+  })
+}
+/** Step in with a name (the same one knytis remembers) – and your photo if you're on the guest list. */
+function joinOthers() {
+  if (!mp) return
+  const typed = ($('me-name') as HTMLInputElement).value.trim()
+  if (typed) rememberedName.set(typed)
+  const name = typed || `Nisse ${10 + Math.floor(Math.random() * 90)}`
+  const photo = PARTICIPANTS.find((p) => p.name.toLowerCase() === name.toLowerCase())?.image ?? null
+  mp.join({ name, photo })
+}
+/** "👥 3 i byn" in the corner, and who's here (with their hits) in the menu. */
+function showOthers() {
+  const people = mp?.players ?? []
+  $('online').hidden = !mp?.online
+  $('chat-btn').hidden = !mp?.online
+  $('online').textContent = `👥 ${people.length} i byn`
+  const list = $('m-players')
+  list.hidden = people.length < 2
+  list.replaceChildren(
+    Object.assign(document.createElement('div'), { className: 'kicker', textContent: 'I byn just nu' }),
+    ...people.map((p) => Object.assign(document.createElement('div'), { textContent: `${p.me ? '⭐ ' : ''}${p.name}${p.hits ? ` · ❄️ ${p.hits}` : ''}` })),
+  )
 }
 
 /* ---------- targeting + interaction ---------- */
@@ -302,6 +369,41 @@ function findTarget(): Target | null {
     if (d < 3.4 && (dx * fwd.x + dz * fwd.z) / d > 0.5) return { kind: 'sleigh' }
   }
   return aimed
+}
+
+/** What's under a finger at (x, y): the thing you tapped, if it's close enough to reach. */
+function targetAt(x: number, y: number): Target | null {
+  const ndc = new THREE.Vector2((x / innerWidth) * 2 - 1, -(y / innerHeight) * 2 + 1)
+  ray.setFromCamera(ndc, camera)
+  const hit = ray.intersectObjects(rayRoots, true)[0]
+  let aimed: Target | null = null
+  for (let o: THREE.Object3D | null = hit?.object ?? null; o && !aimed; o = o.parent) aimed = exhibitOf.get(o) ?? null
+  // people are thin – take the one whose middle is nearest the finger on screen. Right under the
+  // finger (and in front of what the ray hit) they win; a near miss only counts when nothing else was hit.
+  let best: Target | null = null
+  let bestPx = aimed ? 45 : 90
+  const head = new THREE.Vector3()
+  const consider = (p: THREE.Vector3, t: Target) => {
+    const d = p.distanceTo(camera.position)
+    if (d > 5.5 || (aimed && hit && d > hit.distance + 0.3)) return
+    head.copy(p).project(camera)
+    if (head.z > 1) return
+    const px = Math.hypot(((head.x + 1) / 2) * innerWidth - x, ((1 - head.y) / 2) * innerHeight - y)
+    if (px < bestPx) {
+      bestPx = px
+      best = t
+    }
+  }
+  for (const s of talkers) consider(s.npc.group.position.clone().setY(1.1), { kind: 'npc', ...s })
+  if (sleigh.ready) consider(sleigh.seatWorld().setY(1.2), { kind: 'sleigh' })
+  return best ?? aimed
+}
+player.onTap = (x, y) => {
+  if (!player.enabled || !started) return
+  const t = targetAt(x, y)
+  if (!t) return
+  setTarget(t)
+  interact()
 }
 
 function setTarget(t: Target | null) {
@@ -379,18 +481,27 @@ menu.onResume = closeMenu
 /* ---------- knytis ---------- */
 // A form you type in, so the mouse is let go while it's open (like the Esc menu).
 const knytis = new KnytisPanel()
-function openKnytisPanel() {
+function openKnytisPanel(e?: Event) {
   if (knytis.open || !started) return
+  const dish = e instanceof CustomEvent && typeof e.detail === 'string' ? e.detail : undefined
   pause(false)
   cursor.hide()
   menu.hide()
-  void knytis.show()
+  void knytis.show(dish)
   if (player.locked) {
     selfUnlock = true
     document.exitPointerLock()
   }
 }
 addEventListener('jul:knytis', openKnytisPanel)
+// who brings what: on the chalkboard and the buffet cards – fetched now and then (others claim too)
+function refreshClaims() {
+  if (document.hidden) return
+  getClaims()
+    .then((claims) => dispatchEvent(new CustomEvent('jul:claims', { detail: claims })))
+    .catch(() => {})
+}
+setInterval(refreshClaims, 30000)
 
 /* ---------- ritbordet (Pepparkaksarkitekten) ---------- */
 const ritbord = new RitbordPanel()
@@ -406,6 +517,55 @@ function openRitbordPanel() {
   }
 }
 addEventListener('jul:ritbord', openRitbordPanel)
+
+/* ---------- chat: speech bubbles over your nisse ---------- */
+// Typing lets go of the mouse and stands you still (like the other panels); Enter sends, Esc closes.
+const chatForm = $('chat') as HTMLFormElement
+const chatInput = $('chat-input') as HTMLInputElement
+let chatting = false
+function openChat() {
+  if (chatting || !started || !mp?.online) return
+  chatting = true
+  pause(false)
+  cursor.hide()
+  chatForm.hidden = false
+  chatInput.value = ''
+  chatInput.focus()
+  if (player.locked) {
+    selfUnlock = true
+    document.exitPointerLock()
+  }
+}
+function closeChat() {
+  if (!chatting) return
+  chatting = false
+  chatForm.hidden = true
+  chatInput.blur()
+  resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
+}
+chatForm.addEventListener('submit', (e) => {
+  e.preventDefault()
+  mp?.say(chatInput.value)
+  closeChat()
+})
+$('chat-btn').addEventListener('click', openChat)
+$('jump').addEventListener('pointerdown', (e) => {
+  e.preventDefault()
+  player.jump()
+})
+/** The last few lines in the corner – bubbles behind your back aren't missed. */
+function chatLine(name: string, text: string, mine: boolean) {
+  const log = $('chat-log')
+  const row = document.createElement('div')
+  if (mine) row.className = 'mine'
+  const who = document.createElement('b')
+  who.textContent = mine ? 'Du' : name
+  row.append(who, document.createTextNode(` ${text}`))
+  log.append(row)
+  while (log.children.length > 5) log.firstElementChild!.remove()
+  setTimeout(() => row.classList.add('old'), 11000)
+  setTimeout(() => row.remove(), 12000)
+}
 ritbord.onClose = () => {
   // whatever you drew is now standing on the table
   refreshTeamHouse()
@@ -422,6 +582,7 @@ function onEsc() {
   if (now - lastEsc < 300) return
   lastEsc = now
   if (menu.open) return closeMenu()
+  if (chatting) return closeChat()
   if (ritbord.open) return ritbord.close()
   if (knytis.open) return knytis.close()
   if (dialog.open) return dialog.close()
@@ -474,6 +635,30 @@ $('m-music').addEventListener('click', () => {
 $('m-knytis').addEventListener('click', openKnytisPanel)
 $('m-web').addEventListener('click', () => location.assign('/handelser'))
 
+// Fullscreen works on Android and iPad too, not just with a mouse
+if (document.fullscreenEnabled) $('m-full').classList.remove('desk')
+
+// "Lägg till på hemskärmen": Android asks the browser, an iPhone needs the share menu
+type InstallPrompt = Event & { prompt: () => Promise<void> }
+let installPrompt: InstallPrompt | null = null
+addEventListener('beforeinstallprompt', (e) => {
+  e.preventDefault()
+  installPrompt = e as InstallPrompt
+})
+const ios = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1)
+$('m-install').hidden = !touch || standalone
+$('m-install').addEventListener('click', async () => {
+  if (installPrompt) {
+    await installPrompt.prompt().catch(() => {})
+    installPrompt = null
+    return
+  }
+  $('install-help').hidden = false
+  $('install-help').textContent = ios
+    ? 'Tryck på Dela-knappen (fyrkanten med pilen ⬆️) i Safari och välj "Lägg till på hemskärmen". Då öppnas byn i helskärm därifrån.'
+    : 'Öppna webbläsarens meny (⋮) och välj "Lägg till på startskärmen" eller "Installera app".'
+})
+
 $('m-full').addEventListener('click', async () => {
   if (document.fullscreenElement) await document.exitFullscreen().catch(() => {})
   else {
@@ -511,14 +696,52 @@ function interact() {
 }
 promptEl.addEventListener('click', interact)
 // clicking the scene talks to / looks at whatever you aim at, otherwise grabs the mouse
+/* ---------- zoom: hold the right mouse button (or Z) – the 🔍 button on touch ---------- */
+let zoomHeld = false
+let zoomToggled = false
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (e.button === 2) zoomHeld = true
+})
+addEventListener('mouseup', (e) => {
+  if (e.button === 2) zoomHeld = false
+})
+addEventListener('keydown', (e) => {
+  if (e.code === 'KeyZ' && !(e.target as HTMLElement | null)?.closest?.('input, textarea')) zoomHeld = true
+})
+addEventListener('keyup', (e) => {
+  if (e.code === 'KeyZ') zoomHeld = false
+})
+addEventListener('blur', () => (zoomHeld = false))
+$('zoom').addEventListener('pointerdown', (e) => {
+  e.preventDefault()
+  zoomToggled = !zoomToggled
+  $('zoom').classList.toggle('on', zoomToggled)
+})
+/** Ease towards ~2.8× while held, back to 1 otherwise – never in the sleigh, at a game or in a popup. */
+function updateZoom(dt: number) {
+  const want = (zoomHeld || zoomToggled) && player.enabled && !flight.active ? 2.8 : 1
+  const z = player.zoom + (want - player.zoom) * (1 - Math.exp(-12 * dt))
+  const next = Math.abs(z - want) < 0.002 ? want : z
+  if (next === player.zoom) return
+  player.zoom = next
+  if (flight.active) return
+  camera.fov = walkFov(camera.aspect) / player.zoom
+  camera.updateProjectionMatrix()
+}
+
 renderer.domElement.addEventListener('mousedown', (e) => {
   if (!player.enabled || e.button !== 0) return
   if (target) interact()
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || arcade?.active || flight.active || !started) return
-  if (e.code === 'KeyE' || e.code === 'Enter') interact()
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || arcade?.active || flight.active || !started) return
+  if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
+  const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
+  if (talk && mp?.online) {
+    e.preventDefault() // or the key ends up in the chat box
+    openChat()
+  } else if (e.code === 'KeyE' || e.code === 'Enter') interact()
   if (e.code === 'KeyM') toggleMusic()
 })
 
@@ -526,11 +749,25 @@ addEventListener('keydown', (e) => {
 const music = new Audio('/sounds/game-background-music.mp3')
 music.loop = true
 music.volume = 0.25
+// Off until you turn it on – then remembered for next time.
+const MUSIC_KEY = 'jul3d.music'
 function toggleMusic(force?: boolean) {
   const on = force ?? music.paused
   if (on) music.play().catch(() => {})
   else music.pause()
   $('music').classList.toggle('on', on)
+  try {
+    localStorage.setItem(MUSIC_KEY, on ? 'på' : 'av')
+  } catch {
+    /* fine */
+  }
+}
+const musicWanted = () => {
+  try {
+    return localStorage.getItem(MUSIC_KEY) === 'på'
+  } catch {
+    return false
+  }
 }
 $('music').addEventListener('click', () => toggleMusic())
 
@@ -584,6 +821,9 @@ function setPixels(pr: number) {
   sizeSpray()
 }
 const fpsWin = { frames: 0, since: 0, fps: 0 }
+// Changing it clears the canvas, so it must not see-saw: going up takes three good windows in a row
+// (6 s) and 10 s since the last step down, and once a step up had to be taken back it stays put.
+const adapt = { good: 0, lastDown: 0, wentUp: false, settled: false }
 function adaptResolution(now: number) {
   if (document.hidden) return void (fpsWin.since = 0)
   if (!fpsWin.since) return void Object.assign(fpsWin, { since: now, frames: 0 })
@@ -592,8 +832,16 @@ function adaptResolution(now: number) {
   if (span < 2000) return
   fpsWin.fps = (fpsWin.frames * 1000) / span
   Object.assign(fpsWin, { since: now, frames: 0 })
-  if (fpsWin.fps < 40 && pixels > QUALITY.minPixelRatio) setPixels(pixels - 0.15)
-  else if (fpsWin.fps > 56 && pixels < pixelCap) setPixels(pixels + 0.1)
+  if (fpsWin.fps < 40 && pixels > QUALITY.minPixelRatio) {
+    if (adapt.wentUp) adapt.settled = true
+    Object.assign(adapt, { good: 0, lastDown: now, wentUp: false })
+    setPixels(pixels - 0.15)
+  } else if (fpsWin.fps > 56 && pixels < pixelCap && !adapt.settled) {
+    if (++adapt.good >= 3 && now - adapt.lastDown > 10000) {
+      Object.assign(adapt, { good: 0, wentUp: true })
+      setPixels(pixels + 0.1)
+    }
+  } else adapt.good = 0
 }
 
 /* ---------- when the graphics give up ---------- */
@@ -657,12 +905,17 @@ renderer.shadowMap.needsUpdate = true
 function frame(now: number) {
   requestAnimationFrame(frame)
   const idle = !started || menu.open
-  if (now - lastFrame < (idle ? 1000 / 15 : 1000 / 90)) return
+  // a computer draws every frame the screen asks for (144 Hz → 144); phones stop at 60 to spare the battery
+  // (2 ms slack, or a 60 Hz screen would skip every other frame)
+  const cap = idle ? 15 : PROFILE === 'dator' ? 0 : 60
+  if (cap && now - lastFrame < 1000 / cap - 2) return
   lastFrame = now
   frameNo++
   const dt = Math.min(clock.getDelta(), 0.05)
   const t = clock.elapsedTime
   player.update(dt, collidePlayer)
+  mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.height)
+  mp?.update(t, dt)
   thrower.update(dt, t)
   arcade?.update(dt, t)
   flight.update(dt, t)
@@ -681,11 +934,13 @@ function frame(now: number) {
   world.showFar(flight.active)
   if (frameNo % 4 === 0) cullSmall()
   if (frameNo % 2 === 0) renderer.shadowMap.needsUpdate = true
+  updateZoom(dt)
+  // before drawing: a new resolution resizes (and clears) the canvas, which would otherwise show as a black flash
+  if (!idle) adaptResolution(now)
   renderer.info.reset()
   renderer.clear()
   renderer.render(scene, camera)
   vm.render(renderer, camera)
-  if (!idle) adaptResolution(now)
 }
 
 /* ---------- start ---------- */
@@ -693,6 +948,7 @@ const go = $('go') as HTMLButtonElement
 build()
   .then(() => {
     updateHud()
+    refreshClaims()
     go.disabled = false
     go.textContent = 'Gå in i byn'
     if (new URLSearchParams(location.search).has('direkt')) go.click()
@@ -703,13 +959,20 @@ build()
   })
 requestAnimationFrame(frame)
 
+// Phones: fill the screen (Android – an iPhone only goes fullscreen from the home screen, see the menu)
+function fillScreen() {
+  if (!touch || standalone || !document.fullscreenEnabled || document.fullscreenElement) return
+  document.documentElement.requestFullscreen({ navigationUI: 'hide' }).catch(() => {})
+}
 go.addEventListener('click', () => {
+  fillScreen()
+  joinOthers()
   started = true
   $('start').hidden = true
   $('hud').hidden = false
   player.enabled = true
   player.lock()
-  toggleMusic(true)
+  if (musicWanted()) toggleMusic(true)
 })
 
 // handy for poking around from the console: jul.goto(0) walks you into the first shop
@@ -721,4 +984,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, world, talkers, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, world, talkers, mp, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })

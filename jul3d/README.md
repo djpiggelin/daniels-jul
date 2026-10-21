@@ -34,6 +34,13 @@ skarpare. När tiden
 Tomtenissarna ([`src/elves.ts`](src/elves.ts)) springer runt på torget – två av dem leker kull. Träffar du en med en
 snöboll ramlar den omkull och kastar ofta tillbaka.
 
+## Fler i byn
+
+Är fler inne samtidigt syns de som nissar i sin egen färg med namnskylt (och sin bild, om de valt ett namn från
+gästlistan) – och snöbollar går att kasta på dem. `Enter` (eller 💬 på telefon) öppnar chatten: det du skriver blir en
+pratbubbla över din nisse. Namnet skriver man på startskärmen (samma som på knytis).
+Koden är [`src/multiplayer.ts`](src/multiplayer.ts); servern ligger i [`../multiplayer/`](../multiplayer/README.md).
+
 ## Styrning
 
 - **Dator:** `W A S D` gå (håll framåt en stund så springer du), mus titta direkt, `E` eller klick prata/titta/spela,
@@ -44,8 +51,10 @@ snöboll ramlar den omkull och kastar ofta tillbaka.
 - **`Esc`:** stänger det som är öppet (prat, bild, spel). Annars öppnas menyn – där är musen vanlig igen, och
   *Fortsätt* låser den och tar dig tillbaka in i byn. Menyn har också musik, helskärm, muskänslighet och
   *Grafik: fin / snål* (snål = färre pixlar och inga skuggor, för datorer som blir varma).
-- **Mobil:** vänster tumme går, dra med höger för att titta, tryck på knappen för att prata, håll ❄️ för snöboll,
-  ☰ öppnar menyn.
+- **Mobil:** tummen på vänster halva är en joystick där den landar (hela vägen ut = spring), dra för att titta,
+  **tryck direkt på en nisse, tavla, automat eller släden** för att prata/titta/spela, håll ❄️ för snöboll, ☰ öppnar
+  menyn. På Android går byn i helskärm när du kliver in; menyn har *📲 Lägg till på hemskärmen* (på iPhone är det enda
+  sättet att få helskärm). Zoom-, studs- och långtrycksgester är avstängda så att man inte råkar lämna spelet.
 
 ## Innehåll
 
@@ -70,6 +79,10 @@ renderade från `ThemeArt.tsx` i 2D-sajten.
   minne alla canvas får använda – så bildvisaren visar samma canvas, bara mindre. Skyltar och skärmar som ritas om hela
   tiden (`toTexture(c, { live: true })`) lämnas orörda.
 - **Synfältet** hålls brett när telefonen hålls upp och ner (`walkFov`), annars ser man byn som genom ett rör.
+- **Färre ritanrop** ([`src/batch.ts`](src/batch.ts)): när byn är byggd slås allt som står still ihop – en mesh per
+  material per butik, nissarna del för del (huvud, armar, ben) – och glödlamporna är en instansad mesh. Torget gick
+  från ~1 360 till ~620 ritanrop och från ~45 till ~8 ms per bild. Det som rör sig markeras med `keepApart()`.
+- På dator ritas varje bild skärmen ber om (144 Hz → 144 fps); telefoner stannar vid 60.
 - Tar grafiken slut på minne visas *Byn behöver en paus* med en knapp för att ladda om.
 
 Testa: `?enhet=telefon`, `?enhet=surfplatta` eller `?enhet=dator` tvingar en profil (`?enhet=auto` släpper den).
