@@ -56,7 +56,7 @@ const scene = new THREE.Scene()
 const camera = new THREE.PerspectiveCamera(walkFov(innerWidth / innerHeight), innerWidth / innerHeight, 0.05, 800)
 addEventListener('resize', () => {
   camera.aspect = innerWidth / innerHeight
-  if (!flight.active) camera.fov = walkFov(camera.aspect)
+  if (!flight.active) camera.fov = walkFov(camera.aspect) / player.zoom
   camera.updateProjectionMatrix()
   renderer.setSize(innerWidth, innerHeight)
   sizeSpray()
@@ -696,6 +696,39 @@ function interact() {
 }
 promptEl.addEventListener('click', interact)
 // clicking the scene talks to / looks at whatever you aim at, otherwise grabs the mouse
+/* ---------- zoom: hold the right mouse button (or Z) – the 🔍 button on touch ---------- */
+let zoomHeld = false
+let zoomToggled = false
+renderer.domElement.addEventListener('mousedown', (e) => {
+  if (e.button === 2) zoomHeld = true
+})
+addEventListener('mouseup', (e) => {
+  if (e.button === 2) zoomHeld = false
+})
+addEventListener('keydown', (e) => {
+  if (e.code === 'KeyZ' && !(e.target as HTMLElement | null)?.closest?.('input, textarea')) zoomHeld = true
+})
+addEventListener('keyup', (e) => {
+  if (e.code === 'KeyZ') zoomHeld = false
+})
+addEventListener('blur', () => (zoomHeld = false))
+$('zoom').addEventListener('pointerdown', (e) => {
+  e.preventDefault()
+  zoomToggled = !zoomToggled
+  $('zoom').classList.toggle('on', zoomToggled)
+})
+/** Ease towards ~2.8× while held, back to 1 otherwise – never in the sleigh, at a game or in a popup. */
+function updateZoom(dt: number) {
+  const want = (zoomHeld || zoomToggled) && player.enabled && !flight.active ? 2.8 : 1
+  const z = player.zoom + (want - player.zoom) * (1 - Math.exp(-12 * dt))
+  const next = Math.abs(z - want) < 0.002 ? want : z
+  if (next === player.zoom) return
+  player.zoom = next
+  if (flight.active) return
+  camera.fov = walkFov(camera.aspect) / player.zoom
+  camera.updateProjectionMatrix()
+}
+
 renderer.domElement.addEventListener('mousedown', (e) => {
   if (!player.enabled || e.button !== 0) return
   if (target) interact()
@@ -901,6 +934,7 @@ function frame(now: number) {
   world.showFar(flight.active)
   if (frameNo % 4 === 0) cullSmall()
   if (frameNo % 2 === 0) renderer.shadowMap.needsUpdate = true
+  updateZoom(dt)
   // before drawing: a new resolution resizes (and clears) the canvas, which would otherwise show as a black flash
   if (!idle) adaptResolution(now)
   renderer.info.reset()

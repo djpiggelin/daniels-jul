@@ -526,3 +526,13 @@ body.touch #chat-log { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 170
 #jump:active { background: rgba(246, 196, 83, 0.35); }
 body:not(.touch) #jump { display: none; }
 #hud.busy #jump, #hud.flight #jump, #hud.arcade #jump { display: none; }
+
+/* zoom toggle (touch), left of the jump button */
+#zoom {
+  pointer-events: auto; position: absolute; right: 96px; bottom: max(176px, calc(env(safe-area-inset-bottom) + 156px));
+  width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(7, 11, 29, 0.55); font-size: 22px; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+#zoom.on { background: rgba(246, 196, 83, 0.35); border-color: var(--gold); }
+body:not(.touch) #zoom { display: none; }
+#hud.busy #zoom, #hud.flight #zoom, #hud.arcade #zoom { display: none; }

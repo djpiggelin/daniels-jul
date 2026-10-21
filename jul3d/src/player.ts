@@ -11,6 +11,8 @@ export class Player {
   enabled = false
   /** Mouse sensitivity multiplier (Esc menu). */
   sens = 1
+  /** How far zoomed in (1 = not at all): looking around slows down to match, so you can aim. */
+  zoom = 1
   /** Throw wind-up: >0 leans back, <0 lurches forward. */
   lean = 0
   readonly vel = new THREE.Vector3()
@@ -148,6 +150,7 @@ export class Player {
   }
 
   private turn(dx: number, dy: number, k: number) {
+    k /= this.zoom
     this.yaw -= dx * k
     this.pitch = THREE.MathUtils.clamp(this.pitch - dy * k, -1.3, 1.2)
   }
