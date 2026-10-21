@@ -125,5 +125,19 @@
     {
       "name": "Grinchen"
     }
+  ],
+  "memories": [
+    {
+      "image": "images/julbord.svg",
+      "label": "Julbord"
+    },
+    {
+      "image": "images/julbak.svg",
+      "label": "Julbak"
+    },
+    {
+      "image": "images/julafton.svg",
+      "label": "Julafton"
+    }
   ]
 }

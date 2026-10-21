@@ -5,7 +5,7 @@ import { YEAR } from '../data'
 import { useDaypart } from '../lib/daypart'
 
 const links = [
-  { to: '/', label: 'Händelser' },
+  { to: '/handelser', label: 'Händelser' },
   { to: '/knytis', label: 'Knytis' },
   { to: '/spel', label: 'Spel' },
 ]
@@ -13,7 +13,7 @@ const links = [
 export function Layout() {
   const { pathname } = useLocation()
   // the front page is one screen – the village – with nothing to scroll down to
-  const home = pathname === '/'
+  const home = pathname === '/handelser'
   useDaypart()
   const [scrolled, setScrolled] = useState(false)
   useEffect(() => {
@@ -36,15 +36,15 @@ export function Layout() {
         }`}
       >
         <nav className="mx-auto flex h-16 max-w-6xl items-center justify-between px-4 sm:px-6">
-          <NavLink to="/" className="font-serif text-xl font-medium tracking-tight">
+          {/* a real page load – the front page is the 3D village, a separate app */}
+          <a href="/" className="font-serif text-xl font-medium tracking-tight">
             Daniels Jul
-          </NavLink>
+          </a>
           <div className="flex items-center gap-5 text-sm sm:gap-8">
             {links.map((l) => (
               <NavLink
                 key={l.to}
                 to={l.to}
-                end={l.to === '/'}
                 className={({ isActive }) =>
                   `relative py-1 transition-colors ${
                     isActive ? 'text-white after:absolute after:inset-x-0 after:-bottom-0.5 after:h-px after:bg-jul-gold' : 'text-snow/65 hover:text-white'

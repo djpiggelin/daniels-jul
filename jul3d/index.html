@@ -1,0 +1,117 @@
+<!doctype html>
+<html lang="sv">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <link rel="icon" type="image/png" href="/favicon.png" />
+    <title>Daniels Jul – Byn</title>
+    <meta name="theme-color" content="#070b1d" />
+    <meta name="description" content="Nedräkning till Daniels julhändelser – Julbak och Julbord. Paxa din rätt på Knytis-listan och tävla i julspelen!" />
+    <meta property="og:title" content="Daniels Jul 2026 🎄" />
+    <meta property="og:description" content="Julbak, julbord, knytis och julspel. Renarna är på väg – är du?" />
+    <meta property="og:type" content="website" />
+    <meta property="og:image" content="/media/images/Julbord/47e43066-d754-4614-8875-a71d42462100.jpg" />
+    <meta name="twitter:card" content="summary_large_image" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Caveat:wght@500;700&family=DM+Sans:opsz,wght@9..40,400;9..40,600;9..40,700&family=Fraunces:ital,opsz,wght@0,9..144,400..700;1,9..144,400&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="/src/style.css" />
+  </head>
+  <body>
+    <div id="app"></div>
+
+    <div id="hud" hidden>
+      <div id="next-event"></div>
+      <div id="crosshair"></div>
+      <div id="toast" hidden></div>
+      <button id="prompt" hidden><kbd>E</kbd><span></span></button>
+      <div id="help">
+        <span class="desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd>/klick prata · håll <kbd>Shift</kbd> kasta snöboll · <kbd>Esc</kbd> meny</span>
+        <span class="touch">Vänster tumme går · dra höger för att titta · håll ❄️ för snöboll</span>
+      </div>
+      <div class="corner">
+        <button id="music" title="Musik (M)">♪</button>
+        <button id="menu-btn" title="Meny (Esc)">☰</button>
+      </div>
+      <button id="throw" class="touch" aria-label="Kasta snöboll">❄️</button>
+      <div id="charge"><i></i></div>
+      <div id="stick"><div id="knob"></div></div>
+      <div id="flight" hidden>
+        <div class="fl-top">
+          <div class="fl-score"><b>0</b><span>poäng</span></div>
+          <div class="fl-time"><b>20.0</b><span>sekunder</span></div>
+          <div class="fl-best">🏆 0</div>
+        </div>
+        <div class="fl-aim"><i class="fl-dot"></i></div>
+        <div class="fl-arrow" hidden></div>
+        <div class="fl-msg" hidden></div>
+        <div class="fl-bar">
+          <span class="hint desk"><kbd>A</kbd><kbd>D</kbd> / mus sväng · <kbd>W</kbd><kbd>S</kbd> upp/ner · <kbd>Mellanslag</kbd> turbo</span>
+          <span class="hint touch">Dra för att styra</span>
+          <button id="flight-exit"><kbd class="desk">Q</kbd> Landa</button>
+        </div>
+      </div>
+      <div id="arcade-bar" hidden>
+        <span class="hint"></span>
+        <button id="arcade-exit"><kbd class="desk">Q</kbd> Lämna spelet</button>
+      </div>
+    </div>
+
+    <div id="dialog" hidden>
+      <div class="who"><div class="avatar"></div><div class="name"></div></div>
+      <div class="text"></div>
+      <div class="options"></div>
+      <div class="more">▼</div>
+    </div>
+
+    <div id="viewer" hidden>
+      <figure><img alt="" /><figcaption></figcaption></figure>
+      <button class="close" aria-label="Stäng">✕</button>
+    </div>
+
+    <div id="start">
+      <div class="card">
+        <div class="kicker">Välkommen till</div>
+        <h1>Daniels Jul</h1>
+        <p class="lead">En liten snöig julby med en butik för varje händelse. Gå runt, kika på väggarna, prata med nissarna bakom disken – och spela vid granen.</p>
+        <button id="go" disabled>Laddar byn…</button>
+        <p class="keys desk"><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd> gå · mus titta · <kbd>E</kbd> prata · håll <kbd>Shift</kbd> snöboll · <kbd>Esc</kbd> meny</p>
+        <p class="keys touch">Vänster tumme går · dra höger för att titta · tryck på knappen för att prata · håll ❄️ för snöboll</p>
+        <p class="keys"><a href="/handelser">Hellre den vanliga sidan utan 3D? →</a></p>
+      </div>
+    </div>
+
+    <div id="menu" hidden>
+      <div class="card">
+        <div class="kicker">Paus</div>
+        <h2>Daniels Jul</h2>
+        <button id="resume" class="primary">▶ Fortsätt</button>
+        <div class="row">
+          <button id="m-music">♪ Musik</button>
+          <button id="m-full" class="desk">⛶ Helskärm</button>
+        </div>
+        <button id="m-quality" class="wide">✨ Grafik: fin</button>
+        <div class="row">
+          <button id="m-knytis">🧺 Paxa på knytis</button>
+          <button id="m-web">📄 Vanliga sidan</button>
+        </div>
+        <label class="sens desk">Musens känslighet <input id="m-sens" type="range" min="0.4" max="2.2" step="0.1" value="1" /></label>
+        <ul class="controls desk">
+          <li><span><kbd>W</kbd><kbd>A</kbd><kbd>S</kbd><kbd>D</kbd></span> gå (håll framåt så springer du)</li>
+          <li><span>mus</span> titta runt</li>
+          <li><span><kbd>E</kbd> / klick</span> prata, titta, spela</li>
+          <li><span>håll <kbd>Shift</kbd></span> sikta snöboll – släpp för att kasta</li>
+          <li><span><kbd>M</kbd></span> musik</li>
+          <li><span><kbd>Esc</kbd></span> stäng / meny</li>
+        </ul>
+        <p class="hint desk">Fortsätt så tar spelet musen igen.</p>
+      </div>
+    </div>
+
+    <div id="splat" hidden></div>
+    <div id="fade"></div>
+    <div id="vcursor" hidden></div>
+
+    <script type="module" src="/src/boot.ts"></script>
+  </body>
+</html>
