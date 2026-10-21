@@ -16,7 +16,9 @@ createRoot(document.getElementById('root')!).render(
     <BrowserRouter>
       <Routes>
         <Route element={<Layout />}>
-          <Route index element={<Home />} />
+          {/* in production / is the 3D village (jul3d/) – this only matters in npm run dev */}
+          <Route index element={<Navigate to="/handelser" replace />} />
+          <Route path="handelser" element={<Home />} />
           <Route path="event/:id" element={<EventPage />} />
           <Route path="knytis" element={<Knytis />} />
           <Route path="potluck" element={<Navigate to="/knytis" replace />} />

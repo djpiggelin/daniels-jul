@@ -2,7 +2,9 @@
 
 Nedräkning, info och lite julkaos inför årets julbak och julbord.
 
-- **Hem** – flygande släde (tryck på den!), nedräkning och alla händelser
+- **Byn (3D)** – startsidan: en snöig julby i three.js med en butik per händelse, spelautomater och en släde att flyga
+  (i [`jul3d/`](jul3d), se [dess README](jul3d/README.md))
+- **Händelser** (`/handelser`) – flygande släde (tryck på den!), nedräkning och alla händelser
 - **Event-sidor** – tider, plats, tävlingsregler, årets tema och "Lägg till i kalendern" (.ics)
 - **Knytis** – klicka på en rätt på julbordsbilden och paxa den
 - **Spel** – Klappfångst, Rudolfs Flygtur och Tomtememory, med topplistor
@@ -19,13 +21,14 @@ Innehållet hålls i en lokal mapp `content/` (gitignorerad) med samma upplägg 
 
 ```
 content/
-  content.json      år, events och gäster
+  content.json      år, events, gäster och minnen (bilder från tidigare år i 3D-byn)
   photos/           gästbilder, t.ex. photos/Adde.png
   images/           eventbilder
 ```
 
 I `content.json` anges `image` och `photo` som sökvägar inuti mappen (`"photo": "photos/Adde.png"`).
 Utan `photo` visas gästens initial (och de är inte med i memory-spelet).
+`memories` är valfri: `[{ "image": "images/…", "label": "Luciamorgon" }]` hängs på väggen i Tomtens stuga.
 
 Ladda upp med:
 
@@ -46,6 +49,9 @@ Knytis-listan och topplistorna nollställs automatiskt varje säsong (från 1 ju
 npm install
 npm run dev
 ```
+
+3D-byn körs med `npm run dev:3d`. Den använder samma `src/data.ts` och `public/` som 2D-sajten.
+I produktion byggs den till `/by/` och visas på `/` (se `netlify.toml`).
 
 Du behöver inget riktigt innehåll: utan `/api/content` använder `npm run dev` det påhittade
 exempelinnehållet i `public/example/`, och knytis och topplistor sparas i webbläsarens localStorage.

@@ -50,7 +50,7 @@ const files = (await walk(dir))
   .map((p) => relative(dir, p).split(sep).join('/'))
   .filter((key) => key === 'content.json' || MEDIA.test(key))
 
-const referenced = [...content.events.map((e) => e.image), ...content.guests.map((g) => g.photo)].filter(Boolean)
+const referenced = [...content.events, ...(content.memories ?? [])].map((x) => x.image).concat(content.guests.map((g) => g.photo)).filter(Boolean)
 const missing = referenced.filter((p) => !files.includes(p))
 if (missing.length) fail(`content.json pekar på filer som saknas:\n  ${missing.join('\n  ')}`)
 
