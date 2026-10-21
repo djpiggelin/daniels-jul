@@ -1,8 +1,11 @@
 import * as THREE from 'three'
 import { Arcade, type Cabinet } from './arcade'
+import { Camper } from './camper'
+import { Corrida } from './corrida'
 import { EVENTS } from './data'
 import { buildElves, type Elf } from './elves'
 import { Flight } from './flight'
+import { Matadors } from './matadors'
 import type { Nisse } from './npc'
 import { Player } from './player'
 import { Sleigh } from './sleigh'
@@ -11,7 +14,8 @@ import { loadFonts } from './tex'
 import { clockText, eventStatus, formatShortDate } from './time'
 import { Snowballs } from './snowballs'
 import { Thrower } from './throw'
-import { Dialog, PauseMenu, Viewer, VirtualCursor, type Talk } from './ui'
+import { Trip } from './trip'
+import { Dialog, PauseMenu, Viewer, VirtualCursor, html, type Talk } from './ui'
 import { KnytisPanel } from './knytis'
 import { RitbordPanel } from './ritbord'
 import { refreshTeamHouse } from './teamhouse'
@@ -76,6 +80,49 @@ const vm = new Viewmodel()
 const sleigh = new Sleigh(scene)
 const flight = new Flight(scene, camera, player, sleigh)
 flight.onDone = () => resume()
+// Husvagnen, with Musse and Kalle waving beside it – a trip up the mountain (see trip.ts)
+const camper = new Camper(scene)
+const trip = new Trip(scene, renderer, camera, player, camper)
+trip.onDone = () => resume()
+trip.say = (text) => toast(text)
+// Three matadors leaning on the side of the verkstad – a bullfight in Madrid (see corrida.ts)
+const matadors = new Matadors(scene)
+const corrida = new Corrida(renderer, camera, player, vm, matadors)
+corrida.onDone = () => resume()
+corrida.say = (text) => toast(text)
+// in the ring the village music gives way to a paso doble (if the music is on at all)
+let musicWasOn = false
+corrida.onMusic = (arena) => {
+  if (arena) {
+    musicWasOn = !music.paused
+    if (!musicWasOn) return
+    music.pause()
+    corrida.band.start()
+  } else if (corrida.band.playing) {
+    corrida.band.stop()
+    if (musicWasOn) music.play().catch(() => {})
+  }
+}
+const matadorTalk: Talk = {
+  name: 'Los Tres Matadores',
+  avatar: '🐂',
+  avatarBg: '#8e1b1b',
+  greeting: () => [html.p('Psst… amigo. 🪙 Vill du ha en utmaning?'), html.p('Tre tjurar på Plaza de Toros i Madrid. Och sen… han. Vi säger inte vem.')],
+  topics: [
+    { label: '🐂 Ja! Jag antar utmaningen', pages: () => [], go: () => startCorrida() },
+    {
+      label: '🤔 Hur går det till?',
+      pages: () => [
+        html.p('Vi knyter för ögonen på dig – det är tradition, amigo – och så åker vi häst och vagn till Madrid.'),
+        html.p('I arenan håller du ut skynket (håll musknappen) så springer tjuren på det röda i stället för på dig. Hoppa åt sidan med Shift, eller hoppa rakt upp med mellanslag.'),
+        html.p('Men akta dig för Rayo och El Diablo. Precis innan de når skynket krokar de med hornen mot dig – kliv bort från skynket i sista stund, inte för tidigt. Och lyser ögonen rött går de rakt på dig.'),
+        html.p('Efter en stund orkar tjuren inte mer. Klara tre tjurar, sen kommer… ja. Du får se. 🌸'),
+      ],
+    },
+    { label: '🌾 Varför har ni strå i munnen?', pages: () => [html.p('Det ser coolt ut. Nästa fråga.')] },
+  ],
+  bye: 'Hasta luego… 🪙',
+}
 
 /* ---------- build the village ---------- */
 type Target =
@@ -83,16 +130,18 @@ type Target =
   | { kind: 'exhibit'; title: string; caption?: string; image: () => string; open?: () => void; prompt?: string }
   | { kind: 'arcade'; cab: Cabinet }
   | { kind: 'sleigh' }
+  | { kind: 'camper' }
+  | { kind: 'matadors' }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
 /** Everyone you can talk to: the shopkeepers and the arcade hosts. */
 const talkers: { npc: Nisse; talk: Talk }[] = []
-const circles = [...world.colliders, ...sleigh.colliders()]
+const circles = [...world.colliders, ...sleigh.colliders(), ...camper.colliders()]
 let arcade: Arcade | null = null
 let elves: Elf[] = []
 /** What snowballs can hit. */
-const solids: THREE.Object3D[] = [...world.solids, sleigh.group, sleigh.santa.group]
+const solids: THREE.Object3D[] = [...world.solids, sleigh.group, sleigh.santa.group, camper.car, camper.trailer, camper.musse.group, camper.kalle.group]
 const flinchOnHit = (n: Nisse) => (n.group.userData.onSnowball = () => n.flinch())
 
 async function build() {
@@ -112,6 +161,13 @@ async function build() {
     talkers.push({ npc: s.npc, talk: s.talk })
     solids.push(s.shop.group, s.npc.group)
     flinchOnHit(s.npc)
+  }
+  // the matadors lean on the outside of the verkstad's left wall
+  matadors.place(shops[0].shop.group)
+  circles.push(...matadors.colliders())
+  for (const m of matadors.crew) {
+    solids.push(m.group)
+    m.group.userData.onSnowball = () => toast('🪙 ¡Oye! Inte på kostymen!')
   }
   const square = await buildSquare(scene, shops)
   circles.push(...square.colliders)
@@ -176,7 +232,20 @@ async function build() {
   for (const n of [...talkers.map((t) => t.npc), ...elves.map((e) => e.nisse), sleigh.santa]) mergeRigid(n.group)
   mergeRigid(sleigh.group)
   // and everything else on the square that stands still (the tree, lamps, gifts, the poster column…)
-  const moving = new Set<THREE.Object3D>([...shops.map((s) => s.shop.group), ...talkers.map((t) => t.npc.group), ...elves.map((e) => e.nisse.group), sleigh.group, sleigh.santa.group, ...(arcade?.cabinets.map((c) => c.group) ?? [])])
+  const moving = new Set<THREE.Object3D>([
+    ...shops.map((s) => s.shop.group),
+    ...talkers.map((t) => t.npc.group),
+    ...elves.map((e) => e.nisse.group),
+    sleigh.group,
+    sleigh.santa.group,
+    ...(arcade?.cabinets.map((c) => c.group) ?? []),
+    // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
+    camper.car,
+    camper.trailer,
+    camper.musse.group,
+    camper.kalle.group,
+    ...matadors.crew.map((m) => m.group),
+  ])
   const posters = new Set(square.exhibits.map((e) => e.target))
   for (const o of [...scene.children]) if ((o as THREE.Group).isGroup && !moving.has(o)) bakeStatic(o, posters)
 
@@ -360,6 +429,22 @@ function findTarget(): Target | null {
     }
   }
   if (best) return { kind: 'npc', ...best }
+  // walk up to Musse and Kalle by the camper door
+  if (camper.kalle.out) {
+    const cp = camper.crewWorld()
+    const dx = cp.x - player.pos.x
+    const dz = cp.z - player.pos.z
+    const d = Math.hypot(dx, dz)
+    if (d < 5 && (dx * fwd.x + dz * fwd.z) / d > 0.5) return { kind: 'camper' }
+  }
+  // walk up to the matadors by the wall
+  if (matadors.out) {
+    const mp = matadors.middle()
+    const dx = mp.x - player.pos.x
+    const dz = mp.z - player.pos.z
+    const d = Math.hypot(dx, dz)
+    if (d < 4.5 && (dx * fwd.x + dz * fwd.z) / d > 0.5) return { kind: 'matadors' }
+  }
   // walk up to Tomten in his sleigh
   if (sleigh.ready) {
     const sp = sleigh.seatWorld()
@@ -396,6 +481,8 @@ function targetAt(x: number, y: number): Target | null {
   }
   for (const s of talkers) consider(s.npc.group.position.clone().setY(1.1), { kind: 'npc', ...s })
   if (sleigh.ready) consider(sleigh.seatWorld().setY(1.2), { kind: 'sleigh' })
+  if (camper.kalle.out) consider(camper.crewWorld(), { kind: 'camper' })
+  if (matadors.out) consider(matadors.middle(), { kind: 'matadors' })
   return best ?? aimed
 }
 player.onTap = (x, y) => {
@@ -419,7 +506,11 @@ function setTarget(t: Target | null) {
         ? `Spela ${t.cab.def.name}`
         : t.kind === 'sleigh'
           ? 'Knuffa ut tomten och ta släden'
-          : t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`
+          : t.kind === 'camper'
+            ? 'Hoppa in i husvagnen'
+            : t.kind === 'matadors'
+              ? 'Prata med matadorerna'
+              : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -435,7 +526,7 @@ function pause(withCursor = true) {
 function resume(onLockFail?: () => void) {
   cursor.hide()
   player.enabled = true
-  $('hud').classList.remove('busy', 'arcade', 'flight')
+  $('hud').classList.remove('busy', 'arcade', 'flight', 'trip', 'corrida')
   player.lock(onLockFail)
 }
 dialog.onClose = () => resume()
@@ -589,6 +680,8 @@ function onEsc() {
   if (viewer.open) return viewer.close()
   if (arcade?.active) return arcade.leave()
   if (flight.active) return flight.leave()
+  if (trip.active) return trip.leave()
+  if (corrida.active) return corrida.leave()
   openMenu()
 }
 addEventListener('keydown', (e) => {
@@ -690,9 +783,21 @@ function interact() {
     sleigh.push(player.pos)
     sleigh.say('🎅 Hallå!? Det där är MIN släde!')
     flight.start()
-  }
+  } else if (t.kind === 'camper') startTrip()
+  else if (t.kind === 'matadors') dialog.start(matadorTalk)
   else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
+}
+function startTrip() {
+  cursor.hide()
+  $('hud').classList.add('trip')
+  trip.start()
+}
+function startCorrida() {
+  pause(false)
+  cursor.hide()
+  $('hud').classList.add('corrida', 'busy')
+  corrida.start()
 }
 promptEl.addEventListener('click', interact)
 // clicking the scene talks to / looks at whatever you aim at, otherwise grabs the mouse
@@ -735,7 +840,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || arcade?.active || flight.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || arcade?.active || flight.active || trip.active || corrida.active || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
@@ -880,6 +985,8 @@ function applyQuality() {
   pixelCap = thrifty ? Math.min(devicePixelRatio, 1, SHARP) : SHARP
   setPixels(pixelCap)
   world.shadows(QUALITY.shadows && !thrifty)
+  trip.shadows(QUALITY.shadows && !thrifty)
+  corrida.shadows(QUALITY.shadows && !thrifty)
   $('m-quality').textContent = thrifty ? '🔋 Grafik: snål' : '✨ Grafik: fin'
 }
 $('m-quality').addEventListener('click', () => {
@@ -913,34 +1020,48 @@ function frame(now: number) {
   frameNo++
   const dt = Math.min(clock.getDelta(), 0.05)
   const t = clock.elapsedTime
-  player.update(dt, collidePlayer)
-  mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.height)
+  // the others in the village carry on (and still see you) while you're off on a trip
   mp?.update(t, dt)
-  thrower.update(dt, t)
-  arcade?.update(dt, t)
-  flight.update(dt, t)
-  sleigh.update(t, dt, player.pos)
-  world.update(t, dt, flight.active ? flight.pos : player.pos)
-  for (const s of shops) s.shop.update(t, dt)
-  for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
-  for (const e of elves) e.update(dt, t)
-  snowballs.update(dt, camera.position)
-  if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
+  // off on the camper trip or in Madrid, the village stands still (it's only a painted backdrop, after all)
+  if (!trip.inWorld && !corrida.inWorld) {
+    player.update(dt, collidePlayer)
+    mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.height)
+    thrower.update(dt, t)
+    arcade?.update(dt, t)
+    flight.update(dt, t)
+    sleigh.update(t, dt, player.pos)
+    camper.update(t, dt, player.pos)
+    matadors.update(t, dt, player.pos)
+    world.update(t, dt, flight.active ? flight.pos : player.pos)
+    for (const s of shops) s.shop.update(t, dt)
+    for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
+    for (const e of elves) e.update(dt, t)
+    snowballs.update(dt, camera.position)
+    if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
+    world.showFar(flight.active)
+    if (frameNo % 4 === 0) cullSmall()
+  }
   if ((hudTimer -= dt) <= 0) {
     hudTimer = 0.5
     updateHud()
     updateDiag()
   }
-  world.showFar(flight.active)
-  if (frameNo % 4 === 0) cullSmall()
+  trip.update(dt, t)
+  corrida.update(dt, t)
   if (frameNo % 2 === 0) renderer.shadowMap.needsUpdate = true
   updateZoom(dt)
   // before drawing: a new resolution resizes (and clears) the canvas, which would otherwise show as a black flash
   if (!idle) adaptResolution(now)
   renderer.info.reset()
   renderer.clear()
-  renderer.render(scene, camera)
-  vm.render(renderer, camera)
+  if (trip.inWorld) renderer.render(trip.world!.scene, camera)
+  else if (corrida.inWorld) {
+    renderer.render(corrida.world!.scene, camera)
+    vm.render(renderer, camera)
+  } else {
+    renderer.render(scene, camera)
+    vm.render(renderer, camera)
+  }
 }
 
 /* ---------- start ---------- */
@@ -951,7 +1072,26 @@ build()
     refreshClaims()
     go.disabled = false
     go.textContent = 'Gå in i byn'
-    if (new URLSearchParams(location.search).has('direkt')) go.click()
+    const q = new URLSearchParams(location.search)
+    if (q.has('direkt') || q.has('husvagn') || q.has('tjuren')) go.click()
+    // ?husvagn: straight to the camper and off (for testing)
+    if (q.has('husvagn')) {
+      const p = camper.trailer.localToWorld(new THREE.Vector3(5.2, 0, 0.6))
+      player.pos.set(p.x, 0, p.z)
+      pause(false)
+      startTrip()
+    } else if (q.has('tjuren')) {
+      // ?tjuren: straight to the matadors and off to Madrid (for testing)
+      const spot = matadors.front()
+      player.pos.copy(spot.pos)
+      player.yaw = spot.yaw
+      player.update(0, () => {})
+      corrida.prepare()
+      startCorrida()
+    } else {
+      setTimeout(() => trip.prepare(), 400)
+      setTimeout(() => corrida.prepare(), 1500)
+    }
   })
   .catch((err) => {
     console.error(err)
@@ -984,4 +1124,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, world, talkers, mp, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })

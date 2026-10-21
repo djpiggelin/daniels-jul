@@ -8,7 +8,7 @@ import { blip } from './sfx'
 import { glowTexture } from './tex'
 import type { Circle } from './world'
 
-const std = (color: number, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
+export const std = (color: number, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
 /** Where the sleigh waits: behind you as you arrive, side on so you see the whole team. */
 export const PARK = { x: -2.5, z: 29.6, yaw: -Math.PI / 2 }
@@ -27,7 +27,7 @@ const gold = std(0xf6c453, 0.3, 0.8)
 const black = std(0x111111, 0.3)
 
 /** A cylinder from a to b. */
-function rod(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Material) {
+export function rod(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Material) {
   const d = b.clone().sub(a)
   const m = new THREE.Mesh(new THREE.CylinderGeometry(r * 0.8, r, d.length(), 6), mat)
   m.position.copy(a).addScaledVector(d, 0.5)
