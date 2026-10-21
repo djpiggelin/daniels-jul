@@ -5,6 +5,13 @@
 [functions]
   directory = "netlify/functions"
 
+# The 3D village (jul3d/, built to /by/) is the front page
+[[redirects]]
+  from = "/"
+  to = "/by/index.html"
+  status = 200
+  force = true
+
 # Guest photos used to live in the repo – knytis claims saved before the move still point here
 [[redirects]]
   from = "/Participants/*"
