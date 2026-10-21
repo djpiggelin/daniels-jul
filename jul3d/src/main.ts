@@ -13,6 +13,8 @@ import { Snowballs } from './snowballs'
 import { Thrower } from './throw'
 import { Dialog, PauseMenu, Viewer, VirtualCursor, type Talk } from './ui'
 import { KnytisPanel } from './knytis'
+import { RitbordPanel } from './ritbord'
+import { refreshTeamHouse } from './teamhouse'
 import { Viewmodel } from './viewmodel'
 import { VILLAGE_RADIUS, buildWorld } from './world'
 
@@ -384,6 +386,26 @@ function openKnytisPanel() {
   }
 }
 addEventListener('jul:knytis', openKnytisPanel)
+
+/* ---------- ritbordet (Pepparkaksarkitekten) ---------- */
+const ritbord = new RitbordPanel()
+function openRitbordPanel() {
+  if (ritbord.open || !started) return
+  pause(false)
+  cursor.hide()
+  menu.hide()
+  ritbord.show()
+  if (player.locked) {
+    selfUnlock = true
+    document.exitPointerLock()
+  }
+}
+addEventListener('jul:ritbord', openRitbordPanel)
+ritbord.onClose = () => {
+  // whatever you drew is now standing on the table
+  refreshTeamHouse()
+  resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
+}
 knytis.onClose = () => resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
 $('menu-btn').addEventListener('click', openMenu)
 
@@ -395,6 +417,7 @@ function onEsc() {
   if (now - lastEsc < 300) return
   lastEsc = now
   if (menu.open) return closeMenu()
+  if (ritbord.open) return ritbord.close()
   if (knytis.open) return knytis.close()
   if (dialog.open) return dialog.close()
   if (viewer.open) return viewer.close()
@@ -489,7 +512,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || arcade?.active || flight.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || arcade?.active || flight.active || !started) return
   if (e.code === 'KeyE' || e.code === 'Enter') interact()
   if (e.code === 'KeyM') toggleMusic()
 })
