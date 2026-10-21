@@ -18,6 +18,8 @@ multiplayer/
   Servern skickar ut allas senaste positioner 10 gånger i sekunden, och byn glider mjukt mellan dem.
 - Kastar du en snöboll skickas den till de andra, som låter den flyga hos sig. **Den som blir träffad avgör** och
   säger till – då kan ingen fuska till sig träffar på andra.
+- **Chatt**: det man skriver visas som en pratbubbla över ens nisse och i en liten logg i hörnet. Högst 120 tecken,
+  ett meddelande varannan sekund (tre i rad går).
 - Repot är öppet, så servern litar inte på något: namn rensas och kortas, färger och bilder måste vara tillåtna,
   positioner hålls inom byn, för många eller för stora meddelanden ignoreras, max 30 i byn samtidigt, och bara
   sajtens egna sidor (`hasslon.se`, `danielsjulkalender.netlify.app` och dess previews, `localhost`) får ansluta.

@@ -4,7 +4,7 @@
 // The repo is public, so it trusts nobody: names, photos, positions and the pace of
 // messages are all checked here, and only the site's own pages may connect.
 
-import { COLORS, LIMITS, TICK_MS, cleanName, cleanPhoto, type ClientMessage, type PlayerInfo, type PlayerState, type ServerMessage, type V3 } from './protocol'
+import { COLORS, LIMITS, TICK_MS, cleanName, cleanPhoto, cleanText, type ClientMessage, type PlayerInfo, type PlayerState, type ServerMessage, type V3 } from './protocol'
 
 export interface Env {
   BYN: DurableObjectNamespace
@@ -44,6 +44,7 @@ type Player = {
   /** token bucket for messages, and a separate one for throws */
   tokens: number
   throwTokens: number
+  sayTokens: number
   last: number
 }
 
@@ -71,7 +72,7 @@ export class Byn implements DurableObject {
       return new Response(null, { status: 101, webSocket: client })
     }
     const id = (this.nextId++).toString(36) + Math.random().toString(36).slice(2, 6)
-    const p: Player = { ws: server, info: null, state: null, changed: false, tokens: LIMITS.rate * 2, throwTokens: LIMITS.throwsPerSecond, last: Date.now() }
+    const p: Player = { ws: server, info: null, state: null, changed: false, tokens: LIMITS.rate * 2, throwTokens: LIMITS.throwsPerSecond, sayTokens: 3, last: Date.now() }
     this.players.set(id, p)
     server.addEventListener('message', (e) => this.onMessage(id, p, e.data))
     const gone = () => this.leave(id)
@@ -101,15 +102,17 @@ export class Byn implements DurableObject {
   }
 
   /** Refill the buckets; false when this player is sending too much. */
-  private allow(p: Player, isThrow: boolean) {
+  private allow(p: Player, kind: string) {
     const now = Date.now()
     const dt = (now - p.last) / 1000
     p.last = now
     p.tokens = Math.min(LIMITS.rate * 2, p.tokens + dt * LIMITS.rate)
     p.throwTokens = Math.min(LIMITS.throwsPerSecond, p.throwTokens + dt * LIMITS.throwsPerSecond)
-    if (p.tokens < 1 || (isThrow && p.throwTokens < 1)) return false
+    p.sayTokens = Math.min(3, p.sayTokens + dt / LIMITS.saySeconds)
+    if (p.tokens < 1 || (kind === 'th' && p.throwTokens < 1) || (kind === 'say' && p.sayTokens < 1)) return false
     p.tokens--
-    if (isThrow) p.throwTokens--
+    if (kind === 'th') p.throwTokens--
+    if (kind === 'say') p.sayTokens--
     return true
   }
 
@@ -121,7 +124,7 @@ export class Byn implements DurableObject {
     } catch {
       return
     }
-    if (!m || typeof m !== 'object' || !this.allow(p, m.t === 'th')) return
+    if (!m || typeof m !== 'object' || !this.allow(p, m.t)) return
 
     if (m.t === 'hi') {
       if (p.info) return
@@ -144,6 +147,9 @@ export class Byn implements DurableObject {
       const f = vec(m.f, LIMITS.radius + 5)
       const v = vec(m.v, 40)
       if (f && v) this.broadcast({ t: 'th', id, f, v }, id)
+    } else if (m.t === 'say') {
+      const text = cleanText(m.text, LIMITS.say)
+      if (text) this.broadcast({ t: 'say', id, text }, id)
     } else if (m.t === 'hit') {
       const by = typeof m.by === 'string' ? this.players.get(m.by) : undefined
       if (!by?.info || m.by === id) return

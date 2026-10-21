@@ -286,6 +286,7 @@ if (mp) {
   mp.onLeave = (name) => toast(`👋 ${name} gick hem`)
   mp.onHit = (by, on, mine) => toast(mine.by ? `❄️ Träff! Du prickade ${on}` : mine.on ? `❄️ ${by} träffade dig!` : `❄️ ${by} prickade ${on}`)
   mp.onChange = showOthers
+  mp.onSay = (name, text, mine) => chatLine(name, text, mine)
   thrower.onThrow = (from, vel) => mp.sendThrow(from, vel)
   $('me').hidden = false
   ;($('me-name') as HTMLInputElement).value = rememberedName.get()
@@ -306,6 +307,7 @@ function joinOthers() {
 function showOthers() {
   const people = mp?.players ?? []
   $('online').hidden = !mp?.online
+  $('chat-btn').hidden = !mp?.online
   $('online').textContent = `👥 ${people.length} i byn`
   const list = $('m-players')
   list.hidden = people.length < 2
@@ -496,6 +498,51 @@ function openRitbordPanel() {
   }
 }
 addEventListener('jul:ritbord', openRitbordPanel)
+
+/* ---------- chat: speech bubbles over your nisse ---------- */
+// Typing lets go of the mouse and stands you still (like the other panels); Enter sends, Esc closes.
+const chatForm = $('chat') as HTMLFormElement
+const chatInput = $('chat-input') as HTMLInputElement
+let chatting = false
+function openChat() {
+  if (chatting || !started || !mp?.online) return
+  chatting = true
+  pause(false)
+  cursor.hide()
+  chatForm.hidden = false
+  chatInput.value = ''
+  chatInput.focus()
+  if (player.locked) {
+    selfUnlock = true
+    document.exitPointerLock()
+  }
+}
+function closeChat() {
+  if (!chatting) return
+  chatting = false
+  chatForm.hidden = true
+  chatInput.blur()
+  resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
+}
+chatForm.addEventListener('submit', (e) => {
+  e.preventDefault()
+  mp?.say(chatInput.value)
+  closeChat()
+})
+$('chat-btn').addEventListener('click', openChat)
+/** The last few lines in the corner – bubbles behind your back aren't missed. */
+function chatLine(name: string, text: string, mine: boolean) {
+  const log = $('chat-log')
+  const row = document.createElement('div')
+  if (mine) row.className = 'mine'
+  const who = document.createElement('b')
+  who.textContent = mine ? 'Du' : name
+  row.append(who, document.createTextNode(` ${text}`))
+  log.append(row)
+  while (log.children.length > 5) log.firstElementChild!.remove()
+  setTimeout(() => row.classList.add('old'), 11000)
+  setTimeout(() => row.remove(), 12000)
+}
 ritbord.onClose = () => {
   // whatever you drew is now standing on the table
   refreshTeamHouse()
@@ -512,6 +559,7 @@ function onEsc() {
   if (now - lastEsc < 300) return
   lastEsc = now
   if (menu.open) return closeMenu()
+  if (chatting) return closeChat()
   if (ritbord.open) return ritbord.close()
   if (knytis.open) return knytis.close()
   if (dialog.open) return dialog.close()
@@ -631,20 +679,38 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || arcade?.active || flight.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || arcade?.active || flight.active || !started) return
   if (e.code === 'KeyE' || e.code === 'Enter') interact()
   if (e.code === 'KeyM') toggleMusic()
+  if (e.code === 'KeyT' && mp?.online) {
+    e.preventDefault() // or the T ends up in the chat box
+    openChat()
+  }
 })
 
 /* ---------- music ---------- */
 const music = new Audio('/sounds/game-background-music.mp3')
 music.loop = true
 music.volume = 0.25
+// Off until you turn it on – then remembered for next time.
+const MUSIC_KEY = 'jul3d.music'
 function toggleMusic(force?: boolean) {
   const on = force ?? music.paused
   if (on) music.play().catch(() => {})
   else music.pause()
   $('music').classList.toggle('on', on)
+  try {
+    localStorage.setItem(MUSIC_KEY, on ? 'på' : 'av')
+  } catch {
+    /* fine */
+  }
+}
+const musicWanted = () => {
+  try {
+    return localStorage.getItem(MUSIC_KEY) === 'på'
+  } catch {
+    return false
+  }
 }
 $('music').addEventListener('click', () => toggleMusic())
 
@@ -832,7 +898,7 @@ go.addEventListener('click', () => {
   $('hud').hidden = false
   player.enabled = true
   player.lock()
-  toggleMusic(true)
+  if (musicWanted()) toggleMusic(true)
 })
 
 // handy for poking around from the console: jul.goto(0) walks you into the first shop

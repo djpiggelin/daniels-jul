@@ -487,3 +487,28 @@ body.touch #menu .sens { display: none; }
   #me span { display: none; }
   #me input { padding: 8px 14px; }
 }
+
+/* ---------- chat ---------- */
+#chat {
+  position: fixed; left: 50%; bottom: max(14px, env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60;
+  display: flex; gap: 8px; width: min(560px, calc(100vw - 24px)); padding: 8px; border-radius: 999px;
+  background: rgba(7, 11, 29, 0.85); border: 1px solid rgba(246, 196, 83, 0.5); box-shadow: 0 10px 40px rgba(0, 0, 0, 0.5);
+}
+#chat input {
+  flex: 1; min-width: 0; padding: 10px 16px; border-radius: 999px; border: 0; background: rgba(255, 255, 255, 0.1);
+  color: var(--snow); font: 500 16px var(--sans);
+}
+#chat input:focus { outline: none; background: rgba(255, 255, 255, 0.16); }
+#chat button { padding: 0 18px; border-radius: 999px; border: 0; background: var(--red); color: #fff; font: 700 15px var(--sans); }
+#chat-log {
+  position: fixed; left: 16px; bottom: calc(max(14px, env(safe-area-inset-bottom)) + 40px); z-index: 40; display: grid; gap: 4px;
+  max-width: min(420px, calc(100vw - 110px)); pointer-events: none;
+}
+#chat-log div {
+  padding: 5px 12px; border-radius: 14px; background: rgba(7, 11, 29, 0.6); font-size: 14px; line-height: 1.35;
+  overflow-wrap: anywhere; transition: opacity 1s; animation: fade 0.25s ease-out;
+}
+#chat-log div b { color: var(--gold); margin-right: 2px; }
+#chat-log div.mine b { color: #9fe0bf; }
+#chat-log div.old { opacity: 0; }
+body.touch #chat-log { bottom: calc(max(14px, env(safe-area-inset-bottom)) + 170px); }

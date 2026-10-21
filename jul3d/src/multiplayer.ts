@@ -2,7 +2,7 @@
 // where they walk and throwing what they throw. Talks to the server in multiplayer/ – without
 // one (or when it can't be reached) the village simply stays a one-player village.
 import * as THREE from 'three'
-import { COLORS, cleanName, type ClientMessage, type PlayerInfo, type PlayerState, type ServerMessage, type V3 } from '../../multiplayer/src/protocol'
+import { COLORS, LIMITS, cleanName, cleanText, type ClientMessage, type PlayerInfo, type PlayerState, type ServerMessage, type V3 } from '../../multiplayer/src/protocol'
 import { Nisse } from './npc'
 import { loadImage, makeCanvas, toTexture } from './tex'
 
@@ -53,6 +53,48 @@ async function nameTag(name: string, color: number, photo: string | null) {
   return sprite
 }
 
+/** White rounded bubble with a little tail, the text wrapped over up to three lines. */
+function speechBubble(text: string) {
+  const W = 640
+  const [m, mctx] = makeCanvas(1, 1)
+  mctx.font = '600 40px "DM Sans", system-ui, sans-serif'
+  const lines: string[] = []
+  let line = ''
+  for (const word of text.split(' ')) {
+    const test = line ? `${line} ${word}` : word
+    if (mctx.measureText(test).width > W - 80 && line) {
+      lines.push(line)
+      line = word
+    } else line = test
+  }
+  if (line) lines.push(line)
+  if (lines.length > 3) lines.splice(3, lines.length - 3, `${lines[2].slice(0, -1)}…`)
+  m.width = m.height = 0
+  const H = 40 + lines.length * 50 + 30
+  const [c, ctx] = makeCanvas(W, H)
+  ctx.font = '600 40px "DM Sans", system-ui, sans-serif'
+  const w = Math.min(W - 8, Math.max(...lines.map((l) => ctx.measureText(l).width)) + 64)
+  const x0 = (W - w) / 2
+  ctx.fillStyle = 'rgba(255, 252, 244, 0.96)'
+  ctx.strokeStyle = 'rgba(122, 76, 42, 0.5)'
+  ctx.lineWidth = 4
+  ctx.beginPath()
+  ctx.roundRect(x0, 4, w, H - 34, 28)
+  ctx.moveTo(W / 2 - 18, H - 31)
+  ctx.lineTo(W / 2, H - 4)
+  ctx.lineTo(W / 2 + 18, H - 31)
+  ctx.fill()
+  ctx.stroke()
+  ctx.fillStyle = '#2a1a10'
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  lines.forEach((l, i) => ctx.fillText(l, W / 2, 4 + 32 + i * 50, w - 40))
+  const sprite = new THREE.Sprite(new THREE.SpriteMaterial({ map: toTexture(c, { live: true }), transparent: true, depthWrite: false }))
+  sprite.scale.set(2.2, (2.2 * H) / W, 1)
+  sprite.center.set(0.5, 0)
+  return sprite
+}
+
 class Avatar {
   readonly nisse: Nisse
   readonly target = new THREE.Vector3()
@@ -81,9 +123,29 @@ class Avatar {
     return this.nisse.group
   }
 
+  private bubble: { sprite: THREE.Sprite; left: number } | null = null
+
+  /** A speech bubble over their head for a few seconds. */
+  say(text: string) {
+    this.clearBubble()
+    const sprite = speechBubble(text)
+    sprite.position.y = 2.72 / SCALE
+    this.group.add(sprite)
+    this.bubble = { sprite, left: 4 + Math.min(6, text.length / 12) }
+  }
+
+  private clearBubble() {
+    if (!this.bubble) return
+    this.group.remove(this.bubble.sprite)
+    this.bubble.sprite.material.map?.dispose()
+    this.bubble.sprite.material.dispose()
+    this.bubble = null
+  }
+
   set(s: PlayerState) {
     this.target.set(s[1], 0, s[2])
-    this.targetYaw = s[3]
+    // the camera looks down -z at yaw 0, a nisse's face points down +z: turn it round
+    this.targetYaw = s[3] + Math.PI
     this.speed = s[4]
     if (!this.placed) {
       this.group.position.copy(this.target)
@@ -106,6 +168,11 @@ class Avatar {
     this.nisse.update(t, dt, FAR, false)
     this.phase += dt * (4 + this.speed * 8) * Math.min(1, this.speed * 3)
     if (this.speed > 0.02) this.nisse.walkPose(this.phase, Math.min(1, this.speed * 1.4))
+    if (this.bubble) {
+      this.bubble.left -= dt
+      this.bubble.sprite.material.opacity = Math.min(1, this.bubble.left)
+      if (this.bubble.left <= 0) this.clearBubble()
+    }
   }
 
   dispose(scene: THREE.Scene) {
@@ -137,6 +204,8 @@ export class Multiplayer {
   onJoin: (name: string) => void = () => {}
   onLeave: (name: string) => void = () => {}
   onHit: (by: string, on: string, mine: { by: boolean; on: boolean }) => void = () => {}
+  /** Someone said something (or you did) – for the chat log in the corner. */
+  onSay: (name: string, text: string, mine: boolean) => void = () => {}
   /** A snowball someone else threw – fly it here too (owned by their nisse, so it can hit you). */
   onThrow: (from: THREE.Vector3, vel: THREE.Vector3, owner: THREE.Object3D) => void = () => {}
   /** Their nisse appeared or disappeared – snowballs need to know what they can hit. */
@@ -253,6 +322,11 @@ export class Multiplayer {
       if (m.on !== this.myId) this.avatars.get(m.on)?.nisse.flinch()
       this.onHit(this.nameOf(m.by), this.nameOf(m.on), { by: m.by === this.myId, on: m.on === this.myId })
       this.onChange()
+    } else if (m.t === 'say') {
+      const a = this.avatars.get(m.id)
+      if (!a) return
+      a.say(m.text)
+      this.onSay(a.info.name, m.text, false)
     } else if (m.t === 'full') {
       this.stopped = true
     }
@@ -270,6 +344,15 @@ export class Multiplayer {
     this.lastSent = now
     this.sent = s
     this.send({ t: 's', ...s })
+  }
+
+  /** Say something to everyone here. */
+  say(text: string) {
+    const t = cleanText(text, LIMITS.say)
+    if (!t || !this.online || !this.me) return false
+    this.send({ t: 'say', text: t })
+    this.onSay(this.me.name, t, true)
+    return true
   }
 
   sendThrow(from: THREE.Vector3, vel: THREE.Vector3) {
