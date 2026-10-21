@@ -680,12 +680,13 @@ renderer.domElement.addEventListener('mousedown', (e) => {
 })
 addEventListener('keydown', (e) => {
   if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || arcade?.active || flight.active || !started) return
-  if (e.code === 'KeyE' || e.code === 'Enter') interact()
-  if (e.code === 'KeyM') toggleMusic()
-  if (e.code === 'KeyT' && mp?.online) {
-    e.preventDefault() // or the T ends up in the chat box
+  if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
+  const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
+  if (talk && mp?.online) {
+    e.preventDefault() // or the key ends up in the chat box
     openChat()
-  }
+  } else if (e.code === 'KeyE' || e.code === 'Enter') interact()
+  if (e.code === 'KeyM') toggleMusic()
 })
 
 /* ---------- music ---------- */
@@ -764,6 +765,9 @@ function setPixels(pr: number) {
   sizeSpray()
 }
 const fpsWin = { frames: 0, since: 0, fps: 0 }
+// Changing it clears the canvas, so it must not see-saw: going up takes three good windows in a row
+// (6 s) and 10 s since the last step down, and once a step up had to be taken back it stays put.
+const adapt = { good: 0, lastDown: 0, wentUp: false, settled: false }
 function adaptResolution(now: number) {
   if (document.hidden) return void (fpsWin.since = 0)
   if (!fpsWin.since) return void Object.assign(fpsWin, { since: now, frames: 0 })
@@ -772,8 +776,16 @@ function adaptResolution(now: number) {
   if (span < 2000) return
   fpsWin.fps = (fpsWin.frames * 1000) / span
   Object.assign(fpsWin, { since: now, frames: 0 })
-  if (fpsWin.fps < 40 && pixels > QUALITY.minPixelRatio) setPixels(pixels - 0.15)
-  else if (fpsWin.fps > 56 && pixels < pixelCap) setPixels(pixels + 0.1)
+  if (fpsWin.fps < 40 && pixels > QUALITY.minPixelRatio) {
+    if (adapt.wentUp) adapt.settled = true
+    Object.assign(adapt, { good: 0, lastDown: now, wentUp: false })
+    setPixels(pixels - 0.15)
+  } else if (fpsWin.fps > 56 && pixels < pixelCap && !adapt.settled) {
+    if (++adapt.good >= 3 && now - adapt.lastDown > 10000) {
+      Object.assign(adapt, { good: 0, wentUp: true })
+      setPixels(pixels + 0.1)
+    }
+  } else adapt.good = 0
 }
 
 /* ---------- when the graphics give up ---------- */
@@ -863,11 +875,12 @@ function frame(now: number) {
   world.showFar(flight.active)
   if (frameNo % 4 === 0) cullSmall()
   if (frameNo % 2 === 0) renderer.shadowMap.needsUpdate = true
+  // before drawing: a new resolution resizes (and clears) the canvas, which would otherwise show as a black flash
+  if (!idle) adaptResolution(now)
   renderer.info.reset()
   renderer.clear()
   renderer.render(scene, camera)
   vm.render(renderer, camera)
-  if (!idle) adaptResolution(now)
 }
 
 /* ---------- start ---------- */

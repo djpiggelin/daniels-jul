@@ -37,7 +37,7 @@ snöboll ramlar den omkull och kastar ofta tillbaka.
 ## Fler i byn
 
 Är fler inne samtidigt syns de som nissar i sin egen färg med namnskylt (och sin bild, om de valt ett namn från
-gästlistan) – och snöbollar går att kasta på dem. `T` (eller 💬) öppnar chatten: det du skriver blir en
+gästlistan) – och snöbollar går att kasta på dem. `Enter` (eller 💬 på telefon) öppnar chatten: det du skriver blir en
 pratbubbla över din nisse. Namnet skriver man på startskärmen (samma som på knytis).
 Koden är [`src/multiplayer.ts`](src/multiplayer.ts); servern ligger i [`../multiplayer/`](../multiplayer/README.md).
 
