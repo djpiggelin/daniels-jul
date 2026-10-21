@@ -141,7 +141,7 @@ export class Byn implements DurableObject {
 
     if (m.t === 's') {
       const r = LIMITS.radius
-      p.state = [id, round(finite(m.x, r)), round(finite(m.z, r)), round(finite(m.y, 1e4), 3), round(Math.max(0, Math.min(1, finite(m.m, 1))))]
+      p.state = [id, round(finite(m.x, r)), round(finite(m.z, r)), round(finite(m.y, 1e4), 3), round(Math.max(0, Math.min(1, finite(m.m, 1)))), round(Math.max(0, finite(m.h, 2)))]
       p.changed = true
     } else if (m.t === 'th') {
       const f = vec(m.f, LIMITS.radius + 5)

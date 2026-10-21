@@ -549,6 +549,10 @@ chatForm.addEventListener('submit', (e) => {
   closeChat()
 })
 $('chat-btn').addEventListener('click', openChat)
+$('jump').addEventListener('pointerdown', (e) => {
+  e.preventDefault()
+  player.jump()
+})
 /** The last few lines in the corner – bubbles behind your back aren't missed. */
 function chatLine(name: string, text: string, mine: boolean) {
   const log = $('chat-log')
@@ -877,7 +881,7 @@ function frame(now: number) {
   const dt = Math.min(clock.getDelta(), 0.05)
   const t = clock.elapsedTime
   player.update(dt, collidePlayer)
-  mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8)
+  mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.height)
   mp?.update(t, dt)
   thrower.update(dt, t)
   arcade?.update(dt, t)

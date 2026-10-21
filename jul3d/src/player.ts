@@ -25,6 +25,9 @@ export class Player {
   /** A tap on the scene (touch): talk to / look at whatever is under the finger. */
   onTap: (x: number, y: number) => void = () => {}
   private bob = 0
+  /** Feet above the snow (jumping), and how fast that is changing. */
+  height = 0
+  private vy = 0
   readonly touch = TOUCH
 
   constructor(
@@ -36,6 +39,10 @@ export class Player {
     addEventListener('keydown', (e) => {
       if (!this.enabled || e.metaKey || e.ctrlKey) return
       this.keys.add(e.code)
+      if (e.code === 'Space' && !e.repeat) {
+        e.preventDefault() // no page scroll
+        this.jump()
+      }
       // a key press counts as a user gesture, so it can grab the mouse again (not Esc – the browser keeps that one)
       if (e.code !== 'Escape') this.lock()
     })
@@ -126,6 +133,12 @@ export class Player {
   }
 
   /** Stop all movement input (keeps the mouse grabbed). */
+  /** Jump – if your feet are on the ground. (Same pull of gravity as the snowballs.) */
+  jump() {
+    if (!this.enabled || this.height > 0.001 || this.vy !== 0) return
+    this.vy = 4.6
+  }
+
   stop() {
     this.keys.clear()
     this.press.clear()
@@ -173,10 +186,20 @@ export class Player {
 
     const speed = this.vel.length()
     this.bob += dt * speed * 2.2
-    const bobY = Math.sin(this.bob) * 0.045 * Math.min(1, speed / 4)
+    // up and down: about 80 cm at the top of a jump
+    if (this.vy !== 0 || this.height > 0) {
+      this.vy -= 13 * dt
+      this.height += this.vy * dt
+      if (this.height <= 0) {
+        this.height = 0
+        this.vy = 0
+      }
+    }
+    const airborne = this.height > 0
+    const bobY = airborne ? 0 : Math.sin(this.bob) * 0.045 * Math.min(1, speed / 4)
     // lean back while winding up a throw (head goes back and up a little)
     const back = this.lean * 0.16
-    this.camera.position.set(this.pos.x + Math.sin(this.yaw) * back, 1.62 + bobY - Math.abs(this.lean) * 0.04, this.pos.z + Math.cos(this.yaw) * back)
+    this.camera.position.set(this.pos.x + Math.sin(this.yaw) * back, 1.62 + this.height + bobY - Math.abs(this.lean) * 0.04, this.pos.z + Math.cos(this.yaw) * back)
     this.camera.rotation.set(this.pitch + this.lean * 0.13, this.yaw, -this.lean * 0.05, 'YXZ')
   }
 }

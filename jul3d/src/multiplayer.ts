@@ -145,7 +145,7 @@ class Avatar {
   }
 
   set(s: PlayerState) {
-    this.target.set(s[1], 0, s[2])
+    this.target.set(s[1], s[5] ?? 0, s[2])
     // the camera looks down -z at yaw 0, a nisse's face points down +z: turn it round
     this.targetYaw = s[3] + Math.PI
     this.speed = s[4]
@@ -199,7 +199,7 @@ export class Multiplayer {
   private retry = 1000
   private stopped = false
   private lastSent = 0
-  private sent: { x: number; z: number; y: number; m: number } | null = null
+  private sent: { x: number; z: number; y: number; m: number; h: number } | null = null
 
   /** Someone came or went, a snowball found its mark – for toasts and the menu. */
   onChange: () => void = () => {}
@@ -335,13 +335,13 @@ export class Multiplayer {
   }
 
   /** Where you are – a few times a second, and only when it changed (or now and then, to stay seen). */
-  sendState(pos: THREE.Vector3, yaw: number, speed: number) {
+  sendState(pos: THREE.Vector3, yaw: number, speed: number, height = 0) {
     if (!this.online) return
     const now = performance.now()
     if (now - this.lastSent < SEND_MS) return
-    const s = { x: pos.x, z: pos.z, y: Math.atan2(Math.sin(yaw), Math.cos(yaw)), m: Math.min(1, speed) }
+    const s = { x: pos.x, z: pos.z, y: Math.atan2(Math.sin(yaw), Math.cos(yaw)), m: Math.min(1, speed), h: Math.round(height * 100) / 100 }
     const p = this.sent
-    const moved = !p || Math.hypot(s.x - p.x, s.z - p.z) > 0.03 || Math.abs(s.y - p.y) > 0.03 || Math.abs(s.m - p.m) > 0.05
+    const moved = !p || Math.hypot(s.x - p.x, s.z - p.z) > 0.03 || Math.abs(s.y - p.y) > 0.03 || Math.abs(s.m - p.m) > 0.05 || Math.abs(s.h - p.h) > 0.02
     if (!moved && now - this.lastSent < 2000) return
     this.lastSent = now
     this.sent = s
