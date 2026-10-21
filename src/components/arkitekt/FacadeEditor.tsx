@@ -53,6 +53,9 @@ export function FacadeEditor({
   const [carry, setCarry] = useState<{ type: StampType; x: number; y: number } | null>(null)
   const moving = useRef<{ i: number; dx: number; dy: number; x: number; y: number } | null>(null)
   const latest = useRef<{ press: (t: StampType, x: number, y: number) => void; center: (t: StampType) => void; cw: number; ch: number } | null>(null)
+  // the candy you last placed or picked up – the one ⟲ ⟳ turn (index into the piece's ops)
+  const [sel, setSel] = useState<number | null>(null)
+  const wheel = useRef<((e: WheelEvent) => void) | null>(null)
 
   const piece = pieces.find((p) => p.id === pieceId) ?? pieces[0]
   const ops = (piece && sketches[piece.id]) || []
@@ -60,6 +63,15 @@ export function FacadeEditor({
   useEffect(() => {
     if (piece && piece.id !== pieceId) setPieceId(piece.id)
   }, [piece, pieceId])
+  useEffect(() => setSel(null), [pieceId, tool])
+  // the scroll wheel over a candy turns it (a native listener: React's wheel events can't preventDefault)
+  useEffect(() => {
+    const c = canvas.current
+    if (!c) return
+    const onWheel = (e: WheelEvent) => wheel.current?.(e)
+    c.addEventListener('wheel', onWheel, { passive: false })
+    return () => c.removeEventListener('wheel', onWheel)
+  }, [piece?.id])
 
   useLayoutEffect(() => {
     const el = wrap.current!
@@ -82,6 +94,18 @@ export function FacadeEditor({
       const m = moving.current
       const shown = m ? ops.map((o, j) => (j === m.i && o.k === 't' ? { ...o, x: m.x, y: m.y } : o)) : ops
       renderPiece(canvas.current, piece, current.current ? [...shown, current.current] : shown, ppc)
+      const o = sel !== null ? shown[sel] : undefined
+      if (o && o.k === 't' && tool === 'stampel') {
+        const ctx = canvas.current.getContext('2d')!
+        ctx.save()
+        ctx.setLineDash([ppc * 0.25, ppc * 0.18])
+        ctx.lineWidth = Math.max(2, ppc * 0.08)
+        ctx.strokeStyle = '#d4a64a'
+        ctx.beginPath()
+        ctx.arc((o.x + MARGIN) * ppc, (o.y + MARGIN) * ppc, ppc * 1.05, 0, Math.PI * 2)
+        ctx.stroke()
+        ctx.restore()
+      }
     })
   }
   useEffect(redraw)
@@ -97,6 +121,19 @@ export function FacadeEditor({
     const s = Math.floor(Math.random() * 1000)
     const r = type === 'kanel' || type === 'mandel' ? Math.random() * Math.PI : (Math.random() - 0.5) * 0.5
     onChange(piece.id, [...ops, { k: 't', t: type, x: Math.round(x * 100) / 100, y: Math.round(y * 100) / 100, r: Math.round(r * 100) / 100, s }])
+    setSel(ops.length)
+  }
+
+  /** Turn a candy (the selected one unless another is given) by `delta` radians. */
+  const rotate = (delta: number, j = sel) => {
+    const o = j !== null ? ops[j] : undefined
+    if (!o || o.k !== 't') return
+    onChange(piece.id, ops.map((p, k) => (k === j && p.k === 't' ? { ...p, r: Math.round((p.r + delta) * 100) / 100 } : p)))
+  }
+  const removeSelected = () => {
+    if (sel === null || ops[sel]?.k !== 't') return
+    onChange(piece.id, ops.filter((_, k) => k !== sel))
+    setSel(null)
   }
 
   /** A plain tap on a candy button drops one in the middle of the piece, so something always happens. */
@@ -144,6 +181,16 @@ export function FacadeEditor({
     return -1
   }
 
+  wheel.current = (e: WheelEvent) => {
+    if (tool !== 'stampel' || !canvas.current) return
+    const r = canvas.current.getBoundingClientRect()
+    const j = candyAt(((e.clientX - r.left) / r.width) * cw - MARGIN, ((e.clientY - r.top) / r.height) * ch - MARGIN)
+    if (j < 0) return
+    e.preventDefault()
+    setSel(j)
+    rotate(Math.sign(e.deltaY) * (Math.PI / 12), j)
+  }
+
   const down = (e: React.PointerEvent<HTMLCanvasElement>) => {
     e.preventDefault()
     const [x, y] = toCm(e)
@@ -154,6 +201,7 @@ export function FacadeEditor({
         const o = ops[j] as Extract<Op, { k: 't' }>
         e.currentTarget.setPointerCapture(e.pointerId)
         moving.current = { i: j, dx: x - o.x, dy: y - o.y, x: o.x, y: o.y }
+        setSel(j)
         e.currentTarget.style.cursor = 'grabbing'
         return
       }
@@ -189,6 +237,7 @@ export function FacadeEditor({
       // dragged off the gingerbread → gone; otherwise it stays where it was dropped
       const off = m.x < -0.5 || m.y < -0.5 || m.x > piece.w + 0.5 || m.y > piece.h + 0.5
       onChange(piece.id, off ? ops.filter((_, j) => j !== m.i) : ops.map((o, j) => (j === m.i && o.k === 't' ? { ...o, x: m.x, y: m.y } : o)))
+      if (off) setSel(null)
       return
     }
     const c = current.current
@@ -275,8 +324,20 @@ export function FacadeEditor({
                   </button>
                 ))}
               </div>
+              <div className="mt-3 flex flex-wrap items-center gap-1.5" aria-live="polite">
+                <span className="mr-1 text-[11px] uppercase tracking-widest text-[#3a2410]/60">{sel !== null ? 'Valt godis' : 'Vrid godis'}</span>
+                <button className={btn(false)} disabled={sel === null} onClick={() => rotate(-Math.PI / 12)} title="Vrid moturs" aria-label="Vrid moturs">
+                  ⟲
+                </button>
+                <button className={btn(false)} disabled={sel === null} onClick={() => rotate(Math.PI / 12)} title="Vrid medurs" aria-label="Vrid medurs">
+                  ⟳
+                </button>
+                <button className={btn(false)} disabled={sel === null} onClick={removeSelected} title="Ta bort godiset" aria-label="Ta bort godiset">
+                  🗑
+                </button>
+              </div>
               <p className="mt-3 text-[13px] leading-relaxed text-[#3a2410]/70">
-                Dra ett godis till pepparkakan och släpp det där du vill ha det – eller tryck så hamnar det i mitten. Dra i godis som redan sitter för att flytta dem, och dra ut dem från kakan för att ta bort dem.
+                Dra ett godis till pepparkakan och släpp det där du vill ha det – eller tryck så hamnar det i mitten. Dra i godis som redan sitter för att flytta dem, och dra ut dem från kakan för att ta bort dem. Vrid det valda godiset med ⟲ ⟳ – eller scrolla med musen över ett godis.
               </p>
             </fieldset>
           )}
