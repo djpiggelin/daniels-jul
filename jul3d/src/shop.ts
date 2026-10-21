@@ -17,6 +17,9 @@ export type Exhibit = {
   caption?: string
   /** Full-size image for the viewer (data URL or path). */
   image: () => string
+  /** Do this instead of showing the picture (e.g. open the knytis list), with its own prompt. */
+  open?: () => void
+  prompt?: string
 }
 
 export type ShopColors = { wall: string; trim: number; roof: number; inner?: string }

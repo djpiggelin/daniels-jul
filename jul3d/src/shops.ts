@@ -6,6 +6,7 @@ import { Shop, framed, sheet, D } from './shop'
 import { drawArrowSign, drawBoard, drawCorkboard, drawPoster, drawTvScreen, glowTexture, loadImage, loadSvg, makeCanvas, toTexture } from './tex'
 import { downloadIcs, formatDate, formatShortDate, formatTime, untilText } from './time'
 import { html, type Talk, type Topic } from './ui'
+import { openKnytis } from './knytis'
 
 const JULBAK = EVENTS.find((e) => e.id === 'julbak')!
 const JULBORD = EVENTS.find((e) => e.potluck)!
@@ -13,7 +14,8 @@ const JULAFTON = EVENTS.find((e) => e.santa)!
 const VERKSTAD = JULBAK.competitions?.find((c) => c.art === 'verkstad')
 const DESTILLERI = JULBAK.competitions?.find((c) => c.art === 'destilleri')
 
-export type BuiltShop = { shop: Shop; event: JulEvent; npc: Nisse; talk: Talk }
+/** `event` drives the sign over the door; `emoji` (default: the event's) is used on the signpost. */
+export type BuiltShop = { shop: Shop; event: JulEvent; npc: Nisse; talk: Talk; emoji?: string }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const dataUrl = (c: HTMLCanvasElement) => {
@@ -492,7 +494,7 @@ async function buildJulbord(): Promise<BuiltShop> {
   const items = cats.flatMap((cat) => [`# ${cat}`, ...DISHES.filter((d) => d.category === cat).map((d) => `${d.emoji} ${d.name}`)])
   const list = drawBoard({ style: 'chalk', title: 'Knytis – vem tar med vad?', items, marker: 'check', w: 1024, h: 1300, seed: 14 })
   const l = shop.hang(framed(list, 2.3, { frame: 0x6b4226, border: 0.05 }), 'left', 2.05, 1.85)
-  shop.exhibit(l, { title: 'Knytis-listan', caption: 'Välj en rätt och paxa den – alla tar med något till julbordet.', image: dataUrl(list) })
+  shop.exhibit(l, { title: 'Knytis-listan', caption: 'Välj en rätt och paxa den – alla tar med något till julbordet.', image: dataUrl(list), open: openKnytis, prompt: 'Paxa en rätt på knytis-listan' })
 
   const imgs = await Promise.all(PARTICIPANTS.map((g) => (g.image ? loadImage(g.image).catch(() => null) : Promise.resolve(null))))
   const guests = drawCorkboard({ title: 'Gästlistan', cards: PARTICIPANTS.map((g, i) => ({ label: g.name, img: imgs[i] })), cols: 6 })
@@ -515,13 +517,13 @@ async function buildJulbord(): Promise<BuiltShop> {
         pages: () => [
           html.p('Knytkalas! Alla tar med sig en rätt till julbordet. Listan på tavlan visar allt som behövs:'),
           ...cats.map((cat) => html.h(cat) + html.list(DISHES.filter((d) => d.category === cat).map((d) => `${d.emoji} ${d.name}`))),
-          html.p('Välj något som ingen annan har tagit – och paxa det på hemsidan så vi inte får fem skålar Jansson.'),
+          html.p('Välj något som ingen annan har tagit – och paxa det här hos mig så vi inte får fem skålar Jansson.'),
         ],
       },
       {
         label: '✍️ Jag vill paxa en rätt',
         pages: () => [],
-        go: () => location.assign('/knytis'),
+        go: openKnytis,
       },
       {
         label: '👥 Vilka kommer?',
@@ -597,8 +599,138 @@ async function buildJulafton(): Promise<BuiltShop> {
   return { shop, event: e, npc, talk }
 }
 
+/** A blueprint of a gingerbread house: front and side elevation with measurements, like the ones Pepparkaksarkitekten prints. */
+function drawBlueprint(seed = 1) {
+  const [c, ctx] = makeCanvas(1400, 1000)
+  ctx.fillStyle = '#1f4f8a'
+  ctx.fillRect(0, 0, 1400, 1000)
+  ctx.strokeStyle = 'rgba(255,255,255,0.12)'
+  ctx.lineWidth = 2
+  for (let x = 0; x <= 1400; x += 50) (ctx.beginPath(), ctx.moveTo(x, 0), ctx.lineTo(x, 1000), ctx.stroke())
+  for (let y = 0; y <= 1000; y += 50) (ctx.beginPath(), ctx.moveTo(0, y), ctx.lineTo(1400, y), ctx.stroke())
+  ctx.strokeStyle = '#eaf3ff'
+  ctx.fillStyle = '#eaf3ff'
+  ctx.lineWidth = 5
+  ctx.lineJoin = 'round'
+  const wobble = (n: number) => n + Math.sin(n * 0.37 + seed) * 2
+  const path = (pts: [number, number][], close = true) => {
+    ctx.beginPath()
+    pts.forEach(([x, y], i) => (i ? ctx.lineTo(wobble(x), wobble(y)) : ctx.moveTo(wobble(x), wobble(y))))
+    if (close) ctx.closePath()
+    ctx.stroke()
+  }
+  // front: gable wall with a door, a round window and two windows
+  path([[150, 800], [150, 480], [380, 260], [610, 480], [610, 800]])
+  path([[330, 800], [330, 650], [430, 650], [430, 800]], false)
+  ctx.beginPath()
+  ctx.arc(380, 420, 42, 0, Math.PI * 2)
+  ctx.stroke()
+  path([[190, 540], [270, 540], [270, 610], [190, 610]])
+  path([[490, 540], [570, 540], [570, 610], [490, 610]])
+  // side: wall + roof slab
+  path([[760, 800], [760, 480], [1240, 480], [1240, 800]])
+  path([[730, 500], [790, 300], [1210, 300], [1270, 500]])
+  for (const x of [820, 960, 1100]) path([[x, 560], [x + 80, 560], [x + 80, 640], [x, 640]])
+  // measurements
+  ctx.lineWidth = 3
+  const dim = (x1: number, y1: number, x2: number, y2: number, label: string) => {
+    path([[x1, y1], [x2, y2]], false)
+    for (const [x, y] of [[x1, y1], [x2, y2]]) path([[x - 8, y - 8], [x + 8, y + 8]], false)
+    ctx.font = '600 38px Caveat, cursive'
+    ctx.textAlign = 'center'
+    ctx.fillText(label, (x1 + x2) / 2, (y1 + y2) / 2 - 14)
+  }
+  dim(150, 860, 610, 860, '18 cm')
+  dim(760, 860, 1240, 860, '24 cm')
+  dim(90, 480, 90, 800, '12 cm')
+  // title block
+  ctx.font = '700 64px Caveat, cursive'
+  ctx.textAlign = 'left'
+  ctx.fillText('Pepparkakshus – fasad A & B', 150, 140)
+  ctx.font = '600 40px Caveat, cursive'
+  ctx.fillText('Skala 1:1 · ritat av Ritnissen', 150, 195)
+  return c
+}
+
+async function buildArkitektkontor(): Promise<BuiltShop> {
+  const e = JULBAK
+  const c = VERKSTAD
+  const shop = new Shop('Arkitektkontoret', { wall: '#c98a2b', trim: 0xfff3dc, roof: 0x3a2a24, inner: '#d9c3a0' })
+  shop.place(130, 17)
+  counter(shop, 0x1f4f8a)
+
+  const print = drawBlueprint(3)
+  const bp = shop.hang(framed(print, 4.2, { frame: 0xfff3dc, border: 0.05 }), 'back', 0.4, 2.0)
+  shop.exhibit(bp, { title: 'Ritning', caption: 'Rita ert hus på Pepparkaksarkitekten och skriv ut mallarna i skala 1:1.', image: dataUrl(print) })
+
+  const steps = drawBoard({
+    style: 'chalk',
+    title: 'Så ritar ni huset',
+    items: ['Välj en mall – eller börja från noll', 'Bygg ihop flera byggnader på kakbrickan', 'Rita egna bitar med bågar och urtag', 'Skissa glasyren på fasaderna', 'Skriv ut mallarna i skala 1:1', 'Dela ritningen med laget'],
+    marker: 'number',
+    w: 1024,
+    h: 1100,
+    seed: 41,
+  })
+  const s = shop.hang(framed(steps, 2.2, { frame: 0x6b4226, border: 0.05 }), 'left', 2.05, 1.9)
+  shop.exhibit(s, { title: 'Så ritar ni huset', caption: 'Pepparkaksarkitekten – rita, planera och skriv ut', image: dataUrl(steps) })
+
+  if (c?.theme) {
+    const art = await loadSvg('/art/verkstad.svg', 3)
+    const a = shop.hang(framed(art, 2.6, { frame: 0xd4a64a }), 'right', -1.4, 2.05)
+    shop.exhibit(a, { title: `Årets tema: ${c.theme.title}`, caption: c.theme.intro.join(' '), image: dataUrl(art) })
+  }
+
+  const note = drawBoard({ style: 'note', title: 'OBS!', items: ['Planera hur mycket ni vill – men bygget och pyntet sker först på plats.'], marker: 'none', w: 768, h: 768, seed: 43 })
+  const n = shop.hang(sheet(note, 1.2, -0.05), 'right', 1.6, 2.1)
+  shop.exhibit(n, { title: 'OBS!', caption: 'Planera hur mycket ni vill – men bygget och pyntet sker först på plats.', image: dataUrl(note) })
+
+  // the drafting table: a blueprint and a finished house to compare with
+  const t = table(shop, 1.4, -1.2, 1.8, 1.1)
+  const sheetTex = toTexture(drawBlueprint(7))
+  const paper = new THREE.Mesh(new THREE.PlaneGeometry(1.1, 0.78), new THREE.MeshStandardMaterial({ map: sheetTex, roughness: 0.9 }))
+  paper.rotation.set(-Math.PI / 2, 0, 0.12)
+  paper.position.set(-0.25, 0.842, 0)
+  t.add(paper)
+  const house = gingerbreadHouse()
+  house.position.set(0.55, 0.84, 0.1)
+  house.rotation.y = -0.6
+  house.scale.setScalar(0.9)
+  t.add(house)
+
+  const npc = new Nisse({ coat: 0x1f4f8a, hat: 0xc98a2b, apron: 0xfff3dc })
+  const talk: Talk = {
+    name: 'Ritnissen',
+    avatar: '📐',
+    avatarBg: '#1f4f8a',
+    greeting: () => [
+      html.p('Välkommen till arkitektkontoret! Här ritas varenda pepparkakshus innan någon ens tänt ugnen.') +
+        html.p(`Julbaket ${untilText(e)} – har ni ritat ert hus än?`),
+    ],
+    topics: [
+      {
+        label: '✏️ Jag vill rita vårt hus',
+        pages: () => [],
+        go: () => location.assign('/pepparkaksarkitekten'),
+      },
+      {
+        label: '📐 Vad gör ni här inne?',
+        pages: () => [
+          html.p('Rita huset innan ni står med degen. Bygg ihop flera byggnader, rita egna bitar med bågar och urtag, skissa glasyren och skriv ut mallarna i skala 1:1.') +
+            html.p('Spara ritningen med ert lagnamn så kan resten av laget öppna den.'),
+        ],
+      },
+      ...(c?.theme ? [{ label: '🏠 Vad är årets tema?', pages: () => [html.h(c.theme!.title) + html.p(c.theme!.intro[0]), ...c.theme!.intro.slice(1).map(html.p)] }] : []),
+      ...(c ? [{ label: '📜 Vad får man förbereda?', pages: () => [html.p('Ur verkstadsordningen:') + html.list(c.rules)] }] : []),
+      whenWhere(e),
+    ],
+    bye: 'Mät två gånger, skär en gång!',
+  }
+  return { shop, event: e, npc, talk, emoji: '📐' }
+}
+
 export async function buildShops(): Promise<BuiltShop[]> {
-  return Promise.all([buildVerkstad(), buildDestilleri(), buildJulbord(), buildJulafton()])
+  return Promise.all([buildVerkstad(), buildDestilleri(), buildJulbord(), buildJulafton(), buildArkitektkontor()])
 }
 
 /** NPC spot in shop-local space: behind the counter, facing the room. */
@@ -667,7 +799,7 @@ export async function buildSquare(scene: THREE.Scene, shops: BuiltShop[]) {
     const dx = s.shop.group.position.x - post.position.x
     const dz = s.shop.group.position.z - post.position.z
     const ang = Math.atan2(-dz, dx)
-    const label = `${s.event.emoji} ${s.shop.title}`
+    const label = `${s.emoji ?? s.event.emoji} ${s.shop.title}`
     const front = toTexture(drawArrowSign(label, false))
     const back = toTexture(drawArrowSign(label, true))
     const board = new THREE.Group()
