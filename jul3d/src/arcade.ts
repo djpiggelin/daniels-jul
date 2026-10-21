@@ -2,6 +2,7 @@
 // glides in until the screen fills your view – the game runs on the cabinet's own screen, with
 // your mittens on the joystick and buttons below it.
 import * as THREE from 'three'
+import { QUALITY, TOUCH } from './device'
 import { GAMES, type GameDef } from './games'
 import { H, W, emoji, type Game } from './games/shared'
 import { Nisse } from './npc'
@@ -16,7 +17,7 @@ const RES = 1.5
 const SCREEN_W = 0.8
 const SCREEN_H = 1.2
 const SCREEN_Y = 1.69
-const touch = matchMedia('(pointer: coarse)').matches
+const touch = TOUCH
 const std = (color: number, roughness = 0.6, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
 type State = 'enter' | 'title' | 'play' | 'over' | 'leave'
@@ -102,8 +103,8 @@ export class Cabinet {
     ctx.scale(RES, RES)
     this.canvas = c
     this.ctx = ctx
-    this.tex = toTexture(c) as THREE.CanvasTexture
-    this.tex.anisotropy = 16
+    this.tex = toTexture(c, { live: true }) as THREE.CanvasTexture
+    this.tex.anisotropy = QUALITY.anisotropy * 2
 
     const body = std(0x141d45, 0.5)
     const trim = std(new THREE.Color(def.accent).getHex(), 0.45)

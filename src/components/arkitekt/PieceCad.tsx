@@ -148,7 +148,10 @@ export function PieceCad({ piece, onChange }: { piece: CustomPiece; onChange: (p
     if (!drawing) return
     const onKey = (e: KeyboardEvent) => {
       if ((e.target as HTMLElement)?.closest?.('input, textarea')) return
-      if (e.key === 'Escape') stopDrawing()
+      if (e.key === 'Escape') {
+        e.preventDefault() // in the 3D village Esc would otherwise close the drawing board
+        stopDrawing()
+      }
       else if (e.key === 'Enter') finishDrawing()
       else if (e.key === 'Backspace') {
         e.preventDefault()
