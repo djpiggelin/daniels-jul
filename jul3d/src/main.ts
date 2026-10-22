@@ -161,6 +161,15 @@ async function build() {
     talkers.push({ npc: s.npc, talk: s.talk })
     solids.push(s.shop.group, s.npc.group)
     flinchOnHit(s.npc)
+    // more people to talk to in some shops (Lasse Långnisse in Leksaksfabriken)
+    for (const x of s.extras ?? []) {
+      x.npc.group.position.copy(s.shop.group.localToWorld(new THREE.Vector3(x.x, 0, x.z)))
+      x.npc.setYaw(s.shop.group.rotation.y + x.yaw)
+      scene.add(x.npc.group)
+      talkers.push({ npc: x.npc, talk: x.talk })
+      solids.push(x.npc.group)
+      flinchOnHit(x.npc)
+    }
   }
   // the matadors lean on the outside of the verkstad's left wall
   matadors.place(shops[0].shop.group)

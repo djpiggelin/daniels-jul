@@ -10,6 +10,7 @@ spela vid granen och kasta snöboll på tomtenissarna som springer runt.
 | Julbordet | Julbord + knytis | Knytis-listan (klicka på tavlan eller fråga Skinknissen för att paxa en rätt), gästlistan som polaroids, dukat bord |
 | Tomtens stuga | Julafton | Att göra-lista, brasa, Kalle Anka på tv:n, minnesvägg |
 | Arkitektkontoret | Julbak – planera huset | Ritbordet: Pepparkaksarkitekten öppnas mitt i byn (fråga Ritnissen eller klicka på ritningen/bordet), och huset ni ritar står i 3D på bordet – med fönster, dörrar och glasyr |
+| Leksaksfabriken | Julafton – där klapparna blir till | Längst bort bakom granen: ett löpande band med leksaker, en nisse som målar en gunghäst, en som hamrar, tennsoldater som marscherar, ett tåg runt golvet, hyllor med nallar och trummor, verkstadsklockan och önskelistan som rullar ut över golvet. Verkmästarnissen bakom disken – och Lasse Långnisse, vuxen bland nissarna och dubbelt så lång |
 
 På torget: julgranen, en affischpelare med alla händelser och en vägvisare till butikerna.
 

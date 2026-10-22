@@ -11,6 +11,7 @@ import { openRitbord } from './ritbord'
 import { setHouseSlot } from './teamhouse'
 import { keepApart } from './batch'
 import { julbakHouse } from './pepparkakshus'
+import { buildLeksaksfabriken } from './leksaksfabriken'
 import { furnishJulbord, knytisBoardItems, showClaimsOnBuffet } from './julbord'
 import type { Claims } from '../../src/lib/api'
 
@@ -20,8 +21,11 @@ const JULAFTON = EVENTS.find((e) => e.santa)!
 const VERKSTAD = JULBAK.competitions?.find((c) => c.art === 'verkstad')
 const DESTILLERI = JULBAK.competitions?.find((c) => c.art === 'destilleri')
 
+/** Someone else to talk to in a shop, standing at (x, z) in shop space facing `yaw`. */
+export type Extra = { npc: Nisse; talk: Talk; x: number; z: number; yaw: number }
+
 /** `event` drives the sign over the door; `emoji` (default: the event's) is used on the signpost. */
-export type BuiltShop = { shop: Shop; event: JulEvent; npc: Nisse; talk: Talk; emoji?: string }
+export type BuiltShop = { shop: Shop; event: JulEvent; npc: Nisse; talk: Talk; emoji?: string; extras?: Extra[] }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const dataUrl = (c: HTMLCanvasElement) => {
@@ -709,7 +713,7 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
 }
 
 export async function buildShops(): Promise<BuiltShop[]> {
-  return Promise.all([buildVerkstad(), buildDestilleri(), buildJulbord(), buildJulafton(), buildArkitektkontor()])
+  return Promise.all([buildVerkstad(), buildDestilleri(), buildJulbord(), buildJulafton(), buildArkitektkontor(), buildLeksaksfabriken()])
 }
 
 /** NPC spot in shop-local space: behind the counter, facing the room. */
