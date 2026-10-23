@@ -12,6 +12,7 @@ import { rod, std } from './sleigh'
 import { glowTexture } from './tex'
 import { Kalle, Musse, Toon } from './toons'
 import { CYCLE, PROGRAM, buildLuciaConcert, darknessAt, luciaTray, programAt } from './luciatag'
+import { SUNG } from './sung'
 import { LIGHTER_AT, RISER, STAGE, STAGE_YAW, buildAdventConcert, buildAdventStake, stageToWorld } from './adventskonsert'
 import type { Circle } from './world'
 
@@ -960,6 +961,13 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   let floor = 0.2
   let peak = 0.3
   let t = 0
+  /** Is somebody singing at this moment of the recording (see sung.ts)? */
+  function sungNow() {
+    const p = song.position()
+    if (!p) return false
+    const parts = SUNG[p.url.slice(p.url.lastIndexOf('/') + 1).replace(/.mp3$/, '')]
+    return !parts || parts.some(([a, b]) => p.at >= a && p.at <= b)
+  }
   function update(dt: number, player: THREE.Vector3, enabled: boolean) {
     t += dt
     // the little tree twinkles (a few times a second is plenty)
@@ -1042,7 +1050,8 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     floor = loud < floor ? floor + (loud - floor) * Math.min(1, dt * 3) : floor + dt * 0.004
     peak = Math.max(loud, peak - dt * 0.05, floor + 0.05)
     const level = THREE.MathUtils.clamp((loud - floor) / (peak - floor), 0, 1)
-    const singing = loud > 0.04 && level > 0.12
+    // (only where there's singing in the recording – not through the band's intros and interludes)
+    const singing = loud > 0.04 && level > 0.12 && sungNow()
     voice = singing ? level : 0
     for (const s of singers) {
       // (at Lucia, the ones who have put out their candle have stopped singing)

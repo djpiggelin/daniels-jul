@@ -700,6 +700,8 @@ export class Playlist {
   ) {}
 
   private current = ''
+  /** When (on the audio clock) the playing track's start would have been. */
+  private began = 0
   private load(url: string) {
     // decoded songs are big (tens of MB each): keep only the one playing and the next couple
     if (!this.buffers.has(url) && this.buffers.size >= 3) {
@@ -796,6 +798,7 @@ export class Playlist {
       src.start(0, Math.max(0, from))
       this.src = src
       this.current = url
+      this.began = a.currentTime - Math.max(0, from)
       this.cued = { url, at: a.currentTime, offset: from }
     })
   }
@@ -833,6 +836,7 @@ export class Playlist {
     this.src = src
     this.current = url
     src.start()
+    this.began = a.currentTime
     void this.load(this.tracks[this.index % this.tracks.length])
   }
 
@@ -840,6 +844,12 @@ export class Playlist {
   level(vol: number) {
     this.want = Math.max(0.0001, vol)
     if (this.gain) this.gain.gain.setTargetAtTime(this.want, audio().currentTime, 0.5)
+  }
+
+  /** Which track is playing, and how many seconds into it – or null between tracks. */
+  position() {
+    if (!this.src) return null
+    return { url: this.current, at: audio().currentTime - this.began }
   }
 
   /** How loud the recording is right now, 0…1 (before the distance fade). */
