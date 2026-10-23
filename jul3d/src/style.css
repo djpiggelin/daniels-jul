@@ -411,6 +411,8 @@ body:not(.touch) #corrida .co-pads { display: none; }
 #menu .controls li { display: flex; gap: 10px; padding: 4px 0; opacity: 0.85; }
 #menu .controls li span { min-width: 120px; color: var(--gold); }
 #menu .hint { margin: 12px 0 0; font-size: 13px; opacity: 0.55; }
+#menu .credits { font-size: 11px; line-height: 1.4; }
+#menu .credits a { color: inherit; }
 
 /* ---------- Knytis ---------- */
 #knytis {
