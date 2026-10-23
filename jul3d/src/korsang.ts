@@ -366,8 +366,10 @@ const stockholm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm
 /** Stockholm's wall clock right now, as ms whose getUTC* parts are Stockholm's date and time. */
 function wallClock() {
   if (pretend !== null) return pretend + (Date.now() - loadedAt)
-  const p = Object.fromEntries(stockholm.formatToParts(new Date()).map((x) => [x.type, x.value]))
-  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second)) + (Date.now() % 1000)
+  // (the date and the milliseconds from the same moment, or it could slip back a second as one ticks over)
+  const now = new Date()
+  const p = Object.fromEntries(stockholm.formatToParts(now).map((x) => [x.type, x.value]))
+  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second)) + now.getMilliseconds()
 }
 
 /** The real moment (UTC ms) – for the sun: now, or the pretend Swedish time in the URL. */
@@ -379,6 +381,11 @@ export function swedenNow() {
   const p = Object.fromEntries(stockholm.formatToParts(new Date(guess)).map((x) => [x.type, x.value]))
   const there = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second))
   return guess + (wall - there)
+}
+
+/** Seconds since midnight on the wall clock, with the milliseconds. */
+function secondsOfDay() {
+  return (((wallClock() % 86400000) + 86400000) % 86400000) / 1000
 }
 
 /** The first Sunday of Advent: four Sundays before Christmas Day. */
@@ -766,8 +773,8 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   /** Seconds into the Lucia concert's cycle: from 06:30 on the wall clock, or since ?kor=lucia was opened. */
   function luciaTime(dt: number) {
     if (forced) return (performance.now() / 1000 - luciaFrom) % CYCLE
-    const d = new Date(wallClock())
-    const sec = d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds() - (6 * 3600 + 30 * 60)
+    // (to the millisecond: whole seconds would have them walking in jerks)
+    const sec = secondsOfDay() - (6 * 3600 + 30 * 60)
     return ((sec % CYCLE) + CYCLE) % CYCLE
   }
 
@@ -792,8 +799,7 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   /** Seconds into the advent concert: from 08:00 on the wall clock, or since ?kor=advent was opened. */
   function adventTime() {
     if (forced) return performance.now() / 1000 - luciaFrom
-    const d = new Date(wallClock())
-    return d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds() - 8 * 3600
+    return secondsOfDay() - 8 * 3600
   }
   // Before the first song Mimmi steps down from the riser, lights the first advent candle and goes back.
   const LIGHTER = stageToWorld(LIGHTER_AT.x, LIGHTER_AT.z)
