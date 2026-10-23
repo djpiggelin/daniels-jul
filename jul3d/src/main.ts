@@ -9,6 +9,7 @@ import { Matadors } from './matadors'
 import type { Nisse } from './npc'
 import { Player } from './player'
 import { Slide } from './rutschkana'
+import { ARRIVE, STUMP, buildMine, buildStump, type Mine } from './kolgruvan'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -133,6 +134,8 @@ type Target =
   | { kind: 'camper' }
   | { kind: 'matadors' }
   | { kind: 'slide' }
+  | { kind: 'stump' }
+  | { kind: 'ladder' }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
@@ -141,6 +144,10 @@ const talkers: { npc: Nisse; talk: Talk }[] = []
 const circles = [...world.colliders, ...sleigh.colliders(), ...camper.colliders()]
 let arcade: Arcade | null = null
 let choir: ReturnType<typeof buildChoir> | null = null
+/** The hollow stump at the edge of the village, and the coal mine under it (built the first time you climb down). */
+let stump: ReturnType<typeof buildStump> | null = null
+let mine: Mine | null = null
+let inMine = false
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -187,6 +194,9 @@ async function build() {
   // the gang singing carols by the tree
   choir = buildChoir(scene, shops[0].shop.group)
   circles.push(...choir.colliders)
+  // the way down to Kolgruvan (hidden: see kolgruvan.ts)
+  stump = buildStump(scene)
+  circles.push(...stump.colliders)
   solids.push(choir.group)
   const square = await buildSquare(scene, shops)
   circles.push(...square.colliders)
@@ -452,6 +462,8 @@ let target: Target | null = null
 let talking: Nisse | null = null
 
 function findTarget(): Target | null {
+  // down in the mine: only the ladder back up (for now)
+  if (inMine) return mine?.nearLadder(player.pos, player.forward) ? { kind: 'ladder' } : null
   ray.setFromCamera(new THREE.Vector2(0, 0), camera)
   const hit = ray.intersectObjects(rayRoots, true)[0]
   let aimed: Target | null = null
@@ -501,6 +513,8 @@ function findTarget(): Target | null {
   }
   // up on the gallery at the top of Leksaksfabriken's chute
   if (slide.near(player.pos, player.floor, fwd)) return { kind: 'slide' }
+  // right at the old stump, looking down into it
+  if (stump?.near(player.pos, player.pitch)) return { kind: 'stump' }
   return aimed
 }
 
@@ -560,7 +574,11 @@ function setTarget(t: Target | null) {
               ? 'Prata med matadorerna'
               : t.kind === 'slide'
                 ? 'Åk ner för rutschkanan'
-                : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
+                : t.kind === 'stump'
+                  ? 'Klättra ner i stubben'
+                  : t.kind === 'ladder'
+                    ? 'Klättra upp'
+                    : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -848,9 +866,47 @@ function interact() {
   else if (t.kind === 'slide') {
     cursor.hide()
     slide.start()
-  }
+  } else if (t.kind === 'stump') goDown()
+  else if (t.kind === 'ladder') goUp()
   else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
+}
+/** Down the ladder in the stump into Kolgruvan: black for a moment, the creak of the rungs, then the mine. */
+function goDown() {
+  cursor.hide()
+  mine ??= buildMine()
+  const m = mine
+  $('fade').classList.add('on')
+  m.climb()
+  setTimeout(() => {
+    inMine = true
+    player.pos.set(ARRIVE.x, 0, ARRIVE.z)
+    player.yaw = ARRIVE.yaw
+    player.pitch = 0
+    player.floor = player.height = 0
+    setTarget(null)
+    renderer.compile(m.scene, camera)
+    $('fade').classList.remove('on')
+    resume()
+  }, 1100)
+}
+/** …and back up, out of the stump into the snow. */
+function goUp() {
+  cursor.hide()
+  $('fade').classList.add('on')
+  mine?.climb()
+  setTimeout(() => {
+    inMine = false
+    mine?.leave()
+    // (stepping out on the village side of it, facing the square)
+    player.pos.set(STUMP.x + 1.1, 0, STUMP.z + 0.3)
+    player.yaw = -Math.PI / 2
+    player.pitch = 0
+    player.floor = player.height = 0
+    setTarget(null)
+    $('fade').classList.remove('on')
+    resume()
+  }, 1100)
 }
 function startTrip() {
   cursor.hide()
@@ -1060,7 +1116,15 @@ function frame(now: number) {
   // the others in the village carry on (and still see you) while you're off on a trip
   mp?.update(t, dt)
   // off on the camper trip or in Madrid, the village stands still (it's only a painted backdrop, after all)
-  if (!trip.inWorld && !corrida.inWorld) {
+  if (inMine && mine) {
+    // down in the mine: just you, the miners and their song (the village waits up above)
+    player.update(dt, mine.collide, mine.ground)
+    mine.update(t, dt, player.pos, player.enabled)
+    choir?.update(dt, player.pos, false)
+    parade.near(player.pos, false)
+    renderer.toneMappingExposure = EXPOSURE
+    if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
+  } else if (!trip.inWorld && !corrida.inWorld) {
     // (down the chute, the chute steers)
     if (slide.active) slide.update(dt)
     else player.update(dt, collidePlayer, groundAt)
@@ -1110,7 +1174,10 @@ function frame(now: number) {
   if (!idle) adaptResolution(now)
   renderer.info.reset()
   renderer.clear()
-  if (trip.inWorld) renderer.render(trip.world!.scene, camera)
+  if (inMine && mine) {
+    renderer.render(mine.scene, camera)
+    vm.render(renderer, camera)
+  } else if (trip.inWorld) renderer.render(trip.world!.scene, camera)
   else if (corrida.inWorld) {
     renderer.render(corrida.world!.scene, camera)
     vm.render(renderer, camera)
@@ -1179,4 +1246,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, get mine() { return mine }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
