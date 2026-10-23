@@ -406,6 +406,8 @@ function bigTree(height: number, updaters: Shop['updaters'], bulbsN = 240) {
     add(g, ball(0.16 * k, 12), mat(baubleCols[i % 4], 0.25, 0.5), Math.cos(a) * rr * k, y * k, Math.sin(a) * rr * k)
   }
   const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.08 * k, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false }), bulbsN)
+  // (faintly lit through the dark of the Lucia procession – see korsang.ts)
+  bulbs.material.userData.treeLights = true
   const colors = [0xff4d4d, 0xffd34d, 0x5dff9a, 0x5db8ff, 0xff8de1, 0xfff4d6].map((c) => new THREE.Color(c))
   const m4 = new THREE.Matrix4()
   for (let i = 0; i < bulbsN; i++) {

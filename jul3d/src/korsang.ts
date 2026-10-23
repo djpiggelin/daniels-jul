@@ -589,6 +589,7 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   }
   const BULBS = 70
   const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.05, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false }), BULBS)
+  bulbs.material.userData.treeLights = true
   const bulbCols = [0xff4d4d, 0xffd34d, 0x5dff9a, 0x5db8ff, 0xfff4d6].map((c) => new THREE.Color(c))
   const m4 = new THREE.Matrix4()
   for (let i = 0; i < BULBS; i++) {
@@ -917,6 +918,9 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   // warm light going along with them.
   let darkness = 0
   let dimmed: THREE.Material[] = []
+  /** The Christmas trees' bulbs (marked userData.treeLights): not put out, only turned down to a glimmer. */
+  let glimmer: THREE.MeshBasicMaterial[] = []
+  const GLIMMER = 0.22
   const candleLight = new THREE.PointLight(0xffb060, 0, 14, 1.4)
   /** What the renderer's exposure is multiplied by: about 2 % when it's fully dark (ACES needs it that low). */
   const exposure = () => 1 - 0.982 * darkness
@@ -933,6 +937,8 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
         m.needsUpdate = true
       }
       dimmed = []
+      for (const m of glimmer) m.color.setScalar(1)
+      glimmer = []
       return
     }
     const seen = new Set<THREE.Material>()
@@ -941,6 +947,10 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
       for (const x of Array.isArray(m) ? m : m ? [m] : []) {
         if (seen.has(x) || theirs.has(x) || x.toneMapped !== false) continue
         seen.add(x)
+        if (x.userData.treeLights) {
+          glimmer.push(x as THREE.MeshBasicMaterial)
+          continue
+        }
         x.toneMapped = true
         x.needsUpdate = true
         dimmed.push(x)
@@ -1016,6 +1026,7 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     darkness += (dark - darkness) * Math.min(1, dt * 0.4)
     if (mode === 'lucia' && !dimmed.length) dim(true)
     if (mode !== 'lucia' && dimmed.length && darkness < 0.02) dim(false)
+    for (const m of glimmer) m.color.setScalar(1 - (1 - GLIMMER) * darkness)
     const lucia = concert.lucia
     // (over Lucia once she is there; until then over the choir)
     if (darkness > 0.01) candleLight.position.set(lucia.shown ? lucia.pos.x : at.x, 1.7, (lucia.shown ? lucia.pos.z : at.z) + 0.6)

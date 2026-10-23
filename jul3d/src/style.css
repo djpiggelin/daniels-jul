@@ -72,7 +72,6 @@ body.touch #prompt kbd { display: none; }
   pointer-events: auto; width: 44px; height: 44px; border-radius: 50%; border: 1px solid rgba(255, 255, 255, 0.3);
   background: rgba(7, 11, 29, 0.62); color: var(--snow); font-size: 20px;
 }
-#music.on { border-color: var(--gold) !important; color: var(--gold) !important; }
 
 /* popups and games hide the walking HUD */
 #hud.busy #help, #hud.busy #crosshair, #hud.busy #throw, #hud.busy .corner, #hud.busy #charge { display: none; }

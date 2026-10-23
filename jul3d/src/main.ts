@@ -94,18 +94,10 @@ const matadors = new Matadors(scene)
 const corrida = new Corrida(renderer, camera, player, vm, matadors)
 corrida.onDone = () => resume()
 corrida.say = (text) => toast(text)
-// in the ring the village music gives way to a paso doble (if the music is on at all)
-let musicWasOn = false
+// in the ring a band plays a paso doble
 corrida.onMusic = (arena) => {
-  if (arena) {
-    musicWasOn = !music.paused
-    if (!musicWasOn) return
-    music.pause()
-    corrida.band.start()
-  } else if (corrida.band.playing) {
-    corrida.band.stop()
-    if (musicWasOn) music.play().catch(() => {})
-  }
+  if (arena) corrida.band.start()
+  else if (corrida.band.playing) corrida.band.stop()
 }
 const matadorTalk: Talk = {
   name: 'Los Tres Matadores',
@@ -758,10 +750,6 @@ sens.addEventListener('input', () => {
     /* fine */
   }
 })
-$('m-music').addEventListener('click', () => {
-  toggleMusic()
-  syncMenu()
-})
 // the 2D site lives next to the village – knytis, topplistor, ritningar
 $('m-knytis').addEventListener('click', openKnytisPanel)
 $('m-web').addEventListener('click', () => location.assign('/handelser'))
@@ -801,8 +789,6 @@ $('m-full').addEventListener('click', async () => {
 })
 document.addEventListener('fullscreenchange', syncMenu)
 function syncMenu() {
-  $('m-music').textContent = music.paused ? '♪ Musik: av' : '♪ Musik: på'
-  $('m-music').classList.toggle('on', !music.paused)
   $('m-full').textContent = document.fullscreenElement ? '⛶ Lämna helskärm' : '⛶ Helskärm'
 }
 
@@ -885,34 +871,7 @@ addEventListener('keydown', (e) => {
     e.preventDefault() // or the key ends up in the chat box
     openChat()
   } else if (e.code === 'KeyE' || e.code === 'Enter') interact()
-  if (e.code === 'KeyM') toggleMusic()
 })
-
-/* ---------- music ---------- */
-const music = new Audio('/sounds/game-background-music.mp3')
-music.loop = true
-music.volume = 0.25
-// Off until you turn it on – then remembered for next time.
-const MUSIC_KEY = 'jul3d.music'
-function toggleMusic(force?: boolean) {
-  const on = force ?? music.paused
-  if (on) music.play().catch(() => {})
-  else music.pause()
-  $('music').classList.toggle('on', on)
-  try {
-    localStorage.setItem(MUSIC_KEY, on ? 'på' : 'av')
-  } catch {
-    /* fine */
-  }
-}
-const musicWanted = () => {
-  try {
-    return localStorage.getItem(MUSIC_KEY) === 'på'
-  } catch {
-    return false
-  }
-}
-$('music').addEventListener('click', () => toggleMusic())
 
 /* ---------- HUD ---------- */
 function updateHud() {
@@ -1166,7 +1125,6 @@ go.addEventListener('click', () => {
   $('hud').hidden = false
   player.enabled = true
   player.lock()
-  if (musicWanted()) toggleMusic(true)
 })
 
 // handy for poking around from the console: jul.goto(0) walks you into the first shop
