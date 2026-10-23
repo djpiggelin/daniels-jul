@@ -1,6 +1,7 @@
 // Things to do in Leksaksfabriken: help Kvalitetskontrollen stamp the toys OK as they roll past
-// (but not the lumps of coal!) – and the tin soldiers, who parade round their stage to Schubert's
-// Marche militaire whenever someone comes near (the music fades in as you walk up, and out again).
+// (but not the lumps of coal!) – and the tin soldiers, a whole little regiment parading round their
+// stage to Schubert's Marche militaire whenever someone comes near (the music fades in as you walk
+// up, and out again).
 import * as THREE from 'three'
 import { keepApart, mergeRigid } from './batch'
 import { Nisse } from './npc'
@@ -487,7 +488,7 @@ export class Parade {
   private last = 0
   private step = 0
 
-  /** The stage at (x, z) in the shop, w × d, with the gramophone playing at its front corner. */
+  /** The stage at (x, z) in the shop, w × d. */
   build(shop: Shop, x: number, z: number, w: number, d: number) {
     const g = this.root
     g.position.set(x, 0, z)
@@ -503,22 +504,7 @@ export class Parade {
       f.rotation.x = Math.PI
       f.castShadow = false
     }
-    const sign = add(g, new THREE.PlaneGeometry(2.6, 0.76), new THREE.MeshStandardMaterial({ map: toTexture(board('Tennsoldaternas parad', 'Schubert · Marche militaire')), roughness: 0.7 }), 0, 2.3, -d / 2 + 0.05)
-    sign.castShadow = false
-    for (const sx of [-1, 1]) add(g, cyl(0.04, 0.04, 2.1, 8), mat(C.gold, 0.35, 0.7), sx * 1.25, 1.05 + 0.25, -d / 2 + 0.05)
     shop.block(x, z, w / 2 + 0.05, d / 2 + 0.05)
-    // the gramophone, on a little table by the front corner
-    const gram = new THREE.Group()
-    gram.position.set(w / 2 + 0.55, 0, d / 2 - 0.3)
-    add(gram, box(0.5, 0.75, 0.5), mat(C.wood, 0.7), 0, 0.375, 0)
-    add(gram, box(0.42, 0.14, 0.42), mat(C.dark, 0.6), 0, 0.82, 0)
-    add(gram, cyl(0.17, 0.17, 0.015, 24), mat(C.black, 0.3), 0, 0.9, 0)
-    add(gram, cyl(0.015, 0.015, 0.3, 6), mat(C.gold, 0.3, 0.8), 0.12, 1.02, -0.1).rotation.z = 0.7
-    const hornG = add(gram, new THREE.CylinderGeometry(0.28, 0.02, 0.55, 20, 1, true), new THREE.MeshStandardMaterial({ color: C.gold, roughness: 0.25, metalness: 0.85, side: THREE.DoubleSide }), -0.05, 1.3, -0.12)
-    hornG.rotation.set(-0.9, 0, 0.3)
-    add(gram, cyl(0.012, 0.012, 0.16, 6), mat(C.gold, 0.3, 0.8), 0.26, 0.82, 0).rotation.z = Math.PI / 2
-    g.add(gram)
-    shop.block(x + w / 2 + 0.55, z + d / 2 - 0.3, 0.3, 0.3)
     // the route round the stage: a rounded rectangle, walked anticlockwise as seen from above
     const hw = w / 2 - 0.55
     const hd = d / 2 - 0.5
@@ -537,10 +523,11 @@ export class Parade {
     this.loop = new THREE.CurvePath<THREE.Vector3>()
     this.loop.add(new THREE.CatmullRomCurve3(pts, true))
     this.len = this.loop.getLength()
-    const kinds: Soldier['kind'][] = ['major', 'drum', 'horn', 'horn', 'rifle', 'rifle', 'drum', 'horn', 'rifle', 'rifle']
+    // a drum major out in front, then drums, horns and rifles, over and over
+    const kinds: Soldier['kind'][] = ['major', ...Array.from({ length: 21 }, (_, i) => (['drum', 'horn', 'rifle', 'rifle', 'horn', 'drum', 'rifle'] as const)[i % 7])]
     kinds.forEach((k, i) => {
       const sd = tinSoldier(k)
-      sd.g.scale.setScalar(1.15)
+      sd.g.scale.setScalar(0.62)
       sd.s = 1 - i / kinds.length
       g.add(moving(sd.g))
       this.soldiers.push(sd)
@@ -588,7 +575,7 @@ export class Parade {
       const beats = this.music.beats
       const db = Math.max(0, beats - this.last)
       this.last = beats
-      this.s += db * 0.3
+      this.s += db * 0.17
       this.step = beats
       this.place(this.step)
     } else if (this.step !== 0) {
