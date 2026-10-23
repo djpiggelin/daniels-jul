@@ -3,7 +3,7 @@
 // front and Pluto at their feet, howling along. They keep a concert diary (see choirMode below): an
 // advent concert, the Lucia procession round the big tree – Mimmi is Lucia – carols now and then
 // after Lucia, and julafton in red. The singing is real choirs – the US Air Force Band's Singing
-// Sergeants, Bodø kammerkor, and two Swedish 78s from 1947 (see public/sounds/README.md for each
+// Sergeants and two Swedish 78s from 1947 (see public/sounds/README.md for each
 // recording's source and licence) – fading in as you come near.
 import * as THREE from 'three'
 import { keepApart, mergeRigid } from './batch'
@@ -336,8 +336,8 @@ const MODES: ChoirMode[] = ['borta', 'advent', 'lucia', 'jul', 'julafton']
 
 const S = '/sounds/kor/'
 const SONGS: Record<Exclude<ChoirMode, 'borta'>, string[]> = {
-  advent: ['veni-emmanuel', 'hark-the-herald-angels-sing', 'o-come-all-ye-faithful', 'o-little-town-of-bethlehem', 'deck-the-halls'].map((f) => `${S}${f}.mp3`),
-  lucia: ['sankta-lucia', 'veni-emmanuel', 'stilla-natt'].map((f) => `${S}${f}.mp3`),
+  advent: ['hark-the-herald-angels-sing', 'o-come-all-ye-faithful', 'o-little-town-of-bethlehem', 'deck-the-halls'].map((f) => `${S}${f}.mp3`),
+  lucia: ['sankta-lucia', 'stilla-natt'].map((f) => `${S}${f}.mp3`),
   jul: ['deck-the-halls', 'o-tannenbaum', 'hark-the-herald-angels-sing', 'o-come-all-ye-faithful', 'o-little-town-of-bethlehem', 'stilla-natt'].map((f) => `${S}${f}.mp3`),
   julafton: ['stilla-natt', 'carols-of-the-season', 'o-tannenbaum', 'deck-the-halls'].map((f) => `${S}${f}.mp3`),
 }
