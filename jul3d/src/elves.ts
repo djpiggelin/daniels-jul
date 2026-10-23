@@ -18,7 +18,7 @@ const LOOKS = [
 ]
 const OUCH = ['Aj!', 'Hörru!', 'Oj!', 'Haha!', 'Nämen!', 'Fusk!']
 const R_MIN = 4.8
-const R_MAX = 12.3
+const R_MAX = 16
 
 function bubble(text: string) {
   const [c, ctx] = makeCanvas(256, 112)

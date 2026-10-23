@@ -166,7 +166,7 @@ export class Trip {
     const brake = document.getElementById('trip-brake')!
     brake.addEventListener('pointerdown', () => (this.braking = true))
     for (const ev of ['pointerup', 'pointerleave', 'pointercancel']) brake.addEventListener(ev, () => (this.braking = false))
-    document.getElementById('trip-exit')!.addEventListener('click', () => this.leave())
+    for (const id of ['trip-exit', 'trip-quit']) document.getElementById(id)!.addEventListener('click', () => this.leave())
   }
 
   /** Build the mountain ahead of time (it takes a moment), and compile its shaders. */
