@@ -22,7 +22,8 @@ multiplayer/
   ett meddelande varannan sekund (tre i rad går).
 - Repot är öppet, så servern litar inte på något: namn rensas och kortas, färger och bilder måste vara tillåtna,
   positioner hålls inom byn, för många eller för stora meddelanden ignoreras, max 30 i byn samtidigt, och bara
-  sajtens egna sidor (`hasslon.se`, `danielsjulkalender.netlify.app` och dess previews, `localhost`) får ansluta.
+  sajtens egna sidor (`hasslon.se` och alla underdomäner som `jul.hasslon.se`, `danielsjulkalender.netlify.app` och dess
+  previews, `localhost`) får ansluta.
 - Utan server – eller om den inte går att nå – är byn som vanligt, bara för en.
 
 ## Köra lokalt

@@ -18,6 +18,8 @@ function originAllowed(origin: string | null, env: Env) {
   if (!origin) return false
   const allowed = env.ALLOWED_ORIGINS ? env.ALLOWED_ORIGINS.split(',').map((s) => s.trim()) : DEFAULT_ORIGINS
   if (allowed.includes(origin)) return true
+  // the site's own domain and any subdomain of it (jul.hasslon.se, …)
+  if (/^https:\/\/([a-z0-9-]+\.)*hasslon\.se$/.test(origin)) return true
   // Netlify deploy previews and drafts: https://<anything>--danielsjulkalender.netlify.app
   if (/^https:\/\/[a-z0-9-]+--danielsjulkalender\.netlify\.app$/.test(origin)) return true
   // local development
