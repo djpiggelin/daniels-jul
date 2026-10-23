@@ -1,4 +1,4 @@
-// The gingerbread house on the table in Tomtens verkstad – "Santa's crackhouse" from the Julbak
+// The gingerbread house on the table in Tomtens bageri – "Santa's crackhouse" from the Julbak
 // photo: a long house on a bigger base, a deep roof under thick powdered sugar, NO JUSTICE · NO
 // JINGLE piped on the front beside two plank shutters, an iced sleigh in a frame – and a crack
 // from a hole in the roof all the way down the front wall, through which you can see Tomten

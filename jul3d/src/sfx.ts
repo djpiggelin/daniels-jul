@@ -676,66 +676,85 @@ export class ToyMarch {
   }
 }
 
-/* ---------- a recording, looped (the choir by the tree) ---------- */
-// Decoded once, played round and round through its own gain (to fade with distance) and an analyser
-// (so the singers' mouths can follow how loud it is).
-export class LoopedRecording {
-  private buffer: AudioBuffer | null = null
-  private loading: Promise<void> | null = null
+/* ---------- recordings, one after another (the choir) ---------- */
+// Each track is fetched and decoded the first time it's needed, then played through one gain (to fade
+// with distance) and an analyser (so the singers' mouths can follow how loud it is). A track that
+// can't be loaded is skipped. After the last one it starts over.
+export class Playlist {
+  private buffers = new Map<string, Promise<AudioBuffer | null>>()
   private src: AudioBufferSourceNode | null = null
   private gain: GainNode | null = null
   private analyser: AnalyserNode | null = null
   private data: Uint8Array<ArrayBuffer> | null = null
+  private tracks: string[] = []
+  private index = 0
+  private want = 0.0001
+  private gapTimer = 0
   playing = false
 
   constructor(
-    private url: string,
-    /** Silence added after it before it starts again (s). */
-    private pause = 1.5,
+    /** Silence between tracks (s). */
+    private gap = 2.5,
   ) {}
 
-  private load() {
-    this.loading ??= (async () => {
-      const a = audio()
-      const raw = await (await fetch(this.url)).arrayBuffer()
-      const clip = await a.decodeAudioData(raw)
-      // the clip with a breath of silence after it, so the loop isn't one long run-on
-      const pad = a.createBuffer(clip.numberOfChannels, clip.length + Math.floor(this.pause * clip.sampleRate), clip.sampleRate)
-      for (let c = 0; c < clip.numberOfChannels; c++) pad.copyToChannel(clip.getChannelData(c), c)
-      this.buffer = pad
-    })().catch(() => {
-      this.loading = null
-    })
-    return this.loading
+  private load(url: string) {
+    if (!this.buffers.has(url))
+      this.buffers.set(
+        url,
+        fetch(url)
+          .then((r) => (r.ok ? r.arrayBuffer() : Promise.reject(new Error(String(r.status)))))
+          .then((raw) => audio().decodeAudioData(raw))
+          .catch(() => null),
+      )
+    return this.buffers.get(url)!
   }
 
-  /** Start (quietly) as soon as it's loaded; level() brings it up. */
-  start() {
-    if (this.playing) return
+  /** Start on these tracks (quietly; level() brings it up). Starting on a different list switches over. */
+  start(tracks: string[]) {
+    const same = this.playing && tracks.join('|') === this.tracks.join('|')
+    if (same) return
+    if (this.playing) this.stop()
+    this.tracks = tracks
+    this.index = Math.floor(Math.random() * tracks.length)
     this.playing = true
-    void this.load().then(() => {
-      if (!this.playing || !this.buffer || this.src) return
-      try {
-        const a = audio()
-        void a.resume()
-        this.gain = a.createGain()
-        this.gain.gain.setValueAtTime(0.0001, a.currentTime)
-        this.analyser = a.createAnalyser()
-        this.analyser.fftSize = 512
-        this.data = new Uint8Array(this.analyser.fftSize)
-        this.src = a.createBufferSource()
-        this.src.buffer = this.buffer
-        this.src.loop = true
-        this.src.connect(this.analyser).connect(this.gain).connect(a.destination)
-        this.src.start()
-        this.level(this.want)
-      } catch {
-        /* audio not available */
-      }
-    })
+    try {
+      const a = audio()
+      void a.resume()
+      this.gain = a.createGain()
+      this.gain.gain.setValueAtTime(0.0001, a.currentTime)
+      this.gain.gain.setTargetAtTime(this.want, a.currentTime, 0.5)
+      this.analyser = a.createAnalyser()
+      this.analyser.fftSize = 512
+      this.data = new Uint8Array(this.analyser.fftSize)
+      this.analyser.connect(this.gain).connect(a.destination)
+    } catch {
+      this.playing = false
+      return
+    }
+    void this.playNext(0)
   }
 
-  private want = 0.0001
+  private async playNext(tries: number) {
+    if (!this.playing || !this.tracks.length || tries > this.tracks.length) return
+    const url = this.tracks[this.index % this.tracks.length]
+    const list = this.tracks
+    const buf = await this.load(url)
+    if (!this.playing || list !== this.tracks) return
+    this.index++
+    if (!buf) return void this.playNext(tries + 1)
+    const a = audio()
+    const src = a.createBufferSource()
+    src.buffer = buf
+    src.connect(this.analyser!)
+    src.onended = () => {
+      if (this.src !== src) return
+      this.src = null
+      this.gapTimer = window.setTimeout(() => void this.playNext(0), this.gap * 1000)
+    }
+    this.src = src
+    src.start()
+  }
+
   /** Fade towards `vol` (a slow glide, as you walk up or away). */
   level(vol: number) {
     this.want = Math.max(0.0001, vol)
@@ -744,7 +763,7 @@ export class LoopedRecording {
 
   /** How loud the recording is right now, 0…1 (before the distance fade). */
   loudness() {
-    if (!this.analyser || !this.data) return 0
+    if (!this.analyser || !this.data || !this.src) return 0
     this.analyser.getByteTimeDomainData(this.data)
     let sum = 0
     for (const v of this.data) sum += (v - 128) ** 2
@@ -754,17 +773,24 @@ export class LoopedRecording {
   stop() {
     if (!this.playing) return
     this.playing = false
+    clearTimeout(this.gapTimer)
     const src = this.src
     const g = this.gain
+    const an = this.analyser
     this.src = this.gain = this.analyser = null
-    if (!src || !g) return
+    if (!g) return
     const a = audio()
     g.gain.cancelScheduledValues(a.currentTime)
     g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), a.currentTime)
     g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.4)
     setTimeout(() => {
-      src.stop()
-      src.disconnect()
+      try {
+        src?.stop()
+      } catch {
+        /* never started */
+      }
+      src?.disconnect()
+      an?.disconnect()
       g.disconnect()
     }, 500)
   }

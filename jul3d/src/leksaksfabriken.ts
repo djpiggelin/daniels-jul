@@ -832,7 +832,27 @@ function yard(shop: Shop) {
   const tree = bigTree(17, shop.updaters, 320)
   tree.position.set(-13.5, 0, TOWER.z1 + 9)
   g.add(tree)
-  shop.block(-13.5, TOWER.z1 + 9, 2.6, 2.6)
+  // and heaps and heaps of presents under it, in rings and piles all the way round
+  {
+    const cols = [C.red, C.green, C.gold, C.blue, C.white, 0x8e3fb0, 0xd4782a, 0x2fa3a3]
+    const ribbons = [C.gold, C.white, C.red, C.green]
+    let n = 0
+    // (the tree's lowest branches reach six metres out, so the heap starts under their tips and spills out past them)
+    for (const [r, count, y, size] of [
+      [4.6, 26, 0, 0.9], [5.5, 32, 0, 1.05], [6.4, 38, 0, 0.9], [7.2, 44, 0, 0.7],
+      [5.0, 24, 0.8, 0.8], [5.9, 30, 0.85, 0.7], [6.7, 32, 0.65, 0.55],
+      [5.4, 18, 1.5, 0.6], [6.2, 20, 1.4, 0.5], [5.8, 12, 2.0, 0.45],
+    ] as const)
+      for (let k = 0; k < count; k++, n++) {
+        const a = (k / count) * Math.PI * 2 + r * 1.7
+        const s = size * (0.75 + ((n * 37) % 10) / 20)
+        const p = present(cols[n % cols.length], ribbons[(n * 3) % ribbons.length], s)
+        p.position.set(-13.5 + Math.cos(a) * (r + ((n * 13) % 5) * 0.08), y, TOWER.z1 + 9 + Math.sin(a) * r)
+        p.rotation.y = a * 2.7 + n
+        g.add(p)
+      }
+  }
+  shop.block(-13.5, TOWER.z1 + 9, 6.2, 6.2)
   const treeLight = new THREE.PointLight(0xffc77a, 50, 24, 1.5)
   treeLight.position.set(-13.5, 5, TOWER.z1 + 12)
   g.add(treeLight)

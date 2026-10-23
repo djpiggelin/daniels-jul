@@ -311,13 +311,13 @@ function tv(shop: Shop, along: number) {
 async function buildVerkstad(): Promise<BuiltShop> {
   const e = JULBAK
   const c = VERKSTAD!
-  const shop = new Shop('Tomtens verkstad', { wall: '#9a5a2c', trim: 0xfff3dc, roof: 0x5c3216, inner: '#c99a6a' })
+  const shop = new Shop('Tomtens bageri', { wall: '#9a5a2c', trim: 0xfff3dc, roof: 0x5c3216, inner: '#c99a6a' })
   shop.place(-78, 23)
   counter(shop, 0x2fa36b)
 
   const art = await loadSvg('/art/verkstad.svg', 3)
   const pic = shop.hang(framed(art, 5.2, { frame: 0xd4a64a }), 'back', 0, 1.95)
-  shop.exhibit(pic, { title: c.theme?.title ?? 'Tomtens verkstad', caption: c.theme?.intro.join(' '), image: dataUrl(art) })
+  shop.exhibit(pic, { title: c.theme?.title ?? 'Tomtens bageri', caption: c.theme?.intro.join(' '), image: dataUrl(art) })
 
   const rules = drawBoard({ style: 'parchment', title: 'Verkstadsordning', subtitle: c.name, items: c.rules, marker: 'check', footer: 'Underskrivet av Tomten själv', seed: 4 })
   const r = shop.hang(sheet(rules, 2.15), 'left', 2.1, 1.85)
@@ -368,7 +368,7 @@ async function buildVerkstad(): Promise<BuiltShop> {
     avatar: '🍪',
     avatarBg: '#2fa36b',
     greeting: () => [
-      html.p('Nämen hej! Välkommen in i Tomtens verkstad – här luktar det alltid ingefära och kanel.') +
+      html.p('Nämen hej! Välkommen in i Tomtens bageri – här luktar det alltid ingefära och kanel.') +
         html.p(`Jag håller koll på pepparkakstävlingen. Julbaket ${untilText(e)} – hög tid att börja skissa!`),
     ],
     topics: [

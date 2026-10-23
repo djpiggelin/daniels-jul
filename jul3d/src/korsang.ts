@@ -1,13 +1,14 @@
-// The gang singing carols round a little tree of their own at the side of the square, like the end
-// of the Christmas show on TV: Musse, Mimmi, Kalle, Kajsa and Långben shoulder to shoulder on a riser, Knattarna and Piff & Puff in front and
-// Pluto sitting at their feet, howling along – all with songbooks, mouths going, heads swaying.
-// They sing Deck the Halls – the United States Air Force Band's Singing Sergeants, a public-domain
-// recording (see public/sounds/README.md) – heard as you come near, fading away as you leave.
+// The gang singing round a little tree of their own at the side of the square, like the end of the
+// Christmas show on TV: Musse, Mimmi, Kalle, Kajsa and Långben on a riser, Knattarna and Piff & Puff in
+// front and Pluto at their feet, howling along. They keep a concert diary (see choirMode below): an
+// advent concert, the Lucia procession round the big tree – Mimmi is Lucia – carols now and then
+// after Lucia, and julafton in red. The singing is the US Air Force Band's Singing Sergeants
+// (public-domain recordings, see public/sounds/README.md), fading in as you come near.
 import * as THREE from 'three'
 import { keepApart, mergeRigid } from './batch'
-import { LoopedRecording } from './sfx'
+import { Playlist } from './sfx'
 import { rod, std } from './sleigh'
-import { glowTexture, makeCanvas, toTexture } from './tex'
+import { glowTexture } from './tex'
 import { Kalle, Musse, Toon } from './toons'
 import type { Circle } from './world'
 
@@ -317,9 +318,202 @@ class Chipmunk extends Toon {
   }
 }
 
+/* ---------- when they're there, and what they sing ---------- */
+// (Swedish time, so everybody in the village sees the same choir at the same moment)
+//
+//   första advent       all day and evening – an advent concert
+//   13 december         06:30–10:00 – the Lucia procession, walking round the big tree
+//   13–23 december      now and then (the same moments for everyone) – carols
+//   julafton            all day, in red
+//   otherwise           away (the nook and its little tree wait for them)
+//
+// To try it out: ?kor=advent|lucia|jul|julafton|borta, or a time: ?datum=2026-12-13&tid=07:00
+// (it carries on ticking from there).
+
+export type ChoirMode = 'borta' | 'advent' | 'lucia' | 'jul' | 'julafton'
+const MODES: ChoirMode[] = ['borta', 'advent', 'lucia', 'jul', 'julafton']
+
+const S = '/sounds/kor/'
+const SONGS: Record<Exclude<ChoirMode, 'borta'>, string[]> = {
+  advent: [`${S}hark-the-herald-angels-sing.mp3`, `${S}o-come-all-ye-faithful.mp3`, `${S}o-little-town-of-bethlehem.mp3`, `${S}deck-the-halls.mp3`],
+  lucia: [`${S}silent-night.mp3`, `${S}o-little-town-of-bethlehem.mp3`],
+  jul: [`${S}deck-the-halls.mp3`, `${S}o-tannenbaum.mp3`, `${S}hark-the-herald-angels-sing.mp3`, `${S}o-come-all-ye-faithful.mp3`, `${S}o-little-town-of-bethlehem.mp3`],
+  julafton: [`${S}silent-night.mp3`, `${S}carols-of-the-season.mp3`, `${S}o-tannenbaum.mp3`, `${S}deck-the-halls.mp3`],
+}
+
+const query = new URLSearchParams(location.search)
+const forced = MODES.includes(query.get('kor') as ChoirMode) ? (query.get('kor') as ChoirMode) : null
+/** A pretend time from the URL, as wall-clock ms (read with the getUTC* methods). */
+const pretend = (() => {
+  const d = /^(\d{4})-(\d{2})-(\d{2})$/.exec(query.get('datum') ?? '')
+  if (!d) return null
+  const t = /^(\d{1,2}):(\d{2})$/.exec(query.get('tid') ?? '') ?? [, '12', '00']
+  return Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2]))
+})()
+const loadedAt = Date.now()
+const stockholm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+
+/** Stockholm's wall clock right now, as ms whose getUTC* parts are Stockholm's date and time. */
+function wallClock() {
+  if (pretend !== null) return pretend + (Date.now() - loadedAt)
+  const p = Object.fromEntries(stockholm.formatToParts(new Date()).map((x) => [x.type, x.value]))
+  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute))
+}
+
+/** The first Sunday of Advent: four Sundays before Christmas Day. */
+function firstAdvent(year: number) {
+  const xmas = new Date(Date.UTC(year, 11, 25))
+  const back = xmas.getUTCDay() === 0 ? 7 : xmas.getUTCDay()
+  return new Date(Date.UTC(year, 11, 25 - back - 21))
+}
+
+/** A number in [0, 1) that is the same for everyone for this text. */
+function chance(text: string) {
+  let h = 2166136261
+  for (let i = 0; i < text.length; i++) h = Math.imul(h ^ text.charCodeAt(i), 16777619)
+  return ((h >>> 0) % 10000) / 10000
+}
+
+export function choirMode(now = wallClock()): ChoirMode {
+  if (forced) return forced
+  const d = new Date(now)
+  const y = d.getUTCFullYear()
+  const m = d.getUTCMonth() + 1
+  const day = d.getUTCDate()
+  const minutes = d.getUTCHours() * 60 + d.getUTCMinutes()
+  const advent = firstAdvent(y)
+  if (m === advent.getUTCMonth() + 1 && day === advent.getUTCDate() && minutes >= 8 * 60) return 'advent'
+  if (m === 12 && day === 13 && minutes >= 6 * 60 + 30 && minutes < 10 * 60) return 'lucia'
+  if (m === 12 && day === 24) return 'julafton'
+  if (m === 12 && day >= 13 && day <= 23 && minutes >= 9 * 60 && minutes < 22 * 60) {
+    // twenty-minute slots, about a third of them with the choir in
+    const slot = Math.floor(minutes / 20)
+    if (chance(`${y}-${m}-${day}-${slot}`) < 0.35) return 'jul'
+  }
+  return 'borta'
+}
+
 /* ---------- the choir ---------- */
 
-type Singer = { toon: Toon; mouth: THREE.Mesh; open: number; kind: 'sing' | 'squeak' | 'howl'; phase: number }
+type Kind = 'sing' | 'squeak' | 'howl'
+type Singer = {
+  toon: Toon
+  mouth: THREE.Mesh
+  open: number
+  kind: Kind
+  phase: number
+  /** Where they stand in the nook (local to it). */
+  home: { x: number; y: number; z: number; yaw: number }
+  /** Costume parts shown in one mode or another. */
+  wear: { book: THREE.Object3D[]; lucia: THREE.Object3D[]; julafton: THREE.Object3D[] }
+  spacing: number
+}
+
+type Look = {
+  make: () => Toon
+  kind?: Kind
+  /** In toon units: shoulder height, robe radius at top and bottom, where a hat sits on the head and how wide. */
+  shoulder: number
+  robe: [number, number]
+  hatY: number
+  hatR: number
+  /** The right hand, in the arm (for the candle). */
+  hand: number
+  girl?: boolean
+  lucia?: boolean
+  mouth: [number, number, number, number]
+  book: [number, number] | null
+}
+
+const robeGeo = new Map<string, THREE.CylinderGeometry>()
+function robe(parent: THREE.Object3D, l: Look, color: number, collar: number) {
+  const key = `${l.shoulder}|${l.robe}`
+  if (!robeGeo.has(key)) robeGeo.set(key, new THREE.CylinderGeometry(l.robe[0], l.robe[1], l.shoulder - 0.04, 18, 1, true))
+  const g = new THREE.Group()
+  const m = new THREE.Mesh(robeGeo.get(key)!, new THREE.MeshStandardMaterial({ color, roughness: 0.8, side: THREE.DoubleSide }))
+  m.position.y = (l.shoulder - 0.04) / 2 + 0.04
+  g.add(m)
+  const c = new THREE.Mesh(new THREE.TorusGeometry(l.robe[0] * 0.95, 0.025, 6, 18), std(collar, 0.7))
+  c.rotation.x = Math.PI / 2
+  c.position.y = l.shoulder - 0.01
+  g.add(c)
+  parent.add(g)
+  return g
+}
+
+/** A lit candle, upright, for the right hand. */
+const flameMat = new THREE.MeshBasicMaterial({ color: 0xffd27a, toneMapped: false })
+function candle(arm: THREE.Group, l: Look, glowTex: THREE.Texture) {
+  const g = new THREE.Group()
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.16, 8), std(0xfbf8f2, 0.5)).translateY(0.08))
+  g.add(new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.05, 8), flameMat).translateY(0.185))
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false }))
+  glow.position.y = 0.19
+  glow.scale.setScalar(0.32)
+  g.add(glow)
+  g.position.set(0, -l.hand, 0.04)
+  // the arm is held forward (rotation.x = −1.1): tip the candle back so it stands up
+  g.rotation.x = 1.1
+  arm.add(g)
+  return g
+}
+
+/** The Lucia crown: lingonberry leaves and seven candles. */
+function crown(head: THREE.Group, l: Look, glowTex: THREE.Texture) {
+  const g = new THREE.Group()
+  g.position.y = l.hatY
+  const ring = new THREE.Mesh(new THREE.TorusGeometry(l.hatR, 0.03, 8, 24), std(0x1d5e3a, 0.8))
+  ring.rotation.x = Math.PI / 2
+  g.add(ring)
+  for (let i = 0; i < 7; i++) {
+    const a = (i / 7) * Math.PI * 2
+    g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.013, 0.013, 0.11, 6), std(0xfbf8f2, 0.5)).translateX(Math.sin(a) * l.hatR).translateZ(Math.cos(a) * l.hatR).translateY(0.055))
+    g.add(new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.035, 6), flameMat).translateX(Math.sin(a) * l.hatR).translateZ(Math.cos(a) * l.hatR).translateY(0.13))
+    g.add(ball(0.012, std(0xc8102e, 0.4), Math.sin(a + 0.45) * l.hatR * 1.05, 0.01, Math.cos(a + 0.45) * l.hatR * 1.05))
+  }
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false }))
+  glow.position.y = 0.12
+  glow.scale.setScalar(0.7)
+  g.add(glow)
+  head.add(g)
+  return g
+}
+
+/** A star boy's tall white cone, with three gold stars on the front. */
+function strut(head: THREE.Group, l: Look) {
+  const g = new THREE.Group()
+  const h = l.hatR * 3.4
+  g.position.y = l.hatY
+  g.add(new THREE.Mesh(new THREE.ConeGeometry(l.hatR, h, 18), std(0xfbf8f2, 0.6)).translateY(h / 2))
+  const gold = new THREE.MeshStandardMaterial({ color: 0xf6c453, roughness: 0.3, metalness: 0.7, emissive: 0x6a4a10, emissiveIntensity: 0.5 })
+  for (let i = 0; i < 3; i++) {
+    const y = h * (0.22 + i * 0.25)
+    const r = l.hatR * (1 - (y / h)) + 0.004
+    const s = new THREE.Mesh(new THREE.OctahedronGeometry(l.hatR * 0.22), gold)
+    s.position.set(0, y, r)
+    s.scale.z = 0.35
+    g.add(s)
+  }
+  head.add(g)
+  return g
+}
+
+/** A red tomte hat with a white brim and bobble. */
+function tomteluva(head: THREE.Group, l: Look) {
+  const g = new THREE.Group()
+  g.position.y = l.hatY
+  const h = l.hatR * 2.4
+  const cone = new THREE.Mesh(new THREE.ConeGeometry(l.hatR, h, 16), std(0xc8102e, 0.6))
+  cone.position.set(0, h / 2, -0.02)
+  cone.rotation.x = -0.35
+  g.add(cone)
+  const brim = new THREE.Mesh(new THREE.TorusGeometry(l.hatR, 0.03, 8, 20), std(0xfbf8f2, 0.9))
+  brim.rotation.x = Math.PI / 2
+  g.add(brim)
+  g.add(ball(0.035, std(0xfbf8f2, 0.9), 0, h * 0.9, -h * 0.38))
+  head.add(g)
+  return g
+}
 
 /** A songbook held up in front, in both hands. */
 function songbook(toon: Toon, y: number, z: number) {
@@ -338,14 +532,18 @@ function songbook(toon: Toon, y: number, z: number) {
   book.position.set(0, y, z)
   book.rotation.x = -0.5
   toon.body.add(book)
-  toon.armL.rotation.set(-1.1, 0, 0.45)
-  toon.armR.rotation.set(-1.1, 0, -0.45)
+  return book
+}
+
+const moving = <T extends THREE.Object3D>(o: T): T => {
+  mergeRigid(o)
+  return keepApart(o)
 }
 
 export function buildChoir(scene: THREE.Scene) {
   const group = new THREE.Group()
   const colliders: Circle[] = []
-  const song = new LoopedRecording('/sounds/deck-the-halls-singing-sergeants.mp3', 1.5)
+  const song = new Playlist(2.5)
   // a nook of their own on the east side of the square, between Tomtens stuga and Arkitektkontoret,
   // with a little tree behind them – facing out over the square towards the big tree
   const A = THREE.MathUtils.degToRad(104)
@@ -416,86 +614,142 @@ export function buildChoir(scene: THREE.Scene) {
     g.scale.setScalar(1.6)
     group.add(g)
   }
-  const light = new THREE.PointLight(0xffc98a, 10, 9, 1.5)
-  light.position.set(0, 2.6, 1.2)
-  group.add(light)
-
-  const singers: Singer[] = []
-  const place = (toon: Toon, x: number, z: number, y: number, mouthAt: [number, number, number, number], kind: Singer['kind'] = 'sing', book: [number, number] | null = [0.5, 0.2], yaw = 0) => {
-    toon.group.position.set(x, y, z)
-    toon.setYaw(yaw)
-    if (book) songbook(toon, book[0], book[1])
-    const m = mouth(toon.head, ...mouthAt)
-    // the head sways and the mouth moves; everything else stands still and is merged with the stage
-    mergeRigid(toon.head)
-    keepApart(toon.head)
-    group.add(toon.group)
-    singers.push({ toon, mouth: m, open: 0, kind, phase: Math.random() * Math.PI * 2 })
-  }
-  // the back row, on the riser, shoulder to shoulder
-  place(new Kalle(), -1.5, -0.7, top, [0, -0.075, 0.2, 0.06], 'sing', [0.4, 0.2], 0.25)
-  place(new Musse(), -0.75, -0.75, top, [0, -0.115, 0.205, 0.05], 'sing', [0.5, 0.2], 0.1)
-  place(new Langben(), 0, -0.8, top, [0, -0.11, 0.25, 0.05], 'sing', [0.78, 0.22])
-  place(new Mimmi(), 0.75, -0.75, top, [0, -0.11, 0.19, 0.045], 'sing', [0.5, 0.2], -0.1)
-  place(new Kajsa(), 1.5, -0.7, top, [0, -0.075, 0.19, 0.055], 'sing', [0.4, 0.2], -0.25)
-  // in front: Knattarna, and Piff & Puff up on a present each so they can be seen
-  for (const [i, c] of [0xd8202c, 0x2f6fc6, 0x2f9a4a].entries()) place(new Knatte(c), -0.6 + i * 0.6, 0.3, 0, [0, -0.07, 0.17, 0.05], 'sing', [0.35, 0.17], 0.15 - i * 0.15)
-  for (const [i, red] of [false, true].entries()) {
-    const x = i ? 1.45 : -1.45
-    const gift = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.42), std(i ? 0x2f9a4a : 0xd8202c, 0.6))
+  // presents for Piff and Puff to stand on
+  for (const x of [-1.45, 1.45]) {
+    const gift = new THREE.Mesh(new THREE.BoxGeometry(0.42, 0.36, 0.42), std(x > 0 ? 0x2f9a4a : 0xd8202c, 0.6))
     gift.position.set(x, 0.18, 0.25)
     gift.castShadow = true
     group.add(gift)
     const rib = new THREE.Mesh(new THREE.BoxGeometry(0.44, 0.37, 0.08), std(0xf6c453, 0.4))
     rib.position.copy(gift.position)
     group.add(rib)
-    place(new Chipmunk(red), x, 0.25, 0.36, [0, -0.06, 0.1, 0.03], 'squeak', null, i ? -0.3 : 0.3)
   }
-  // Pluto, sitting at the front, head up to howl
-  place(new Pluto(), 0.35, 1.05, 0, [0, -0.07, 0.25, 0.04], 'howl', null, -0.2)
-
-  // what they're singing, in a bubble over them
-  const [bc, bctx] = makeCanvas(1024, 192)
-  const bubbleTex = toTexture(bc, { live: true })
-  const bubble = keepApart(new THREE.Sprite(new THREE.SpriteMaterial({ map: bubbleTex, transparent: true, depthWrite: false })))
-  bubble.position.set(0, 3.0, 0)
-  bubble.scale.set(3.6, 0.68, 1)
-  bubble.visible = false
-  group.add(bubble)
-  {
-    bctx.fillStyle = '#fff'
-    bctx.strokeStyle = '#2a1a10'
-    bctx.lineWidth = 6
-    bctx.beginPath()
-    bctx.roundRect(10, 10, 1004, 150, 60)
-    bctx.moveTo(480, 160)
-    bctx.lineTo(512, 188)
-    bctx.lineTo(544, 160)
-    bctx.fill()
-    bctx.stroke()
-    bctx.fillRect(482, 150, 60, 14)
-    bctx.fillStyle = '#b3202a'
-    bctx.font = 'italic 600 58px Fraunces, Georgia, serif'
-    bctx.textAlign = 'center'
-    bctx.textBaseline = 'middle'
-    bctx.fillText('♪ Deck the halls… fa la la la la! ♪', 512, 86)
-    bubbleTex.needsUpdate = true
-  }
-
+  const light = new THREE.PointLight(0xffc98a, 10, 9, 1.5)
+  light.position.set(0, 2.6, 1.2)
+  group.add(light)
   scene.add(group)
   group.updateMatrixWorld(true)
-  // bump into them, the riser and the little tree
-  const world = (x: number, z: number) => group.localToWorld(new THREE.Vector3(x, 0, z))
-  for (const [x, z, r] of [[0, -2.0, 1.2], [-1.4, -0.72, 0.6], [0, -0.72, 0.6], [1.4, -0.72, 0.6], [-2.45, -0.5, 0.15], [2.45, -0.5, 0.15], [-0.6, 0.3, 0.25], [0, 0.3, 0.25], [0.6, 0.3, 0.25], [-1.45, 0.25, 0.3], [1.45, 0.25, 0.3], [0.35, 1.05, 0.3]] as const) {
-    const p = world(x, z)
+
+  // the singers move about (to the Lucia procession and back), so they're kept out of the nook's bake
+  const people = keepApart(new THREE.Group())
+  scene.add(people)
+  const singers: Singer[] = []
+  const nook = (x: number, z: number) => group.localToWorld(new THREE.Vector3(x, 0, z))
+  const join = (l: Look, x: number, y: number, z: number, yaw: number, spacing = 1.1) => {
+    const toon = l.make()
+    const wear: Singer['wear'] = { book: [], lucia: [], julafton: [] }
+    if (l.book) wear.book.push(moving(songbook(toon, l.book[0], l.book[1])))
+    if (l.shoulder > 0) {
+      // Lucia: white gowns for all, red sashes for the girls, a crown for Lucia, cones for the star boys
+      const gown = robe(toon.body, l, 0xfbf8f2, 0xfbf8f2)
+      if (l.girl) {
+        const sash = new THREE.Mesh(new THREE.TorusGeometry((l.robe[0] + l.robe[1]) / 2 + 0.01, 0.02, 6, 20), std(0xc8102e, 0.5))
+        sash.rotation.x = Math.PI / 2
+        sash.position.y = l.shoulder * 0.62
+        gown.add(sash)
+      }
+      wear.lucia.push(moving(gown), moving(l.lucia ? crown(toon.head, l, glowTex) : l.girl ? new THREE.Group() : strut(toon.head, l)))
+      wear.lucia.push(moving(candle(toon.armR, l, glowTex)))
+      // julafton: red choir robes with white collars
+      wear.julafton.push(moving(robe(toon.body, l, 0xc8102e, 0xfbf8f2)))
+    }
+    wear.julafton.push(moving(tomteluva(toon.head, l)))
+    const m = mouth(toon.head, ...l.mouth)
+    mergeRigid(toon.group)
+    const p = nook(x, z)
+    toon.group.position.set(p.x, y, p.z)
+    toon.setYaw(group.rotation.y + yaw)
+    people.add(toon.group)
+    singers.push({ toon, mouth: m, open: 0, kind: l.kind ?? 'sing', phase: Math.random() * Math.PI * 2, home: { x: p.x, y, z: p.z, yaw: group.rotation.y + yaw }, wear, spacing })
+  }
+  const MUSSE: Look = { make: () => new Musse(), shoulder: 0.76, robe: [0.15, 0.24], hatY: 0.17, hatR: 0.13, hand: 0.33, mouth: [0, -0.115, 0.205, 0.05], book: [0.5, 0.2] }
+  const MIMMI: Look = { make: () => new Mimmi(), shoulder: 0.76, robe: [0.14, 0.26], hatY: 0.17, hatR: 0.15, hand: 0.31, girl: true, lucia: true, mouth: [0, -0.11, 0.19, 0.045], book: [0.5, 0.2] }
+  const KALLE: Look = { make: () => new Kalle(), shoulder: 0.6, robe: [0.17, 0.24], hatY: 0.15, hatR: 0.13, hand: 0.24, mouth: [0, -0.075, 0.2, 0.06], book: [0.4, 0.2] }
+  const KAJSA: Look = { make: () => new Kajsa(), shoulder: 0.6, robe: [0.16, 0.24], hatY: 0.14, hatR: 0.13, hand: 0.24, girl: true, mouth: [0, -0.075, 0.19, 0.055], book: [0.4, 0.2] }
+  const LANGBEN: Look = { make: () => new Langben(), shoulder: 1.1, robe: [0.15, 0.26], hatY: 0.29, hatR: 0.12, hand: 0.41, mouth: [0, -0.11, 0.25, 0.05], book: [0.78, 0.22] }
+  const knatte = (c: number): Look => ({ make: () => new Knatte(c), shoulder: 0.5, robe: [0.14, 0.2], hatY: 0.11, hatR: 0.12, hand: 0.2, mouth: [0, -0.07, 0.17, 0.05], book: [0.35, 0.17] })
+  const chip = (red: boolean): Look => ({ make: () => new Chipmunk(red), kind: 'squeak', shoulder: 0.3, robe: [0.09, 0.13], hatY: 0.08, hatR: 0.08, hand: 0.1, mouth: [0, -0.06, 0.1, 0.03], book: null })
+  const PLUTO: Look = { make: () => new Pluto(), kind: 'howl', shoulder: 0, robe: [0, 0], hatY: 0.1, hatR: 0.09, hand: 0, mouth: [0, -0.07, 0.25, 0.04], book: null }
+  // in the order they walk in the Lucia procession: Lucia first, then her tärna, then the star boys
+  join(MIMMI, 0.75, top, -0.75, -0.1)
+  join(KAJSA, 1.5, top, -0.7, -0.25)
+  join(MUSSE, -0.75, top, -0.75, 0.1)
+  join(KALLE, -1.5, top, -0.7, 0.25)
+  join(LANGBEN, 0, top, -0.8, 0, 1.3)
+  for (const [i, c] of [0xd8202c, 0x2f6fc6, 0x2f9a4a].entries()) join(knatte(c), -0.6 + i * 0.6, 0, 0.3, 0.15 - i * 0.15, 0.9)
+  join(chip(false), -1.45, 0.36, 0.25, 0.3, 0.7)
+  join(chip(true), 1.45, 0.36, 0.25, -0.3, 0.7)
+  join(PLUTO, 0.35, 0, 1.05, -0.2, 1.0)
+
+  // bump into the riser and the little tree always; into the singers only while they're there
+  for (const [x, z, r] of [[0, -2.0, 1.2], [-1.4, -0.72, 0.6], [0, -0.72, 0.6], [1.4, -0.72, 0.6], [-2.45, -0.5, 0.15], [2.45, -0.5, 0.15], [-1.45, 0.25, 0.3], [1.45, 0.25, 0.3]] as const) {
+    const p = nook(x, z)
     colliders.push({ x: p.x, z: p.z, r })
   }
-  const centre = world(0, 0)
+  const front: Circle[] = []
+  for (const [x, z] of [[-0.6, 0.3], [0, 0.3], [0.6, 0.3], [0.35, 1.05]] as const) {
+    const p = nook(x, z)
+    front.push({ x: p.x, z: p.z, r: 0.25 })
+  }
+  colliders.push(...front)
+
+  /* ---------- the mode: who's where, wearing what ---------- */
+  let mode: ChoirMode | null = null
+  let walked = 0
+  const ROUTE = 9.6
+  const setMode = (next: ChoirMode) => {
+    if (next === mode) return
+    mode = next
+    people.visible = next !== 'borta'
+    // (a collider with a negative radius never pushes)
+    for (const c of front) c.r = next === 'borta' || next === 'lucia' ? -1 : 0.25
+    for (const s of singers) {
+      for (const o of s.wear.book) o.visible = next !== 'lucia'
+      for (const o of s.wear.lucia) o.visible = next === 'lucia'
+      for (const o of s.wear.julafton) o.visible = next === 'julafton'
+      const t = s.toon
+      if (next === 'lucia') {
+        t.armR.rotation.set(-1.1, 0, -0.15)
+        t.armL.rotation.set(0, 0, 0.25)
+      } else {
+        t.group.position.set(s.home.x, s.home.y, s.home.z)
+        t.setYaw(s.home.yaw)
+        t.walkPose(0, 0)
+        if (s.wear.book.length) {
+          t.armL.rotation.set(-1.1, 0, 0.45)
+          t.armR.rotation.set(-1.1, 0, -0.45)
+        }
+      }
+    }
+    if (song.playing) song.stop()
+  }
+  setMode(choirMode())
+
+  /** The procession: round the big tree, Lucia first; returns where the middle of it is (for the sound). */
+  const where = new THREE.Vector3()
+  function walk(dt: number, t: number) {
+    walked += dt * 0.55
+    let s = walked
+    singers.forEach((p, i) => {
+      if (i) s -= (singers[i - 1].spacing + p.spacing) / 2
+      const a = s / ROUTE
+      const x = Math.sin(a) * ROUTE
+      const z = -Math.cos(a) * ROUTE
+      p.toon.group.position.set(x, 0, z)
+      p.toon.setYaw(Math.atan2(Math.cos(a), Math.sin(a)))
+      p.toon.walkPose(t * 5.5 + i, 0.6)
+      if (i === Math.floor(singers.length / 2)) where.set(x, 0, z)
+    })
+    return where
+  }
+
   let twinkle = 0
+  let modeCheck = 0
   const tint = new THREE.Color()
   /** Full voice within NEAR metres of them, fading to nothing at FAR. */
   const NEAR = 7
   const FAR = 24
+  const centre = nook(0, 0)
   let loud = 0
   let t = 0
   function update(dt: number, player: THREE.Vector3, enabled: boolean) {
@@ -507,10 +761,16 @@ export function buildChoir(scene: THREE.Scene) {
       bulbs.instanceColor!.needsUpdate = true
       star.rotation.y = t
     }
-    const d = Math.hypot(player.x - centre.x, player.z - centre.z)
+    if ((modeCheck -= dt) <= 0) {
+      modeCheck = 10
+      setMode(choirMode())
+    }
+    if (mode === 'borta') return
+    const at = mode === 'lucia' ? walk(dt, t) : centre
+    const d = Math.hypot(player.x - at.x, player.z - at.z)
     const vol = enabled ? 0.9 * THREE.MathUtils.clamp((FAR - d) / (FAR - NEAR), 0, 1) : 0
     if (vol > 0.003) {
-      if (!song.playing) song.start()
+      song.start(SONGS[mode!])
       song.level(vol)
     } else if (song.playing) {
       song.level(0.0001)
@@ -519,7 +779,6 @@ export function buildChoir(scene: THREE.Scene) {
     // the mouths follow how loud the singing is
     loud += (song.loudness() - loud) * Math.min(1, dt * 20)
     const singing = loud > 0.06
-    bubble.visible = singing && d < FAR
     for (const s of singers) {
       let want = singing ? 0.2 + loud * (0.7 + 0.3 * Math.sin(t * 7 + s.phase)) : 0.08
       if (s.kind === 'squeak') want = singing ? 0.3 + loud * (0.6 + 0.4 * Math.sin(t * 13 + s.phase)) : 0.08
@@ -528,7 +787,7 @@ export function buildChoir(scene: THREE.Scene) {
       s.open += (want - s.open) * Math.min(1, dt * 18)
       s.mouth.scale.y = 0.15 + s.open * 0.95
       const head = s.toon.head
-      if (singing) {
+      if (singing && mode !== 'lucia') {
         head.rotation.z = Math.sin(t * 2.6 + s.phase * 0.2) * 0.1
         head.rotation.x = s.kind === 'howl' ? -0.5 - s.open * 0.3 : -0.08 - s.open * 0.06
       } else {
@@ -538,5 +797,5 @@ export function buildChoir(scene: THREE.Scene) {
     }
   }
 
-  return { group, colliders, update }
+  return { group, people, colliders, update, get mode() { return mode } }
 }
