@@ -16,6 +16,7 @@ import { drawBoard, glowTexture, makeCanvas, planksTexture, toTexture } from './
 import { html, type Talk } from './ui'
 import type { BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
+import { chute as slideway } from './rutschkana'
 
 const JULAFTON = EVENTS.find((e) => e.santa) ?? EVENTS[EVENTS.length - 1]
 
@@ -1278,6 +1279,10 @@ function chute(shop: Shop) {
   }
   shop.block(cx, cz, r + 0.5, r + 0.5)
   shop.block(bx, bz, 0.9, 0.9)
+  // (and you can go down it too: rutschkana.ts)
+  slideway.curve = curve
+  slideway.room = g
+  slideway.basket.set(bx, 0, bz)
   const sliders = Array.from({ length: 6 }, (_, i) => {
     const p = moving(present([C.blue, C.red, C.green, C.gold, 0x8e3fb0, C.white][i], C.gold, 0.38))
     g.add(p)

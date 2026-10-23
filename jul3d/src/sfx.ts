@@ -22,7 +22,7 @@ export function blip(freq = 880, dur = 0.08, type: OscillatorType = 'square', vo
 
 let noiseBuf: AudioBuffer | null = null
 /** Filtered noise: a soft "puff" (low) or a "whoosh" (sweeping). */
-function noise(dur: number, from: number, to: number, vol: number, q = 0.8) {
+export function noise(dur: number, from: number, to: number, vol: number, q = 0.8) {
   try {
     const a = audio()
     if (!noiseBuf) {

@@ -8,6 +8,7 @@ import { Flight } from './flight'
 import { Matadors } from './matadors'
 import type { Nisse } from './npc'
 import { Player } from './player'
+import { Slide } from './rutschkana'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -83,6 +84,9 @@ const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
 const sleigh = new Sleigh(scene)
 const flight = new Flight(scene, camera, player, sleigh)
+// down the spiral chute in Leksaksfabriken, from the gallery to the basket of presents
+const slide = new Slide(player, camera)
+slide.onDone = () => resume()
 flight.onDone = () => resume()
 // Husvagnen, with Musse and Kalle waving beside it – a trip up the mountain (see trip.ts)
 const camper = new Camper(scene)
@@ -128,6 +132,7 @@ type Target =
   | { kind: 'sleigh' }
   | { kind: 'camper' }
   | { kind: 'matadors' }
+  | { kind: 'slide' }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
@@ -494,6 +499,8 @@ function findTarget(): Target | null {
     const d = Math.hypot(dx, dz)
     if (d < 3.4 && (dx * fwd.x + dz * fwd.z) / d > 0.5) return { kind: 'sleigh' }
   }
+  // up on the gallery at the top of Leksaksfabriken's chute
+  if (slide.near(player.pos, player.floor, fwd)) return { kind: 'slide' }
   return aimed
 }
 
@@ -551,7 +558,9 @@ function setTarget(t: Target | null) {
             ? 'Hoppa in i husvagnen'
             : t.kind === 'matadors'
               ? 'Prata med matadorerna'
-              : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
+              : t.kind === 'slide'
+                ? 'Åk ner för rutschkanan'
+                : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -836,6 +845,10 @@ function interact() {
     flight.start()
   } else if (t.kind === 'camper') startTrip()
   else if (t.kind === 'matadors') dialog.start(matadorTalk)
+  else if (t.kind === 'slide') {
+    cursor.hide()
+    slide.start()
+  }
   else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
 }
@@ -1048,7 +1061,9 @@ function frame(now: number) {
   mp?.update(t, dt)
   // off on the camper trip or in Madrid, the village stands still (it's only a painted backdrop, after all)
   if (!trip.inWorld && !corrida.inWorld) {
-    player.update(dt, collidePlayer, groundAt)
+    // (down the chute, the chute steers)
+    if (slide.active) slide.update(dt)
+    else player.update(dt, collidePlayer, groundAt)
     // (how high you are, the others see: up on a gallery or in mid-jump)
     mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.floor + player.height)
     thrower.update(dt, t)
@@ -1164,4 +1179,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
