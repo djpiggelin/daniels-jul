@@ -525,9 +525,10 @@ function exterior(shop: Shop) {
   facade.closePath()
   facade.holes.push(arch(DOOR_W, DOOR_H + SUNK / 2, new THREE.Path(), 0, -SUNK / 2))
   add(g, tiled(new THREE.ExtrudeGeometry(facade, { depth: 0.6, bevelEnabled: false, curveSegments: 20 })), brick, 0, 0, D / 2 - 0.6)
-  for (const s of [-1, 1]) shop.block(s * (W / 4 + DOOR_W / 4), D / 2 - 0.3, W / 4 - DOOR_W / 4, 0.35)
-  shop.block(0, -D / 2 + 0.3, W / 2, 0.35)
-  for (const s of [-1, 1]) shop.block(s * (W / 2 - 0.3), 0, 0.35, D / 2)
+  // (at every height – up on the galleries too)
+  for (const s of [-1, 1]) shop.block(s * (W / 4 + DOOR_W / 4), D / 2 - 0.3, W / 4 - DOOR_W / 4, 0.35, -Infinity, Infinity)
+  shop.block(0, -D / 2 + 0.3, W / 2, 0.35, -Infinity, Infinity)
+  for (const s of [-1, 1]) shop.block(s * (W / 2 - 0.3), 0, 0.35, D / 2, -Infinity, Infinity)
 
   // stone plinth and cornices round the whole hall
   for (const [y, h, out] of [[0.5, 1, 0.12], [6.4, 0.4, 0.2], [H - 0.2, 0.5, 0.35]] as const) {
@@ -1006,6 +1007,10 @@ function hallInside(shop: Shop) {
   const gd = GALLERY_D
   add(g, box(IN_X * 2, 0.35, gd), deck, 0, gy, -IN_Z + gd / 2)
   for (const s of [-1, 1]) add(g, box(gd, 0.35, IN_Z * 2 - gd), deck, s * (IN_X - gd / 2), gy, gd / 2)
+  // you can walk up there: the decks to stand on, and railings to stop you stepping off
+  const deckTop = gy + 0.175
+  shop.floor(0, -IN_Z + gd / 2, IN_X, gd / 2, deckTop, false)
+  for (const s of [-1, 1]) shop.floor(s * (IN_X - gd / 2), gd / 2, gd / 2, IN_Z - gd / 2, deckTop, false)
   const rail = (a: THREE.Vector3, b: THREE.Vector3) => {
     const len = a.distanceTo(b)
     const mid = a.clone().add(b).multiplyScalar(0.5)
@@ -1022,6 +1027,10 @@ function hallInside(shop: Shop) {
   const iz = -IN_Z + gd
   rail(v(-ix, 0, iz), v(ix, 0, iz))
   for (const s of [-1, 1]) rail(v(s * ix, 0, iz), v(s * ix, 0, IN_Z - 1.4))
+  // (the railings only stop you up there: down on the floor you walk under the galleries)
+  const UP = gy - 1
+  shop.block(0, iz, ix, 0.08, UP, Infinity)
+  for (const s of [-1, 1]) shop.block(s * ix, (iz + IN_Z - 1.4) / 2, 0.08, (IN_Z - 1.4 - iz) / 2, UP, Infinity)
   // columns holding the galleries up, with gold capitals
   const column = (x: number, z: number) => {
     add(g, cyl(0.24, 0.28, gy - 0.2, 14), timber, x, (gy - 0.2) / 2, z)
@@ -1036,13 +1045,17 @@ function hallInside(shop: Shop) {
     for (let i = 0; i < steps; i++) {
       const x = s * (DOOR_W / 2 + 2.6 + (i * (ix - DOOR_W / 2 - 2.6)) / steps)
       add(g, box((ix - DOOR_W / 2 - 2.6) / steps + 0.02, ((i + 1) * gy) / steps, 1.3), deck, x, ((i + 1) * gy) / steps / 2, IN_Z - 0.65)
+      shop.floor(x, IN_Z - 0.65, (ix - DOOR_W / 2 - 2.6) / steps / 2 + 0.01, 0.65, ((i + 1) * gy) / steps, true)
     }
     const sx = s * ((DOOR_W / 2 + 2.6 + ix) / 2)
     const sl = add(g, box(Math.hypot(ix - DOOR_W / 2 - 2.6, gy), 0.1, 0.1), gold, sx, gy / 2 + 1, IN_Z - 1.35)
     sl.rotation.z = s * Math.atan2(gy, ix - DOOR_W / 2 - 2.6)
-    shop.block(sx, IN_Z - 0.65, (ix - DOOR_W / 2 - 2.6) / 2, 0.7)
+    // a handrail on the open side stops you, once you are a few steps up
+    shop.block(sx, IN_Z - 1.38, (ix - DOOR_W / 2 - 2.6) / 2, 0.08, 1.2, Infinity)
     // a landing joining the stairs to the side gallery
-    add(g, box(gd, 0.35, 1.4), deck, s * (IN_X - gd / 2), gy, IN_Z - 0.7)
+    add(g, box(gd + 0.25, 0.35, 1.4), deck, s * (IN_X - gd / 2 - 0.12), gy, IN_Z - 0.7)
+    // (reaching back over the top step, so there is no gap to fall through)
+    shop.floor(s * (IN_X - gd / 2 - 0.12), IN_Z - 0.7, gd / 2 + 0.13, 0.7, deckTop, false)
   }
 
   // chandeliers
@@ -1732,6 +1745,7 @@ export async function buildLeksaksfabriken(): Promise<BuiltShop> {
 
   // what the room needs from its house: walls to bump into, things to animate, things to look at
   shop.boxes.push(...room.boxes)
+  shop.floors.push(...room.floors)
   shop.updaters.push(...room.updaters)
   shop.exhibits.push(...room.exhibits)
   // its lights stay on all the time (lights coming and going would rebuild every shader)

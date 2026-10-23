@@ -280,7 +280,7 @@ async function build() {
 
 /* ---------- collision ---------- */
 const RADIUS = 0.35
-function collide(p: THREE.Vector3, RADIUS = 0.35) {
+function collide(p: THREE.Vector3, RADIUS = 0.35, feet = 0) {
   for (const c of circles) {
     const dx = p.x - c.x
     const dz = p.z - c.z
@@ -301,6 +301,8 @@ function collide(p: THREE.Vector3, RADIUS = 0.35) {
     let lx = dx * cos - dz * sin
     let lz = dx * sin + dz * cos
     for (const b of s.shop.boxes) {
+      // (most things you only bump into down on the floor; walls and railings at their own heights)
+      if (feet < (b.y0 ?? -Infinity) || feet >= (b.y1 ?? 2.5)) continue
       const cx = THREE.MathUtils.clamp(lx, b.x - b.hw, b.x + b.hw)
       const cz = THREE.MathUtils.clamp(lz, b.z - b.hd, b.z + b.hd)
       const ox = lx - cx
@@ -326,9 +328,34 @@ function collide(p: THREE.Vector3, RADIUS = 0.35) {
   }
   keepInside(p)
 }
+/** How high you can step up without jumping. */
+const STEP = 0.45
+/**
+ * What there is to stand on at `p` for feet at `feet`: the highest floor you can step onto (0, the
+ * ground, if none) – or null if something solid there is too high.
+ */
+function groundAt(p: THREE.Vector3, feet: number) {
+  let top = 0
+  for (const s of shops) {
+    if (!s.shop.floors.length) continue
+    const g = s.shop.group
+    const cos = Math.cos(g.rotation.y)
+    const sin = Math.sin(g.rotation.y)
+    const dx = p.x - g.position.x
+    const dz = p.z - g.position.z
+    const lx = dx * cos - dz * sin
+    const lz = dx * sin + dz * cos
+    for (const f of s.shop.floors) {
+      if (Math.abs(lx - f.x) > f.hw || Math.abs(lz - f.z) > f.hd) continue
+      if (f.top <= feet + STEP) top = Math.max(top, f.top)
+      else if (f.solid) return null
+    }
+  }
+  return top
+}
 /** You also bump into elves. */
-function collidePlayer(p: THREE.Vector3) {
-  collide(p, RADIUS)
+function collidePlayer(p: THREE.Vector3, feet = 0) {
+  collide(p, RADIUS, feet)
   for (const e of elves) {
     if (!e.group.visible) continue
     const dx = p.x - e.pos.x
@@ -1021,8 +1048,9 @@ function frame(now: number) {
   mp?.update(t, dt)
   // off on the camper trip or in Madrid, the village stands still (it's only a painted backdrop, after all)
   if (!trip.inWorld && !corrida.inWorld) {
-    player.update(dt, collidePlayer)
-    mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.height)
+    player.update(dt, collidePlayer, groundAt)
+    // (how high you are, the others see: up on a gallery or in mid-jump)
+    mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.floor + player.height)
     thrower.update(dt, t)
     arcade?.update(dt, t)
     flight.update(dt, t)

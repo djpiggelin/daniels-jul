@@ -7,8 +7,14 @@ export const D = 8
 export const H = 3.6
 const RIDGE = 2.4
 
-/** Axis-aligned box in shop-local space (x/z centre, half extents). */
-export type Box = { x: number; z: number; hw: number; hd: number }
+/**
+ * Axis-aligned box in shop-local space (x/z centre, half extents) that you bump into – while your feet
+ * are between y0 and y1 (by default: from the floor up to 2.5 m, so you walk over it on a gallery).
+ */
+export type Box = { x: number; z: number; hw: number; hd: number; y0?: number; y1?: number }
+/** Something to stand on (in shop-local space): a step, a gallery. `solid` ones go right down to
+ *  the floor – too high to step up onto, you bump into them; the others you can walk under. */
+export type Floor = { x: number; z: number; hw: number; hd: number; top: number; solid: boolean }
 export type Wall = 'back' | 'left' | 'right'
 
 export type Exhibit = {
@@ -29,6 +35,7 @@ export type ShopSize = { w: number; d: number; h: number; ridge: number }
 export class Shop {
   readonly group = new THREE.Group()
   readonly boxes: Box[] = []
+  readonly floors: Floor[] = []
   readonly exhibits: Exhibit[] = []
   readonly updaters: ((t: number, dt: number) => void)[] = []
   readonly size: ShopSize
@@ -244,8 +251,13 @@ export class Shop {
     this.exhibits.push({ target, ...ex })
   }
 
-  block(x: number, z: number, hw: number, hd: number) {
-    this.boxes.push({ x, z, hw, hd })
+  block(x: number, z: number, hw: number, hd: number, y0?: number, y1?: number) {
+    this.boxes.push({ x, z, hw, hd, y0, y1 })
+  }
+
+  /** Something to stand on, `top` metres up. */
+  floor(x: number, z: number, hw: number, hd: number, top: number, solid: boolean) {
+    this.floors.push({ x, z, hw, hd, top, solid })
   }
 
   /** Where snow stops falling: the roof's footprint (with its overhang) and top, in shop-local half extents. */
