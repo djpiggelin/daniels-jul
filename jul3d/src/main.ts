@@ -11,6 +11,7 @@ import { Player } from './player'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
+import { buildChoir } from './korsang'
 import { loadFonts } from './tex'
 import { clockText, eventStatus, formatShortDate } from './time'
 import { Snowballs } from './snowballs'
@@ -140,6 +141,7 @@ let shops: BuiltShop[] = []
 const talkers: { npc: Nisse; talk: Talk }[] = []
 const circles = [...world.colliders, ...sleigh.colliders(), ...camper.colliders()]
 let arcade: Arcade | null = null
+let choir: ReturnType<typeof buildChoir> | null = null
 let elves: Elf[] = []
 /** What snowballs can hit. */
 const solids: THREE.Object3D[] = [...world.solids, sleigh.group, sleigh.santa.group, camper.car, camper.trailer, camper.musse.group, camper.kalle.group]
@@ -182,6 +184,10 @@ async function build() {
     solids.push(m.group)
     m.group.userData.onSnowball = () => toast('🪙 ¡Oye! Inte på kostymen!')
   }
+  // the gang singing carols by the tree
+  choir = buildChoir(scene)
+  circles.push(...choir.colliders)
+  solids.push(choir.group)
   const square = await buildSquare(scene, shops)
   circles.push(...square.colliders)
   solids.push(...square.solids)
@@ -1066,6 +1072,7 @@ function frame(now: number) {
     for (const e of elves) e.update(dt, t)
     // the tin soldiers' band plays as you come near (not from up in the sleigh)
     parade.near(player.pos, !flight.active)
+    choir?.update(dt, player.pos, !flight.active)
     snowballs.update(dt, camera.position)
     if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
     world.showFar(flight.active)

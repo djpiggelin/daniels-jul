@@ -675,3 +675,97 @@ export class ToyMarch {
     this.burst(t, 7000, 0.5, 0.15, 1.1, out)
   }
 }
+
+/* ---------- a recording, looped (the choir by the tree) ---------- */
+// Decoded once, played round and round through its own gain (to fade with distance) and an analyser
+// (so the singers' mouths can follow how loud it is).
+export class LoopedRecording {
+  private buffer: AudioBuffer | null = null
+  private loading: Promise<void> | null = null
+  private src: AudioBufferSourceNode | null = null
+  private gain: GainNode | null = null
+  private analyser: AnalyserNode | null = null
+  private data: Uint8Array<ArrayBuffer> | null = null
+  playing = false
+
+  constructor(
+    private url: string,
+    /** Silence added after it before it starts again (s). */
+    private pause = 1.5,
+  ) {}
+
+  private load() {
+    this.loading ??= (async () => {
+      const a = audio()
+      const raw = await (await fetch(this.url)).arrayBuffer()
+      const clip = await a.decodeAudioData(raw)
+      // the clip with a breath of silence after it, so the loop isn't one long run-on
+      const pad = a.createBuffer(clip.numberOfChannels, clip.length + Math.floor(this.pause * clip.sampleRate), clip.sampleRate)
+      for (let c = 0; c < clip.numberOfChannels; c++) pad.copyToChannel(clip.getChannelData(c), c)
+      this.buffer = pad
+    })().catch(() => {
+      this.loading = null
+    })
+    return this.loading
+  }
+
+  /** Start (quietly) as soon as it's loaded; level() brings it up. */
+  start() {
+    if (this.playing) return
+    this.playing = true
+    void this.load().then(() => {
+      if (!this.playing || !this.buffer || this.src) return
+      try {
+        const a = audio()
+        void a.resume()
+        this.gain = a.createGain()
+        this.gain.gain.setValueAtTime(0.0001, a.currentTime)
+        this.analyser = a.createAnalyser()
+        this.analyser.fftSize = 512
+        this.data = new Uint8Array(this.analyser.fftSize)
+        this.src = a.createBufferSource()
+        this.src.buffer = this.buffer
+        this.src.loop = true
+        this.src.connect(this.analyser).connect(this.gain).connect(a.destination)
+        this.src.start()
+        this.level(this.want)
+      } catch {
+        /* audio not available */
+      }
+    })
+  }
+
+  private want = 0.0001
+  /** Fade towards `vol` (a slow glide, as you walk up or away). */
+  level(vol: number) {
+    this.want = Math.max(0.0001, vol)
+    if (this.gain) this.gain.gain.setTargetAtTime(this.want, audio().currentTime, 0.5)
+  }
+
+  /** How loud the recording is right now, 0…1 (before the distance fade). */
+  loudness() {
+    if (!this.analyser || !this.data) return 0
+    this.analyser.getByteTimeDomainData(this.data)
+    let sum = 0
+    for (const v of this.data) sum += (v - 128) ** 2
+    return Math.min(1, (Math.sqrt(sum / this.data.length) / 128) * 4)
+  }
+
+  stop() {
+    if (!this.playing) return
+    this.playing = false
+    const src = this.src
+    const g = this.gain
+    this.src = this.gain = this.analyser = null
+    if (!src || !g) return
+    const a = audio()
+    g.gain.cancelScheduledValues(a.currentTime)
+    g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), a.currentTime)
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.4)
+    setTimeout(() => {
+      src.stop()
+      src.disconnect()
+      g.disconnect()
+    }, 500)
+  }
+}
