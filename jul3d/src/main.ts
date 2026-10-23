@@ -1073,8 +1073,8 @@ function frame(now: number) {
     world.update(t, dt, flight.active ? flight.pos : player.pos)
     for (const s of shops) s.shop.update(t, dt)
     for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
-    // on Lucia morning the elves are all in the procession
-    const elvesOut = choir?.mode !== 'lucia'
+    // on Lucia morning the elves are all in the procession, and on the first Sunday of Advent at the concert
+    const elvesOut = choir?.mode !== 'lucia' && choir?.mode !== 'advent'
     for (const e of elves) {
       e.group.visible = elvesOut
       if (elvesOut) e.update(dt, t)

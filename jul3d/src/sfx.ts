@@ -690,6 +690,8 @@ export class Playlist {
   private index = 0
   private want = 0.0001
   private gapTimer = 0
+  /** Start from the first track (in order) rather than anywhere in the list. */
+  ordered = false
   playing = false
 
   constructor(
@@ -758,7 +760,7 @@ export class Playlist {
   private choose(tracks: string[]) {
     if (tracks.join('|') === this.tracks.join('|')) return
     this.tracks = tracks
-    this.index = Math.floor(Math.random() * tracks.length)
+    this.index = this.ordered ? 0 : Math.floor(Math.random() * tracks.length)
   }
 
   private cued: { url: string; at: number; offset: number } | null = null

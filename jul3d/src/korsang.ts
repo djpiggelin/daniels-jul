@@ -12,6 +12,7 @@ import { rod, std } from './sleigh'
 import { glowTexture } from './tex'
 import { Kalle, Musse, Toon } from './toons'
 import { CYCLE, PROGRAM, buildLuciaConcert, darknessAt, luciaTray, programAt } from './luciatag'
+import { LIGHTER_AT, RISER, STAGE, STAGE_YAW, buildAdventConcert, buildAdventStake, stageToWorld } from './adventskonsert'
 import type { Circle } from './world'
 
 const black = std(0x16161a, 0.55)
@@ -340,7 +341,9 @@ const MODES: ChoirMode[] = ['borta', 'advent', 'lucia', 'jul', 'julafton']
 
 const S = '/sounds/kor/'
 const SONGS: Record<Exclude<ChoirMode, 'borta'>, string[]> = {
-  advent: ['hark-the-herald-angels-sing', 'o-come-all-ye-faithful', 'o-little-town-of-bethlehem', 'deck-the-halls'].map((f) => `${S}${f}.mp3`),
+  // (in this order; Hosianna, Otto Olsson's Advent and Bereden väg för Herran are sung once their
+  // recordings are in kor/, and skipped till then)
+  advent: ['hosianna', 'advent-otto-olsson', 'bereden-vag-for-herran', 'o-come-all-ye-faithful', 'o-little-town-of-bethlehem', 'hark-the-herald-angels-sing'].map((f) => `${S}${f}.mp3`),
   lucia: ['sankta-lucia', 'stilla-natt'].map((f) => `${S}${f}.mp3`),
   jul: ['deck-the-halls', 'o-tannenbaum', 'hark-the-herald-angels-sing', 'o-come-all-ye-faithful', 'o-little-town-of-bethlehem', 'stilla-natt'].map((f) => `${S}${f}.mp3`),
   julafton: ['stilla-natt', 'carols-of-the-season', 'o-tannenbaum', 'deck-the-halls'].map((f) => `${S}${f}.mp3`),
@@ -420,8 +423,10 @@ type Singer = {
   phase: number
   /** Where they stand in the nook (local to it). */
   home: { x: number; y: number; z: number; yaw: number }
+  /** …and on the riser in front of the big tree, at the advent concert. */
+  stage: { x: number; y: number; z: number; yaw: number }
   /** Costume parts shown in one mode or another. */
-  wear: { book: THREE.Object3D[]; lucia: THREE.Object3D[]; julafton: THREE.Object3D[] }
+  wear: { book: THREE.Object3D[]; lucia: THREE.Object3D[]; julafton: THREE.Object3D[]; advent: THREE.Object3D[] }
   spacing: number
   look: Look
   /** Light or put out the candle (and Lucia's crown). */
@@ -657,7 +662,7 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   const nook = (x: number, z: number) => group.localToWorld(new THREE.Vector3(x, 0, z))
   const join = (l: Look, x: number, y: number, z: number, yaw: number, spacing = 1.1) => {
     const toon = l.make()
-    const wear: Singer['wear'] = { book: [], lucia: [], julafton: [] }
+    const wear: Singer['wear'] = { book: [], lucia: [], julafton: [], advent: [] }
     if (l.book) wear.book.push(moving(songbook(toon, l.book[0], l.book[1])))
     if (l.shoulder > 0) {
       // Lucia: white gowns for all, red sashes for the girls, a crown for Lucia, cones for the star boys
@@ -672,6 +677,22 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
       wear.lucia.push(moving(candle(toon.armR, l, glowTex)))
       // julafton: red choir robes with white collars
       wear.julafton.push(moving(robe(toon.body, l, 0xc8102e, 0xfbf8f2)))
+      // advent: violet robes – the colour of Advent – with white collars
+      wear.advent.push(moving(robe(toon.body, l, 0x5b2a86, 0xfbf8f2)))
+    } else {
+      // (Pluto: a violet bow on his collar)
+      const bow = new THREE.Group()
+      bow.position.set(0, 0.45, 0.12)
+      const violet = std(0x6a2fa0, 0.5)
+      for (const s of [-1, 1]) {
+        const lobe = new THREE.Mesh(new THREE.ConeGeometry(0.035, 0.08, 10), violet)
+        lobe.rotation.z = (s * Math.PI) / 2
+        lobe.position.x = s * 0.04
+        bow.add(lobe)
+      }
+      bow.add(ball(0.02, violet, 0, 0, 0.005))
+      toon.body.add(bow)
+      wear.advent.push(moving(bow))
     }
     wear.julafton.push(moving(tomteluva(toon.head, l)))
     const m = mouth(toon.head, ...l.mouth)
@@ -685,7 +706,10 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     toon.group.position.set(p.x, y, p.z)
     toon.setYaw(group.rotation.y + yaw)
     people.add(toon.group)
-    singers.push({ toon, mouth: m, open: 0, kind: l.kind ?? 'sing', phase: Math.random() * Math.PI * 2, home: { x: p.x, y, z: p.z, yaw: group.rotation.y + yaw }, wear, spacing, look: l, light })
+    // (the riser by the big tree is laid out like their nook)
+    const sp = stageToWorld(x, z)
+    const stage = { x: sp.x, y, z: sp.z, yaw: STAGE_YAW + yaw }
+    singers.push({ toon, mouth: m, open: 0, kind: l.kind ?? 'sing', phase: Math.random() * Math.PI * 2, home: { x: p.x, y, z: p.z, yaw: group.rotation.y + yaw }, stage, wear, spacing, look: l, light })
   }
   const MUSSE: Look = { make: () => new Musse(), shoulder: 0.76, robe: [0.15, 0.24], hatY: 0.17, hatR: 0.13, hand: 0.33, mouth: [0, -0.15, 0.2, 0.065], book: [0.5, 0.2] }
   const MIMMI: Look = { make: () => new Mimmi(), shoulder: 0.76, robe: [0.14, 0.26], hatY: 0.17, hatR: 0.15, hand: 0.31, girl: true, lucia: true, mouth: [0, -0.145, 0.19, 0.06], book: [0.5, 0.2] }
@@ -757,6 +781,93 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     return d.getUTCMonth() === 11 && d.getUTCDate() === 13
   }
 
+  /* ---------- the first Sunday of Advent (adventskonsert.ts) ---------- */
+  const advent = buildAdventConcert(scene)
+  const stake = buildAdventStake(scene, glowTex)
+  colliders.push(...advent.colliders, ...stake.colliders)
+  const mimmi = singers.find((s) => s.look.lucia)!
+  /** Seconds into the advent concert: from 08:00 on the wall clock, or since ?kor=advent was opened. */
+  function adventTime() {
+    if (forced) return performance.now() / 1000 - luciaFrom
+    const d = new Date(wallClock())
+    return d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds() - 8 * 3600
+  }
+  // Before the first song Mimmi steps down from the riser, lights the first advent candle and goes back.
+  const LIGHTER = stageToWorld(LIGHTER_AT.x, LIGHTER_AT.z)
+  const WAY = [
+    new THREE.Vector3(mimmi.stage.x, RISER, mimmi.stage.z),
+    stageToWorld(1.75, -0.75).setY(RISER),
+    stageToWorld(2.3, -0.15),
+    LIGHTER,
+  ]
+  const legs = WAY.slice(1).map((p, i) => p.distanceTo(WAY[i]))
+  const WALK = legs.reduce((a, b) => a + b) / 0.9
+  const SET_OFF = 3
+  /** When the match touches the wick, and when the music starts (she's back in her place). */
+  const LIGHT_AT = SET_OFF + WALK + 1.6
+  const INTRO = LIGHT_AT + 2 + WALK + 2.5
+  /** Where Mimmi is `u` seconds into her walk (0 … WALK along WAY). */
+  function along(u: number, out: THREE.Vector3) {
+    let d = THREE.MathUtils.clamp(u, 0, WALK) * 0.9
+    for (let i = 0; i < legs.length; i++) {
+      if (d <= legs[i] || i === legs.length - 1) return out.lerpVectors(WAY[i], WAY[i + 1], Math.min(1, d / legs[i]))
+      d -= legs[i]
+    }
+    return out
+  }
+  const step = new THREE.Vector3()
+  const ahead = new THREE.Vector3()
+  /** Mimmi's walk to the candlestick and back; returns false once she's in her place again. */
+  function lighting(at: number) {
+    if (at < SET_OFF || at > INTRO - 2.5) return false
+    const t = mimmi.toon
+    const there = SET_OFF + WALK
+    const back = LIGHT_AT + 2
+    let walking = true
+    if (at < there) {
+      along(at - SET_OFF, step)
+      along(at - SET_OFF + 0.3, ahead)
+    } else if (at < back) {
+      walking = false
+      step.copy(LIGHTER)
+      ahead.copy(stake.group.position).setY(0)
+    } else {
+      along(WALK - (at - back), step)
+      along(WALK - (at - back) - 0.3, ahead)
+    }
+    t.group.position.copy(step)
+    if (ahead.distanceToSquared(step) > 1e-6) t.setYaw(Math.atan2(ahead.x - step.x, ahead.z - step.z))
+    if (at > INTRO - 3.2) t.setYaw(THREE.MathUtils.lerp(t.group.rotation.y, mimmi.stage.yaw, 0.1))
+    t.walkPose(at * 5.5, walking ? 0.6 : 0)
+    // the match: the right arm comes up to the wick, and back down
+    const reach = walking ? 0 : Math.sin(THREE.MathUtils.clamp((at - there) / (back - there), 0, 1) * Math.PI)
+    t.armR.rotation.set(-1.1 - reach * 0.5, 0, -0.45 + reach * 0.35)
+    return true
+  }
+  /** Today's date on the village clock – or, when ?kor= says which day without a ?datum, that day. */
+  function seasonDay() {
+    const now = new Date(wallClock())
+    if (pretend !== null || !forced || forced === 'borta') return now
+    const y = now.getUTCMonth() === 0 ? now.getUTCFullYear() - 1 : now.getUTCFullYear()
+    if (forced === 'advent') return new Date(firstAdvent(y).getTime() + 8 * 3600000)
+    return new Date(Date.UTC(y, 11, forced === 'lucia' ? 13 : forced === 'jul' ? 20 : 24, 12))
+  }
+  /** The candlestick through the season: hidden until the first Sunday of Advent, put away after tjugondag Knut. */
+  function candlestick(ceremony: boolean) {
+    const d = seasonDay()
+    let y = d.getUTCFullYear()
+    if (d.getUTCMonth() === 0) y--
+    const days = Math.floor((Date.UTC(d.getUTCFullYear(), d.getUTCMonth(), d.getUTCDate()) - firstAdvent(y).getTime()) / 86400000)
+    const knut = Date.UTC(y + 1, 0, 13)
+    stake.group.visible = days >= 0 && d.getTime() < knut + 86400000
+    for (const c of stake.colliders) c.r = stake.group.visible ? Math.abs(c.r) : -Math.abs(c.r)
+    // a candle more every Sunday; on the first one, only once Mimmi has lit it
+    let lit = Math.min(4, Math.floor(days / 7) + 1)
+    if (days === 0 && !ceremony) lit = 0
+    // (candle i is first lit on Sunday i, and burns down a little more every week after)
+    stake.set(lit, [0, 1, 2, 3].map((i) => Math.max(0, Math.min(days, 42) / 7 - i)))
+  }
+
   /* ---------- the mode: who's where, wearing what ---------- */
   let mode: ChoirMode | null = null
   const setMode = (next: ChoirMode) => {
@@ -765,19 +876,22 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     people.visible = next !== 'borta'
     if (tray) tray.visible = luciaDay()
     concert.show(next === 'lucia')
+    advent.show(next === 'advent')
     // (a collider with a negative radius never pushes)
-    for (const c of front) c.r = next === 'borta' || next === 'lucia' ? -1 : 0.25
+    for (const c of front) c.r = next === 'borta' || next === 'lucia' || next === 'advent' ? -1 : 0.25
     for (const s of singers) {
       for (const o of s.wear.book) o.visible = next !== 'lucia'
       for (const o of s.wear.lucia) o.visible = next === 'lucia'
       for (const o of s.wear.julafton) o.visible = next === 'julafton'
+      for (const o of s.wear.advent) o.visible = next === 'advent'
       const t = s.toon
       if (next === 'lucia') {
         t.armR.rotation.set(-1.1, 0, -0.15)
         t.armL.rotation.set(0, 0, 0.25)
       } else {
-        t.group.position.set(s.home.x, s.home.y, s.home.z)
-        t.setYaw(s.home.yaw)
+        const at = next === 'advent' ? s.stage : s.home
+        t.group.position.set(at.x, at.y, at.z)
+        t.setYaw(at.yaw)
         t.walkPose(0, 0)
         if (s.wear.book.length) {
           t.armL.rotation.set(-1.1, 0, 0.45)
@@ -786,6 +900,9 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
       }
     }
     if (song.playing) song.stop()
+    // (the advent concert goes through its songs in order, from Hosianna; the others start anywhere)
+    song.ordered = next === 'advent'
+    candlestick(adventTime() >= LIGHT_AT)
     // the first song ready before anyone walks up (decoding takes a few seconds)
     if (next === 'lucia') song.preload([`${S}${PROGRAM[0].song}.mp3`])
     else if (next !== 'borta') song.prepare(SONGS[next])
@@ -855,9 +972,30 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     if ((modeCheck -= dt) <= 0) {
       modeCheck = 10
       setMode(choirMode())
+      candlestick(adventTime() >= LIGHT_AT)
+    }
+    stake.update(t, dt)
+    // the first Sunday of Advent: the first candle is lit before the concert begins
+    let intro = false
+    let lit = adventTime() >= LIGHT_AT
+    if (mode === 'advent') {
+      const at = adventTime()
+      intro = at < INTRO
+      if (lighting(at)) {
+        if (at >= LIGHT_AT && !lit) {
+          lit = true
+          candlestick(true)
+        }
+      } else if (at > INTRO - 2.5 && at < INTRO + 1) {
+        mimmi.toon.group.position.set(mimmi.stage.x, mimmi.stage.y, mimmi.stage.z)
+        mimmi.toon.setYaw(mimmi.stage.yaw)
+        mimmi.toon.walkPose(0, 0)
+        mimmi.toon.armR.rotation.set(-1.1, 0, -0.45)
+      }
+      advent.update(t, voice)
     }
     // Lucia: the concert runs on its clock – where everyone is, what's playing, how dark it is
-    let at = centre
+    let at = mode === 'advent' ? STAGE : centre
     let dark = 0
     let cue: { song: string; offset: number } | null = null
     if (mode === 'lucia') {
@@ -885,7 +1023,8 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     const d = mode === 'lucia' ? concert.distanceTo(player) : Math.hypot(player.x - at.x, player.z - at.z)
     // (at Lucia it fades too as the candles go out, one column after another)
     const fade = mode === 'lucia' ? 0.12 + 0.88 * concert.litShare : 1
-    const vol = enabled ? 0.9 * fade * THREE.MathUtils.clamp((FAR - d) / (FAR - NEAR), 0, 1) : 0
+    // (and at advent, not a note till the first candle is lit and Mimmi is back in her place)
+    const vol = enabled && !intro ? 0.9 * fade * THREE.MathUtils.clamp((FAR - d) / (FAR - NEAR), 0, 1) : 0
     if (vol > 0.003) {
       if (mode === 'lucia') {
         song.cue(cue ? `${S}${cue.song}.mp3` : null, cue?.offset ?? 0)
