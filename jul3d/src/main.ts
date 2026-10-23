@@ -10,6 +10,7 @@ import type { Nisse } from './npc'
 import { Player } from './player'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
+import { parade, stamping } from './verkstadslek'
 import { loadFonts } from './tex'
 import { clockText, eventStatus, formatShortDate } from './time'
 import { Snowballs } from './snowballs'
@@ -74,7 +75,7 @@ const cursor = new VirtualCursor(() => player.locked)
 const menu = new PauseMenu()
 
 const world = buildWorld(scene, { lowPower: QUALITY.lowPower })
-camera.position.set(0, 1.62, 25)
+camera.position.set(0, 1.62, 32)
 const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
 const sleigh = new Sleigh(scene)
@@ -537,7 +538,7 @@ function pause(withCursor = true) {
 function resume(onLockFail?: () => void) {
   cursor.hide()
   player.enabled = true
-  $('hud').classList.remove('busy', 'arcade', 'flight', 'trip', 'corrida')
+  $('hud').classList.remove('busy', 'arcade', 'flight', 'trip', 'corrida', 'stampla')
   player.lock(onLockFail)
 }
 dialog.onClose = () => resume()
@@ -620,6 +621,21 @@ function openRitbordPanel() {
 }
 addEventListener('jul:ritbord', openRitbordPanel)
 
+/* ---------- Leksaksfabriken: stamping toys at Kvalitetskontrollen ---------- */
+// You stand at the belt (still, looking down at the stamp) and press to stamp; Esc or the button stops.
+addEventListener('jul:stampla', () => {
+  if (stamping.active || !started) return
+  pause(false)
+  cursor.hide()
+  $('hud').classList.add('stampla', 'busy')
+  const v = stamping.viewpoint()
+  player.pos.set(v.x, 0, v.z)
+  player.yaw = v.yaw
+  player.pitch = v.pitch
+  stamping.start()
+})
+stamping.onLeft = () => resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
+
 /* ---------- chat: speech bubbles over your nisse ---------- */
 // Typing lets go of the mouse and stands you still (like the other panels); Enter sends, Esc closes.
 const chatForm = $('chat') as HTMLFormElement
@@ -689,6 +705,7 @@ function onEsc() {
   if (knytis.open) return knytis.close()
   if (dialog.open) return dialog.close()
   if (viewer.open) return viewer.close()
+  if (stamping.active) return stamping.leave()
   if (arcade?.active) return arcade.leave()
   if (flight.active) return flight.leave()
   if (trip.active) return trip.leave()
@@ -851,7 +868,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || arcade?.active || flight.active || trip.active || corrida.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
@@ -1047,6 +1064,8 @@ function frame(now: number) {
     for (const s of shops) s.shop.update(t, dt)
     for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
     for (const e of elves) e.update(dt, t)
+    // the tin soldiers' band plays as you come near (not from up in the sleigh)
+    parade.near(player.pos, !flight.active)
     snowballs.update(dt, camera.position)
     if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
     world.showFar(flight.active)
@@ -1135,4 +1154,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })

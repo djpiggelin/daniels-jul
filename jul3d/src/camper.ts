@@ -11,7 +11,7 @@ import type { Circle } from './world'
 
 /** Where the camper waits: behind and to the left of where you arrive (Arkitektkontoret has the right),
  * parked along the edge of the square with its door side facing out (so from the door you look across it at the julgran). */
-export const CAMP = { x: -16.5, z: 16.5 }
+export const CAMP = { x: -21.5, z: 21.5 }
 /** Car middle, in trailer space (straight ahead of it). */
 export const CAR_AHEAD = 4.6
 /** The hitch ball, in car space. */

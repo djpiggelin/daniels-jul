@@ -312,7 +312,7 @@ async function buildVerkstad(): Promise<BuiltShop> {
   const e = JULBAK
   const c = VERKSTAD!
   const shop = new Shop('Tomtens verkstad', { wall: '#9a5a2c', trim: 0xfff3dc, roof: 0x5c3216, inner: '#c99a6a' })
-  shop.place(-78, 17)
+  shop.place(-78, 23)
   counter(shop, 0x2fa36b)
 
   const art = await loadSvg('/art/verkstad.svg', 3)
@@ -390,7 +390,7 @@ async function buildDestilleri(): Promise<BuiltShop> {
   const e = JULBAK
   const c = DESTILLERI!
   const shop = new Shop('Tomtens destilleri', { wall: '#5a2e22', trim: 0xc8803c, roof: 0x2a1d17, inner: '#8a5a3a' })
-  shop.place(-26, 17)
+  shop.place(-30, 23)
   counter(shop, 0xc8803c)
 
   const art = await loadSvg('/art/destilleri.svg', 3)
@@ -449,7 +449,7 @@ async function buildJulbord(): Promise<BuiltShop> {
   const e = JULBORD
   // white panelled walls inside, like the dining room in the photo
   const shop = new Shop('Julbordet', { wall: '#a8282c', trim: 0xfdfcf8, roof: 0x3a2a24, inner: '#ece3d3' })
-  shop.place(26, 17)
+  shop.place(30, 23)
   counter(shop, 0xe5383b)
 
   const photo = await loadImage(e.image)
@@ -518,7 +518,7 @@ async function buildJulbord(): Promise<BuiltShop> {
 async function buildJulafton(): Promise<BuiltShop> {
   const e = JULAFTON
   const shop = new Shop('Tomtens stuga', { wall: '#1d6e48', trim: 0xf6c453, roof: 0x7a1d1d, inner: '#c9a072' })
-  shop.place(78, 17)
+  shop.place(78, 23)
   counter(shop, 0xf6c453)
 
   fireplace(shop)
@@ -635,7 +635,7 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
   const e = JULBAK
   const c = VERKSTAD
   const shop = new Shop('Arkitektkontoret', { wall: '#c98a2b', trim: 0xfff3dc, roof: 0x3a2a24, inner: '#d9c3a0' })
-  shop.place(130, 17)
+  shop.place(130, 23)
   counter(shop, 0x1f4f8a)
 
   const print = drawBlueprint(3)
@@ -731,7 +731,7 @@ export async function buildSquare(scene: THREE.Scene, shops: BuiltShop[]) {
 
   // advertising column with a poster per event
   const col = new THREE.Group()
-  col.position.set(-5.5, 0, 14)
+  col.position.set(-7, 0, 18.5)
   const green = std(0x1d4a35, 0.6)
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.0, 3.4, 32), green)
   shaft.position.y = 1.7
@@ -776,7 +776,7 @@ export async function buildSquare(scene: THREE.Scene, shops: BuiltShop[]) {
 
   // signpost pointing at each shop
   const post = new THREE.Group()
-  post.position.set(4.5, 0, 15)
+  post.position.set(6, 0, 19.5)
   post.add(box(0.16, 3.4, 0.16, wood, 0, 1.7, 0))
   const topSnow = box(0.24, 0.1, 0.24, std(0xf4f8ff, 0.9), 0, 3.45, 0)
   post.add(topSnow)

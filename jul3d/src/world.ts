@@ -5,7 +5,7 @@ import { glowTexture, makeCanvas, rng, toTexture } from './tex'
 
 export type Circle = { x: number; z: number; r: number }
 
-export const VILLAGE_RADIUS = 34
+export const VILLAGE_RADIUS = 44
 
 /** Footprints (centre, rotation, half size, roof height) where snow shouldn't fall. */
 export type Roof = { x: number; z: number; cos: number; sin: number; hw: number; hd: number; h: number }
@@ -13,8 +13,8 @@ export type Roof = { x: number; z: number; cos: number; sin: number; hw: number;
 type Rect = { x0: number; x1: number; z0: number; z1: number }
 /** North of the village, through the forest: the path, and the yard Leksaksfabriken stands in (the hall included). */
 export const NORTH: { path: Rect; yard: Rect } = {
-  path: { x0: -3.5, x1: 3.5, z0: -42, z1: -26 },
-  yard: { x0: -26, x1: 26, z0: -90, z1: -40 },
+  path: { x0: -3.5, x1: 3.5, z0: -54, z1: -40 },
+  yard: { x0: -26, x1: 26, z0: -100, z1: -52 },
 }
 const rectDist = (r: Rect, x: number, z: number) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1))
 
@@ -50,7 +50,7 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   const rand = rng(42)
 
   scene.background = new THREE.Color(0x070b1d)
-  scene.fog = new THREE.FogExp2(0x1f2b5e, 0.021)
+  scene.fog = new THREE.FogExp2(0x1f2b5e, 0.016)
 
   /* ---------- sky ---------- */
   const sky = new THREE.Mesh(
@@ -135,8 +135,8 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   moonLight.castShadow = !opts.lowPower
   moonLight.shadow.mapSize.set(2048, 2048)
   const sc = moonLight.shadow.camera
-  sc.left = sc.bottom = -36
-  sc.right = sc.top = 36
+  sc.left = sc.bottom = -46
+  sc.right = sc.top = 46
   sc.near = 1
   sc.far = 140
   moonLight.shadow.bias = -0.0004
@@ -174,8 +174,8 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   }
   const plazaTex = toTexture(pc)
   plazaTex.wrapS = plazaTex.wrapT = THREE.RepeatWrapping
-  plazaTex.repeat.set(8, 8)
-  const plaza = new THREE.Mesh(new THREE.CircleGeometry(23, 64), new THREE.MeshStandardMaterial({ map: plazaTex, roughness: 1 }))
+  plazaTex.repeat.set(10, 10)
+  const plaza = new THREE.Mesh(new THREE.CircleGeometry(30, 72), new THREE.MeshStandardMaterial({ map: plazaTex, roughness: 1 }))
   plaza.rotation.x = -Math.PI / 2
   plaza.position.y = 0.01
   plaza.receiveShadow = true
@@ -286,7 +286,7 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     farFirs.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, s: 1 + rand() * 1.6 })
   }
   // a few inside the village too, for depth
-  for (const [x, z] of [[-24, 14], [24, 13], [-27, 3], [27, 2], [-12, 26], [12, 27], [-29, -9], [29, -10]]) firs.push({ x, z, s: 0.8 + rand() * 0.4 })
+  for (const [x, z] of [[-31, 18], [31, 17], [-35, 4], [35, 3], [-16, 34], [16, 35], [-38, -12], [38, -13]]) firs.push({ x, z, s: 0.8 + rand() * 0.4 })
   const coneGeos = [
     { g: new THREE.ConeGeometry(1.7, 2.6, 9), y: 1.9 },
     { g: new THREE.ConeGeometry(1.3, 2.2, 9), y: 3.1 },
@@ -328,12 +328,84 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     return { group, cones: firCones }
   }
   for (const f of firs) if (outside(f.x, f.z) < 3) colliders.push({ x: f.x, z: f.z, r: 1.2 * f.s })
-  const inShadow = (f: (typeof firs)[number]) => Math.abs(f.x) < 42 && Math.abs(f.z) < 42
+  const inShadow = (f: (typeof firs)[number]) => Math.abs(f.x) < 52 && Math.abs(f.z) < 52
   const near = plant(firs.filter(inShadow), true)
   plant(firs.filter((f) => !inShadow(f)), false)
   const far = plant(farFirs, false)
   far.group.visible = false
   solids.push(...near.cones)
+
+  /* ---------- the path north ---------- */
+  // Cobblestones from the tree, between the shops, out under the gate and up to Leksaksfabriken's
+  // yard – with little lanterns along it.
+  {
+    const [c, ctx] = makeCanvas(256, 256)
+    ctx.fillStyle = '#4a4f5e'
+    ctx.fillRect(0, 0, 256, 256)
+    const rows = 6
+    for (let r = 0; r < rows; r++)
+      for (let k = -1; k < 6; k++) {
+        const w = 256 / 5
+        const h = 256 / rows
+        const x = k * w + (r % 2 ? w / 2 : 0) + (rand() - 0.5) * 6
+        const y = r * h + (rand() - 0.5) * 4
+        const shade = 0.85 + rand() * 0.3
+        ctx.fillStyle = `rgb(${Math.round(128 * shade)},${Math.round(132 * shade)},${Math.round(146 * shade)})`
+        ctx.beginPath()
+        ctx.roundRect(x + 4, y + 4, w - 8, h - 8, 12)
+        ctx.fill()
+        // a dusting of snow on each stone
+        ctx.fillStyle = 'rgba(255,255,255,0.35)'
+        ctx.beginPath()
+        ctx.roundRect(x + 8, y + 6, (w - 16) * (0.3 + rand() * 0.5), 6, 3)
+        ctx.fill()
+      }
+    const tex = toTexture(c)
+    tex.wrapS = tex.wrapT = THREE.RepeatWrapping
+    const z0 = -5.6
+    const z1 = NORTH.yard.z1 - 2
+    const len = z0 - z1
+    const width = 3.4
+    tex.repeat.set(width / 1.3, len / 1.3)
+    const path = new THREE.Mesh(new THREE.PlaneGeometry(width, len), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.85 }))
+    path.rotation.x = -Math.PI / 2
+    path.position.set(0, 0.016, (z0 + z1) / 2)
+    path.receiveShadow = true
+    scene.add(path)
+    const lanterns = new THREE.Group()
+    const iron = new THREE.MeshStandardMaterial({ color: 0x15151c, roughness: 0.5, metalness: 0.6 })
+    const edge = new THREE.MeshStandardMaterial({ color: 0x3a3e4a, roughness: 0.9 })
+    const glass = new THREE.MeshStandardMaterial({ color: 0x3a2410, emissive: 0xffc070, emissiveIntensity: 1.6 })
+    const glowTex = glowTexture('rgba(255,210,140,0.8)', 'rgba(255,170,80,0)')
+    for (const sx of [-1, 1]) {
+      const kerb = new THREE.Mesh(new THREE.BoxGeometry(0.18, 0.08, len), edge)
+      kerb.position.set(sx * (width / 2 + 0.05), 0.04, (z0 + z1) / 2)
+      kerb.receiveShadow = true
+      lanterns.add(kerb)
+    }
+    for (let z = -10; z > z1 + 1; z -= 5.5) {
+      for (const sx of [-1, 1]) {
+        const x = sx * (width / 2 + 0.45)
+        const post = new THREE.Mesh(new THREE.CylinderGeometry(0.04, 0.06, 1.1, 6), iron)
+        post.position.set(x, 0.55, z)
+        const lamp = new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.28, 0.22), glass)
+        lamp.position.set(x, 1.25, z)
+        const cap = new THREE.Mesh(new THREE.ConeGeometry(0.2, 0.16, 4), iron)
+        cap.position.set(x, 1.47, z)
+        cap.rotation.y = Math.PI / 4
+        const cone = new THREE.Mesh(new THREE.ConeGeometry(0.14, 0.08, 4), snowTip)
+        cone.position.set(x, 1.56, z)
+        cone.rotation.y = Math.PI / 4
+        const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, transparent: true }))
+        glow.position.set(x, 1.25, z)
+        glow.scale.setScalar(1.6)
+        post.castShadow = true
+        lanterns.add(post, lamp, cap, cone, glow)
+        colliders.push({ x, z, r: 0.15 })
+      }
+    }
+    scene.add(lanterns)
+  }
 
   /* ---------- lamp posts ---------- */
   const lampGlow = glowTexture('rgba(255,214,140,1)', 'rgba(255,170,70,0)')
@@ -364,7 +436,7 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   // (none straight north: that way you look out through the gap at Leksaksfabriken)
   for (const deg of [-50, -17, 17, 50, -112, 112, -150, 150]) {
     const a = THREE.MathUtils.degToRad(deg)
-    const r = Math.abs(deg) <= 50 ? 9.5 : 12
+    const r = Math.abs(deg) <= 50 ? 12.5 : 15.5
     addLamp(Math.sin(a) * r, -Math.cos(a) * r)
   }
 

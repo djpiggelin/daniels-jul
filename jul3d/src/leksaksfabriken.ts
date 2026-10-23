@@ -15,6 +15,7 @@ import { Shop, sheet } from './shop'
 import { drawBoard, glowTexture, makeCanvas, planksTexture, toTexture } from './tex'
 import { html, type Talk } from './ui'
 import type { BuiltShop } from './shops'
+import { parade, stamping } from './verkstadslek'
 
 const JULAFTON = EVENTS.find((e) => e.santa) ?? EVENTS[EVENTS.length - 1]
 
@@ -37,7 +38,7 @@ const CORNER = { x: W / 2 + 1.6, z: D / 2 + 1.6, r: 3.2 }
 const GALLERY_Y = 5.5
 const GALLERY_D = 3
 /** How far north it stands: the tower's foot is where the yard ends. */
-const RADIUS = 76
+const RADIUS = 86
 /** Brick, plaster and roofs repeat every this many metres. */
 const TILE = 3
 const COLORS = { wall: '#8e3b2c', trim: 0xd4a64a, roof: 0x2c4f45 }
@@ -67,7 +68,8 @@ const moving = <T extends THREE.Object3D>(o: T): T => {
 const box = (w: number, h: number, d: number) => new THREE.BoxGeometry(w, h, d)
 const cyl = (rt: number, rb: number, h: number, n = 14) => new THREE.CylinderGeometry(rt, rb, h, n)
 const ball = (r: number, n = 12) => new THREE.SphereGeometry(r, n, Math.max(6, n - 4))
-const glowMat = (inner: string, outer: string) => new THREE.SpriteMaterial({ map: glowTexture(inner, outer), blending: THREE.AdditiveBlending, depthWrite: false })
+// (lights shine through the fog: from the square the factory is a dim shape with its lights twinkling)
+const glowMat = (inner: string, outer: string) => new THREE.SpriteMaterial({ map: glowTexture(inner, outer), blending: THREE.AdditiveBlending, depthWrite: false, fog: false })
 function glow(parent: THREE.Object3D, x: number, y: number, z: number, size: number, inner = 'rgba(255,210,140,0.7)') {
   const s = new THREE.Sprite(glowMat(inner, 'rgba(255,170,80,0)'))
   s.position.set(x, y, z)
@@ -190,20 +192,6 @@ function doll(dress = C.blue) {
   add(g, new THREE.ConeGeometry(0.05, 0.12, 12), mat(dress, 0.7), 0, 0.06, 0)
   add(g, ball(0.03), mat(C.skin, 0.6), 0, 0.15, 0)
   add(g, ball(0.032), mat(0xc98a2b, 0.9), 0, 0.165, -0.008).scale.set(1, 0.8, 1)
-  return g
-}
-
-function soldier() {
-  const g = new THREE.Group()
-  const body = new THREE.Group()
-  for (const x of [-1, 1]) add(body, box(0.025, 0.09, 0.03), mat(C.black, 0.5), x * 0.018, 0.045, 0)
-  add(body, box(0.07, 0.08, 0.045), mat(C.red, 0.5), 0, 0.13, 0)
-  add(body, box(0.072, 0.012, 0.047), mat(C.white, 0.5), 0, 0.12, 0)
-  add(body, ball(0.024, 10), mat(C.skin, 0.6), 0, 0.2, 0)
-  add(body, cyl(0.026, 0.026, 0.07, 10), mat(C.black, 0.4), 0, 0.25, 0)
-  add(body, cyl(0.004, 0.004, 0.14, 6), mat(C.dark, 0.6), 0.045, 0.16, 0.01)
-  g.add(body)
-  g.userData.body = body
   return g
 }
 
@@ -428,7 +416,7 @@ function bigTree(height: number, updaters: Shop['updaters'], bulbsN = 240) {
     bulbs.setColorAt(i, colors[i % colors.length])
   }
   g.add(bulbs)
-  const star = keepApart(new THREE.Mesh(new THREE.ExtrudeGeometry(starShape(0.7 * k, 0.3 * k), { depth: 0.18 * k, bevelEnabled: false }), new THREE.MeshBasicMaterial({ color: 0xffd76a, toneMapped: false })))
+  const star = keepApart(new THREE.Mesh(new THREE.ExtrudeGeometry(starShape(0.7 * k, 0.3 * k), { depth: 0.18 * k, bevelEnabled: false }), new THREE.MeshBasicMaterial({ color: 0xffd76a, toneMapped: false, fog: false })))
   star.geometry.center()
   star.position.y = 9.25 * k
   g.add(star)
@@ -461,7 +449,7 @@ function stringLights(parent: THREE.Object3D, updaters: Shop['updaters'], lines:
     for (let i = 0; i <= n; i++) spots.push(a.clone().lerp(b, i / n))
   }
   const cols = [0xff4d4d, 0xffd34d, 0x5dff9a, 0x5db8ff, 0xfff1cf].map((c) => new THREE.Color(c))
-  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(size, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false }), spots.length)
+  const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(size, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false, fog: false }), spots.length)
   const m4 = new THREE.Matrix4()
   spots.forEach((p, i) => {
     bulbs.setMatrixAt(i, m4.makeTranslation(p.x, p.y, p.z))
@@ -481,7 +469,7 @@ function stringLights(parent: THREE.Object3D, updaters: Shop['updaters'], lines:
 const v = (x: number, y: number, z: number) => new THREE.Vector3(x, y, z)
 
 /** Lit arched windows, shared shapes and materials so they all merge into a few meshes. */
-const litGlass = new THREE.MeshStandardMaterial({ color: 0x3a2410, emissive: 0xffb35a, emissiveIntensity: 1.25, roughness: 0.3 })
+const litGlass = new THREE.MeshStandardMaterial({ color: 0x3a2410, emissive: 0xffb35a, emissiveIntensity: 1.25, roughness: 0.3, fog: false })
 const nightGlass = new THREE.MeshStandardMaterial({ color: 0x0d1a3a, emissive: 0x1d3270, emissiveIntensity: 0.7, roughness: 0.2 })
 const archGeos = new Map<string, { glass: THREE.ShapeGeometry; frame: THREE.ShapeGeometry }>()
 function archWindow(w: number, h: number, night = false) {
@@ -730,7 +718,7 @@ function exterior(shop: Shop) {
   add(spire, new THREE.ConeGeometry((uw / 2 + 0.4) * Math.SQRT2, 10, 4), mat(C.copper, 0.55, 0.3)).rotation.y = Math.PI / 4
   upper.add(spire)
   add(upper, cyl(0.08, 0.08, 2, 8), gold, 0, 28.4, 0)
-  const star = keepApart(add(upper, new THREE.ExtrudeGeometry(starShape(1.2, 0.5), { depth: 0.3, bevelEnabled: false }), new THREE.MeshBasicMaterial({ color: 0xffd76a, toneMapped: false }), 0, 30, 0))
+  const star = keepApart(add(upper, new THREE.ExtrudeGeometry(starShape(1.2, 0.5), { depth: 0.3, bevelEnabled: false }), new THREE.MeshBasicMaterial({ color: 0xffd76a, toneMapped: false, fog: false }), 0, 30, 0))
   star.geometry.center()
   glow(upper, 0, 30, 0, 9, 'rgba(255,220,120,0.9)')
   shop.updaters.push((t) => (star.rotation.y = t * 0.5))
@@ -823,7 +811,7 @@ function caneMaterial() {
 
 function yard(shop: Shop) {
   const g = shop.group
-  // trampled snow over the yard and the path, the forest standing round it
+  // trampled snow over the yard, the forest standing round it (the cobbled path up to it is the village's)
   const [pc, pctx] = makeCanvas(256, 256)
   pctx.fillStyle = '#d6dde9'
   pctx.fillRect(0, 0, 256, 256)
@@ -839,9 +827,6 @@ function yard(shop: Shop) {
   const plaza = add(g, new THREE.PlaneGeometry(52, 22), ground, 0, 0.012, TOWER.z1 + 11)
   plaza.rotation.x = -Math.PI / 2
   plaza.castShadow = false
-  const path = add(g, new THREE.PlaneGeometry(7, 18), ground, 0, 0.012, RADIUS - 33)
-  path.rotation.x = -Math.PI / 2
-  path.castShadow = false
 
   // the giant tree on the left of the yard and a mountain of presents waiting for the sleigh on the right
   const tree = bigTree(17, shop.updaters, 320)
@@ -871,7 +856,7 @@ function yard(shop: Shop) {
   // lamp posts along the path and the yard
   const iron = mat(0x15151c, 0.5, 0.6)
   const flame = new THREE.MeshBasicMaterial({ color: 0xffd38a, toneMapped: false })
-  for (const z of [TOWER.z1 + 5, TOWER.z1 + 12, TOWER.z1 + 19, TOWER.z1 + 26]) {
+  for (const z of [TOWER.z1 + 5, TOWER.z1 + 12, TOWER.z1 + 19]) {
     for (const s of [-1, 1]) {
       const x = s * (z > TOWER.z1 + 20 ? 3.1 : 4.6)
       add(g, cyl(0.08, 0.12, 3.6, 8), iron, x, 1.8, z)
@@ -885,7 +870,7 @@ function yard(shop: Shop) {
   }
 
   // the gate where the path leaves the village: candy-cane posts and an arched sign
-  const gz = RADIUS - 27.5
+  const gz = RADIUS - 43
   const cane = caneMaterial()
   for (const s of [-1, 1]) {
     add(g, cyl(0.28, 0.28, 6.4, 16), cane, s * 3.8, 3.2, gz)
@@ -1478,27 +1463,6 @@ function workbench(shop: Shop, x: number, z: number, coat: number, hat: number, 
   })
 }
 
-/** Tin soldiers marching up and down by the door. */
-function soldiers(shop: Shop, x: number, z: number, span: number) {
-  const troop = Array.from({ length: 8 }, () => {
-    const s = moving(soldier())
-    s.scale.setScalar(1.8)
-    shop.group.add(s)
-    return s
-  })
-  shop.updaters.push((t) => {
-    const p = Math.sin(t * 0.3)
-    const dir = Math.cos(t * 0.3) >= 0 ? 1 : -1
-    troop.forEach((s, i) => {
-      s.position.set(x + p * span - dir * i * 0.3, 0, z)
-      s.rotation.y = dir > 0 ? Math.PI / 2 : -Math.PI / 2
-      const body = s.userData.body as THREE.Group
-      body.position.y = Math.abs(Math.sin(t * 6 + i)) * 0.02
-      body.rotation.z = Math.sin(t * 6 + i) * 0.06
-    })
-  })
-}
-
 /** Shelves full of finished toys, standing against a wall (facing +z before turning by `ry`). */
 function shelves(shop: Shop, x: number, z: number, ry: number) {
   const g = new THREE.Group()
@@ -1714,14 +1678,14 @@ export async function buildLeksaksfabriken(): Promise<BuiltShop> {
   overhead(room)
   mailRoom(room)
   wrapping(room, -11.2, 1.8, 0)
-  wrapping(room, -11.2, 6.2, 3)
-  wrapping(room, 11.2, 6.2, 1)
+  // the two things to do: stamping toys at Kvalitetskontrollen, and the tin soldiers' parade
+  stamping.build(room, 11.2, 6.3, () => dispatchEvent(new Event('jul:stampla')))
+  parade.build(room, -11.0, 6.6, 6.4, 3.4)
   workbench(room, 7.8, 1.8, C.blue, C.green)
   workbench(room, 10.4, 1.8, C.red, C.white, 0.33)
   workbench(room, 13.0, 1.8, C.green, C.red, 0.66)
   for (const [i, x] of [-6.5, -2, 2.5, 7].entries()) workbench(room, x, -9.4, LOOKS[i].coat, LOOKS[i].hat, i * 0.27)
   paintingCorner(room, -15.2, 9.8)
-  soldiers(room, 8.5, 9.4, 2.6)
   for (const z of [-5.2, -1.6, 2.0]) shelves(room, -IN_X + 0.05, z, Math.PI / 2)
   shelves(room, IN_X - 0.05, -3.6, -Math.PI / 2)
   shelves(room, 14.6, -IN_Z + 0.05, 0)
