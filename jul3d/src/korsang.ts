@@ -365,6 +365,17 @@ function wallClock() {
   return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second)) + (Date.now() % 1000)
 }
 
+/** The real moment (UTC ms) – for the sun: now, or the pretend Swedish time in the URL. */
+export function swedenNow() {
+  if (pretend === null) return Date.now()
+  // the pretend time is Stockholm's wall clock: find the moment that reads like that there
+  const wall = wallClock()
+  const guess = wall - 3600000
+  const p = Object.fromEntries(stockholm.formatToParts(new Date(guess)).map((x) => [x.type, x.value]))
+  const there = Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second))
+  return guess + (wall - there)
+}
+
 /** The first Sunday of Advent: four Sundays before Christmas Day. */
 function firstAdvent(year: number) {
   const xmas = new Date(Date.UTC(year, 11, 25))

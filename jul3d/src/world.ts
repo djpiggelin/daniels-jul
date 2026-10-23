@@ -59,12 +59,11 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
       side: THREE.BackSide,
       depthWrite: false,
       fog: false,
+      uniforms: { uTop: { value: new THREE.Color(0.02, 0.03, 0.09) }, uHor: { value: new THREE.Color(0.122, 0.169, 0.369) } },
       vertexShader: `varying vec3 vP; void main(){ vP = normalize(position); gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }`,
-      fragmentShader: `varying vec3 vP; void main(){
+      fragmentShader: `uniform vec3 uTop; uniform vec3 uHor; varying vec3 vP; void main(){
         float h = clamp(vP.y, 0.0, 1.0);
-        vec3 top = vec3(0.02, 0.03, 0.09);
-        vec3 hor = vec3(0.122, 0.169, 0.369);
-        gl_FragColor = vec4(mix(hor, top, pow(h, 0.45)), 1.0);
+        gl_FragColor = vec4(mix(uHor, uTop, pow(h, 0.45)), 1.0);
       }`,
     }),
   )
@@ -99,19 +98,19 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     fog: false,
     side: THREE.DoubleSide,
     blending: THREE.AdditiveBlending,
-    uniforms: { uTime: { value: 0 } },
+    uniforms: { uTime: { value: 0 }, uFade: { value: 1 } },
     vertexShader: `uniform float uTime; varying vec2 vUv;
       void main(){ vUv = uv; vec3 p = position;
         p.z += sin(p.x * 0.018 + uTime * 0.15) * 22.0 + sin(p.x * 0.05 - uTime * 0.3) * 6.0;
         gl_Position = projectionMatrix * modelViewMatrix * vec4(p, 1.0); }`,
-    fragmentShader: `uniform float uTime; varying vec2 vUv;
+    fragmentShader: `uniform float uTime; uniform float uFade; varying vec2 vUv;
       void main(){
         float x = vUv.x; float y = vUv.y;
         float band = smoothstep(0.0, 0.18, y) * (1.0 - smoothstep(0.3, 1.0, y));
         float rays = 0.55 + 0.45 * sin(x * 140.0 + sin(x * 9.0 + uTime * 0.4) * 5.0);
         float wave = 0.4 + 0.6 * (0.5 + 0.5 * sin(x * 10.0 - uTime * 0.25));
         float edge = smoothstep(0.0, 0.12, x) * (1.0 - smoothstep(0.88, 1.0, x));
-        float a = band * rays * wave * edge;
+        float a = band * rays * wave * edge * uFade;
         vec3 col = mix(vec3(0.15, 1.0, 0.55), vec3(0.55, 0.3, 1.0), smoothstep(0.25, 0.9, y));
         gl_FragColor = vec4(col * a * 0.5, a * 0.5);
       }`,
@@ -129,7 +128,8 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   }
 
   /* ---------- lights ---------- */
-  scene.add(new THREE.HemisphereLight(0x9fb2ff, 0x2a3260, 0.9))
+  const hemi = new THREE.HemisphereLight(0x9fb2ff, 0x2a3260, 0.9)
+  scene.add(hemi)
   const moonLight = new THREE.DirectionalLight(0xbfd0ff, 1.1)
   moonLight.position.set(-30, 45, -40)
   moonLight.castShadow = !opts.lowPower
@@ -490,10 +490,41 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     auroraMat.uniforms.uTime.value = t
   })
 
+  /* ---------- day and night ---------- */
+  const NIGHT = { top: new THREE.Color(0.02, 0.03, 0.09), hor: new THREE.Color(0.122, 0.169, 0.369), fog: new THREE.Color(0x1f2b5e), sky: new THREE.Color(0x9fb2ff), ground: new THREE.Color(0x2a3260), light: new THREE.Color(0xbfd0ff) }
+  const DAY = { top: new THREE.Color(0.28, 0.48, 0.8), hor: new THREE.Color(0.74, 0.81, 0.9), fog: new THREE.Color(0xb4c6dc), sky: new THREE.Color(0xffffff), ground: new THREE.Color(0x98a4b8), light: new THREE.Color(0xfff0dc) }
+  const DUSK = new THREE.Color(0.9, 0.52, 0.42)
+  const skyU = (sky.material as THREE.ShaderMaterial).uniforms
+  const moonAt = moonLight.position.clone()
+  /**
+   * How light it is: `k` 0 at night … 1 in daylight, with the sun's direction for its light. The
+   * horizon blushes at dawn and dusk; stars, moon and aurora fade out as the day comes.
+   */
+  function daylight(k: number, sun: THREE.Vector3) {
+    const dusk = Math.max(0, 1 - Math.abs(k - 0.35) / 0.3) * 0.55
+    skyU.uTop.value.lerpColors(NIGHT.top, DAY.top, k)
+    skyU.uHor.value.lerpColors(NIGHT.hor, DAY.hor, k).lerp(DUSK, dusk)
+    const fog = scene.fog as THREE.FogExp2
+    fog.color.lerpColors(NIGHT.fog, DAY.fog, k).lerp(DUSK, dusk * 0.4)
+    ;(scene.background as THREE.Color).copy(fog.color)
+    hemi.color.lerpColors(NIGHT.sky, DAY.sky, k)
+    hemi.groundColor.lerpColors(NIGHT.ground, DAY.ground, k)
+    hemi.intensity = 0.9 + 0.6 * k
+    moonLight.color.lerpColors(NIGHT.light, DAY.light, k)
+    moonLight.intensity = 1.1 + 1.3 * k
+    // by day the light comes from the sun (never quite on the horizon, or the shadows run off forever)
+    if (k > 0.5) moonLight.position.set(sun.x, Math.max(sun.y, 0.25), sun.z).normalize().multiplyScalar(60)
+    else moonLight.position.copy(moonAt)
+    ;(stars.material as THREE.PointsMaterial).opacity = 0.9 * (1 - k) ** 2
+    moon.visible = moonGlow.visible = k < 0.6
+    auroraMat.uniforms.uFade.value = (1 - k) ** 2
+  }
+
   return {
     colliders,
     roofs,
     solids,
+    daylight,
     update: (t: number, dt: number, player: THREE.Vector3) => updaters.forEach((u) => u(t, dt, player)),
     /** The far forest is only worth drawing from up in the air. */
     showFar: (on: boolean) => (far.group.visible = on),

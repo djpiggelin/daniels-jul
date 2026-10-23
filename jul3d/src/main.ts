@@ -11,7 +11,8 @@ import { Player } from './player'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
-import { buildChoir } from './korsang'
+import { buildChoir, swedenNow } from './korsang'
+import { daylightAt } from './sol'
 import { loadFonts } from './tex'
 import { clockText, eventStatus, formatShortDate } from './time'
 import { Snowballs } from './snowballs'
@@ -143,6 +144,7 @@ const talkers: { npc: Nisse; talk: Talk }[] = []
 const circles = [...world.colliders, ...sleigh.colliders(), ...camper.colliders()]
 let arcade: Arcade | null = null
 let choir: ReturnType<typeof buildChoir> | null = null
+let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
 const solids: THREE.Object3D[] = [...world.solids, sleigh.group, sleigh.santa.group, camper.car, camper.trailer, camper.musse.group, camper.kalle.group]
@@ -1080,6 +1082,12 @@ function frame(now: number) {
     // the tin soldiers' band plays as you come near (not from up in the sleigh)
     parade.near(player.pos, !flight.active)
     choir?.update(dt, player.pos, !flight.active)
+    // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
+    if ((skyTimer -= dt) <= 0) {
+      skyTimer = 5
+      const day = daylightAt(swedenNow())
+      world.daylight(day.k, day.dir)
+    }
     // Lucia morning: the village goes dark round the procession's candles
     renderer.toneMappingExposure = EXPOSURE * (choir?.exposure ?? 1)
     snowballs.update(dt, camera.position)

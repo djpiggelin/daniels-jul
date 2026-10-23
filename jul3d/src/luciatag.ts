@@ -26,10 +26,10 @@ export const PROGRAM = [
 ]
 /** A breath between songs, the walk out in the dark, and the wait before the next procession (s). */
 const GAP = 1.5
-const EXIT = 40
+const EXIT = 80
 const PAUSE = 4 * 60
 /** After the fika they walk back out (lights still on) and line up for the next procession (s). */
-const WALK_BACK = 170
+const WALK_BACK = 200
 const starts: number[] = []
 let clock = 0
 for (const p of PROGRAM) {
@@ -48,9 +48,10 @@ export function programAt(t: number) {
   return null
 }
 
-/** How dark the village should be: from the procession setting off until they've gone in. */
+/** How dark the village should be: from the procession setting off until the last note. */
 export function darknessAt(t: number) {
-  return t < SONGS_END + EXIT ? 1 : 0
+  // (the lights come back on as soon as the singing is over)
+  return t < SONGS_END + 3 ? 1 : 0
 }
 
 /* ---------- the way in, and where they stand ---------- */
@@ -287,13 +288,14 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     const c = columns.indexOf(column(w))
     w.out = blowFrom + ((blowTo - blowFrom) * c) / Math.max(1, columns.length - 1) + (w.spot!.z + 58.5) * -0.12
   }
-  walkers[0].out = lastEnd - 4
+  // (Lucia keeps hers – and her crown – alight)
+  walkers[0].out = Infinity
 
   /** Fast enough that the last one is in place a few seconds before the first song ends. */
   // (Lucia isn't in the line: she comes in later on her own)
   const speed = (length - QUEUE_LENGTH + (walkers.length - 2) * SPACING + 10) / (PROGRAM[0].length - 6)
   /** Back to the queue, the whole line arriving together just before the next procession. */
-  const backSpeed = (BACK_TO_START + (walkers.length - 2) * SPACING) / (WALK_BACK - 8)
+
 
   /* ---------- the riser they stand on ---------- */
   const riser = new THREE.Group()
@@ -326,6 +328,39 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     for (let k = 0; k < 12; k++) rails.push({ p: new THREE.Vector3(-4.4 + k * 0.8, GALLERY, HALL - 9.1), yaw: 0 })
     walkers.filter((w) => !w.toon).forEach((w, i) => fika.set(w, rails[i % rails.length]))
   }
+  // the way from the arch to each one's place at the fika: the choir round the end of the table to
+  // their seats, the villagers up the stairs by the door and along the galleries
+  const into = new Map<Walker, THREE.CurvePath<THREE.Vector3>>()
+  const inside = new THREE.Vector3(0, 0, HALL + 10)
+  for (const [w, f] of fika) {
+    const p = f.p
+    const side = p.x < 0 ? -1 : 1
+    let pts: THREE.Vector3[]
+    if (p.y === 0) {
+      pts = [ARCH, inside]
+      // the far side of the table: round its end
+      if (p.z < TABLE.z) pts.push(new THREE.Vector3(side * 3.8, 0, TABLE.z + 1.3), new THREE.Vector3(side * 3.8, 0, TABLE.z - 0.9))
+      pts.push(p)
+    } else {
+      const foot = new THREE.Vector3(side * 6.2, 0, HALL + 10.75)
+      const top = new THREE.Vector3(side * 14.4, GALLERY, HALL + 10.75)
+      const landing = new THREE.Vector3(side * 14.9, GALLERY, HALL + 10.3)
+      pts = [ARCH, inside, foot, top, landing]
+      if (Math.abs(p.x) < 10) pts.push(new THREE.Vector3(side * 14.9, GALLERY, p.z))
+      pts.push(p)
+    }
+    into.set(w, pathOf(pts))
+  }
+  const longestInto = Math.max(...[...into.values()].map((p) => p.getLength()))
+  /** Back to the queue, the whole line arriving together just before the next procession. */
+  const backSpeed = (longestInto + BACK_TO_START + (walkers.length - 2) * SPACING) / (WALK_BACK - 8)
+  const outOf = new Map<Walker, { path: THREE.CurvePath<THREE.Vector3>; hall: number }>()
+  for (const [w, p] of into) {
+    const pts = p.curves.map((c) => (c as THREE.LineCurve3).v1)
+    pts.push((p.curves[p.curves.length - 1] as THREE.LineCurve3).v2)
+    outOf.set(w, { path: pathOf([...pts.reverse(), ...WAY_BACK.curves.map((c) => (c as THREE.LineCurve3).v2)]), hall: p.getLength() })
+  }
+
   const table = new THREE.Group()
   table.position.copy(TABLE)
   table.add(new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.07, 1.1), std(0x6b4226, 0.7)).translateY(0.78))
@@ -364,8 +399,10 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
         // they all reach their places in the queue together
         const j = i - 1
         const k = walkers.length - 2 - j
-        const u = (t - FIKA_END) * backSpeed - k * SPACING
-        const stop = BACK_TO_START + j * SPACING
+        const way = outOf.get(w)!
+        // (down from the galleries first: each sets off so as to reach the arch in its turn)
+        const u = (t - FIKA_END) * backSpeed - k * SPACING - (longestInto - way.hall)
+        const stop = way.hall + BACK_TO_START + j * SPACING
         if (u < 0) {
           const f = fika.get(w)!
           w.pos.copy(f.p)
@@ -373,9 +410,10 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
           w.walking = false
           w.eating = true
         } else {
-          const at = Math.min(u, stop) / WAY_BACK_LENGTH
-          WAY_BACK.getPointAt(at, w.pos)
-          WAY_BACK.getTangentAt(at, tmp)
+          const len = way.path.getLength()
+          const at = Math.min(u, stop) / len
+          way.path.getPointAt(at, w.pos)
+          way.path.getTangentAt(at, tmp)
           w.yaw = Math.atan2(tmp.x, tmp.z)
           w.walking = u < stop
         }
@@ -397,15 +435,22 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
         w.lit = false
         w.eating = true
       } else if (t >= outStart) {
-        // in the dark, in through the arch – front rows first
-        const lag = (w.spot!.z + 58.5) * -2.5
-        const dist = w.spot!.distanceTo(ARCH)
-        const k = THREE.MathUtils.clamp(((t - outStart - lag) * 0.9) / dist, 0, 1)
-        w.pos.lerpVectors(w.spot!, ARCH, k)
-        w.pos.y = w.spot!.y * (1 - k)
-        w.yaw = Math.atan2(ARCH.x - w.spot!.x, ARCH.z - w.spot!.z)
-        w.walking = k > 0 && k < 1
-        w.shown = k < 0.97
+        // in through the arch, the back rows (nearest it) first and Lucia last, and on to their places
+        const lag = (w.spot!.z + 64.5) * 2.5 + (lucia ? 4 : 0)
+        const first = w.spot!.distanceTo(ARCH)
+        const hall = into.get(w)!
+        const d = Math.max(0, (t - outStart - lag) * 1.05)
+        if (d < first) {
+          w.pos.lerpVectors(w.spot!, ARCH, d / first)
+          w.yaw = Math.atan2(ARCH.x - w.spot!.x, ARCH.z - w.spot!.z)
+        } else {
+          const k = Math.min(1, (d - first) / hall.getLength())
+          hall.getPointAt(k, w.pos)
+          hall.getTangentAt(k, tmp)
+          w.yaw = k < 1 ? Math.atan2(tmp.x, tmp.z) : fika.get(w)!.yaw
+        }
+        w.walking = d > 0 && d < first + hall.getLength()
+        w.shown = true
       } else if (s < 0) {
         w.shown = false
       } else if (s < length) {
@@ -537,10 +582,10 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     return at
   }
 
-  /** Is this toon still singing (in the procession, candle alight)? */
+  /** Is this toon singing (in the procession, candle alight)? Lucia never does: she walks in silence. */
   const singing = (toon: Toon) => {
     const w = walkers.find((w) => w.toon === toon)
-    return !!w && w.shown && w.lit
+    return !!w && w !== walkers[0] && w.shown && w.lit
   }
   /** …or having fika afterwards? */
   const eating = (toon: Toon) => walkers.some((w) => w.toon === toon && w.eating)
