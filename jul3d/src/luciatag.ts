@@ -11,6 +11,7 @@
 //
 // The villagers are instanced (a dozen draw calls for all of them); the choir's toons walk along too.
 import * as THREE from 'three'
+import { mergeGeometries } from 'three/examples/jsm/utils/BufferGeometryUtils.js'
 import type { Toon } from './toons'
 
 /* ---------- the program ---------- */
@@ -99,6 +100,64 @@ export type Walker = {
 
 const std = (color: number, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
+/** A lussebulle: a saffron-yellow S, curled up at both ends, a raisin in each curl. */
+let bunGeo: THREE.BufferGeometry | null = null
+let raisinGeo: THREE.BufferGeometry | null = null
+export function lussebulle() {
+  if (!bunGeo) {
+    const curl = (x: number, flip: number) => {
+      const g = new THREE.TorusGeometry(0.026, 0.017, 8, 14, Math.PI * 1.5)
+      g.rotateX(Math.PI / 2)
+      g.rotateY(flip)
+      g.translate(x, 0.014, 0)
+      return g
+    }
+    bunGeo = mergeGeometries([curl(-0.024, 0), curl(0.024, Math.PI)])!
+    const r = (x: number) => new THREE.SphereGeometry(0.009, 6, 4).translate(x, 0.03, 0)
+    raisinGeo = mergeGeometries([r(-0.024), r(0.024)])!
+  }
+  return { bun: bunGeo, raisins: raisinGeo! }
+}
+const bunMat = std(0xe8a12a, 0.6)
+const raisinMat = std(0x2a1410, 0.5)
+const cookieMat = std(0x9a5a2c, 0.75)
+const plateMat = std(0xfbf8f2, 0.3)
+let heartGeo: THREE.ExtrudeGeometry | null = null
+function pepparkaka() {
+  if (!heartGeo) {
+    const h = new THREE.Shape()
+    h.moveTo(0, -0.04)
+    h.bezierCurveTo(-0.05, -0.005, -0.04, 0.035, 0, 0.018)
+    h.bezierCurveTo(0.04, 0.035, 0.05, -0.005, 0, -0.04)
+    heartGeo = new THREE.ExtrudeGeometry(h, { depth: 0.006, bevelEnabled: false, curveSegments: 6 })
+    heartGeo.rotateX(-Math.PI / 2)
+  }
+  return new THREE.Mesh(heartGeo, cookieMat)
+}
+
+/** A plate heaped with lussebullar (and, if `cookies`, a few pepparkakshjärtan beside them). */
+export function luciaTray(cookies = true) {
+  const g = new THREE.Group()
+  g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.24, 0.2, 0.025, 20), plateMat).translateY(0.012))
+  const { bun, raisins } = lussebulle()
+  const spots = [[0, 0, 0], [0.11, 0, 0.06], [-0.11, 0, 0.05], [0.04, 0, -0.11], [-0.07, 0, -0.1], [0.12, 0, -0.07], [0.02, 0.035, 0.0], [-0.05, 0.035, -0.04]]
+  spots.forEach(([x, y, z], i) => {
+    const b = new THREE.Group()
+    b.add(new THREE.Mesh(bun, bunMat), new THREE.Mesh(raisins, raisinMat))
+    b.position.set(x, 0.025 + y, z)
+    b.rotation.y = i * 1.3
+    g.add(b)
+  })
+  if (cookies)
+    for (let i = 0; i < 4; i++) {
+      const c = pepparkaka()
+      c.position.set(0.34 + (i % 2) * 0.09, 0.01 + Math.floor(i / 2) * 0.007, -0.05 + i * 0.04)
+      c.rotation.y = i * 0.9
+      g.add(c)
+    }
+  return g
+}
+
 export type LuciaToon = { toon: Toon; girl: boolean; lucia?: boolean; tall?: boolean; spot?: THREE.Vector3; light: (on: boolean) => void }
 
 export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTex: THREE.Texture) {
@@ -123,6 +182,7 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     crown: new THREE.InstancedMesh(new THREE.TorusGeometry(0.1, 0.012, 6, 18), std(0xdfe3ea, 0.25, 0.8), GIRLS),
     sash: new THREE.InstancedMesh(new THREE.TorusGeometry(0.15, 0.022, 6, 18), std(0xc8102e, 0.5), GIRLS),
     strut: new THREE.InstancedMesh(new THREE.ConeGeometry(0.085, 0.36, 14), std(0xfbf8f2, 0.6), BOYS),
+    bun: new THREE.InstancedMesh(lussebulle().bun, bunMat, N),
     stars: new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.022), new THREE.MeshStandardMaterial({ color: 0xf6c453, roughness: 0.3, metalness: 0.7, emissive: 0x6a4a10, emissiveIntensity: 0.6 }), BOYS * 3),
   }
   const hairCols = [0xe8c77a, 0xd9b25e, 0x8a5a32, 0x5a3a22, 0xc9783a, 0x2a1d16, 0xf0d9a0].map((c) => new THREE.Color(c))
@@ -193,13 +253,17 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
   const girls = free.filter((w) => w.girl)
   ;[...girls.filter((w) => w.toon), ...girls.filter((w) => !w.toon)].forEach((w, i) => (w.spot = (middle[i] ?? middle[middle.length - 1]).p.clone()))
 
-  // in the last verse of Sankta Lucia they put their candles out one by one – Lucia last of all
+  // in the last verse of Sankta Lucia they put their candles out column by column, from the two ends
+  // of the rows in towards the middle (each column front to back) – and Lucia last of all
   const lastEnd = starts[LAST] + PROGRAM[LAST].length
   const blowFrom = lastEnd - 48
   const blowTo = lastEnd - 10
-  // (in the same order for everyone: worked out from where they stand)
-  const shuffled = walkers.slice(1).sort((a, b) => ((a.spot!.x * 7.3 + a.spot!.z * 3.1) % 1) - ((b.spot!.x * 7.3 + b.spot!.z * 3.1) % 1))
-  shuffled.forEach((w, i) => (w.out = blowFrom + ((blowTo - blowFrom) * i) / shuffled.length))
+  const column = (w: Walker) => Math.round(Math.abs(w.spot!.x) / 0.41)
+  const columns = [...new Set(walkers.slice(1).map(column))].sort((a, b) => b - a)
+  for (const w of walkers.slice(1)) {
+    const c = columns.indexOf(column(w))
+    w.out = blowFrom + ((blowTo - blowFrom) * c) / Math.max(1, columns.length - 1) + (w.spot!.z + 58.5) * -0.12
+  }
   walkers[0].out = lastEnd - 4
 
   /** Fast enough that the last one is in place a few seconds before the first song ends. */
@@ -219,17 +283,59 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
   })
   group.add(riser)
 
+  /* ---------- the fika afterwards, inside the hall ---------- */
+  // The choir round a long table of lussebullar and pepparkakor; the villagers up on the galleries,
+  // each with a bun. (The hall's middle is at z = −86; its galleries are 5.5 m up at x = ±14.4…17.4.)
+  const HALL = -86
+  const TABLE = new THREE.Vector3(0, 0, HALL + 6.2)
+  const GALLERY = 5.67
+  const fika = new Map<Walker, { p: THREE.Vector3; yaw: number }>()
+  {
+    const seats: { p: THREE.Vector3; yaw: number }[] = []
+    for (const side of [-1, 1]) for (let k = 0; k < 6; k++) seats.push({ p: new THREE.Vector3(-2.5 + k, 0, TABLE.z + side * 0.85), yaw: side < 0 ? 0 : Math.PI })
+    seats.push({ p: new THREE.Vector3(3.7, 0, TABLE.z), yaw: -Math.PI / 2 })
+    walkers.filter((w) => w.toon).forEach((w, i) => fika.set(w, seats[i % seats.length]))
+    const rails: { p: THREE.Vector3; yaw: number }[] = []
+    for (const side of [-1, 1]) for (let k = 0; k < 23; k++) rails.push({ p: new THREE.Vector3(side * 14.9, GALLERY, HALL - 8 + k * 0.77), yaw: (-side * Math.PI) / 2 })
+    for (let k = 0; k < 12; k++) rails.push({ p: new THREE.Vector3(-4.4 + k * 0.8, GALLERY, HALL - 9.1), yaw: 0 })
+    walkers.filter((w) => !w.toon).forEach((w, i) => fika.set(w, rails[i % rails.length]))
+  }
+  const table = new THREE.Group()
+  table.position.copy(TABLE)
+  table.add(new THREE.Mesh(new THREE.BoxGeometry(6.4, 0.07, 1.1), std(0x6b4226, 0.7)).translateY(0.78))
+  table.add(new THREE.Mesh(new THREE.BoxGeometry(6.5, 0.02, 1.16), std(0xfbf8f2, 0.9)).translateY(0.825))
+  table.add(new THREE.Mesh(new THREE.BoxGeometry(6.52, 0.022, 0.36), std(0xc8102e, 0.8)).translateY(0.83))
+  for (const sx of [-1, 1]) for (const sz of [-1, 1]) table.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.78, 0.08), std(0x4a2c1c, 0.7)).translateX(sx * 3).translateY(0.39).translateZ(sz * 0.45))
+  for (let k = 0; k < 4; k++) table.add(luciaTray(k % 2 === 0).translateX(-2.25 + k * 1.5).translateY(0.84))
+  // and a few candles burning down the middle
+  for (const x of [-1.5, 0, 1.5]) {
+    table.add(new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.2, 8), std(0xfbf8f2, 0.5)).translateX(x).translateY(0.94).translateZ(0.25))
+    table.add(new THREE.Mesh(new THREE.ConeGeometry(0.012, 0.04, 6), new THREE.MeshBasicMaterial({ color: 0xffd27a, toneMapped: false })).translateX(x).translateY(1.06).translateZ(0.25))
+  }
+  group.add(table)
+
   /* ---------- where everyone is, t seconds into the cycle ---------- */
   const tmp = new THREE.Vector3()
   const centre = new THREE.Vector3(0, 0, -62)
   const middleOfLine = new THREE.Vector3()
+  /** The share of the candles still burning, for the music (it fades as they go out). */
+  let litShare = 1
+  let fikaNow = false
   function place(t: number) {
     const outStart = SONGS_END + 2
+    fikaNow = t >= SONGS_END + EXIT
+    let lit = 0
+    let shown = 0
     walkers.forEach((w, i) => {
       const s = t * speed - i * SPACING
       w.lit = t < w.out
-      if (t >= SONGS_END + EXIT) {
-        w.shown = false
+      if (fikaNow) {
+        const f = fika.get(w)!
+        w.pos.copy(f.p)
+        w.yaw = f.yaw
+        w.walking = false
+        w.shown = true
+        w.lit = false
       } else if (t >= outStart) {
         // in the dark, in through the arch – front rows first
         const lag = (w.spot!.z + 58.5) * -2.5
@@ -265,7 +371,12 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
         w.shown = true
       }
       if (i === Math.floor(walkers.length / 2)) middleOfLine.copy(w.pos)
+      if (w.shown) {
+        shown++
+        if (w.lit) lit++
+      }
     })
+    litShare = t < starts[LAST] ? 1 : shown ? lit / shown : 0
     return t >= PROGRAM[0].length ? centre : middleOfLine
   }
 
@@ -300,7 +411,7 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
       q.setFromEuler(e)
       base.compose(tmp.set(w.pos.x, w.pos.y + bob, w.pos.z), q, size.set(s, s, s))
       if (!w.shown) {
-        for (const k of ['gown', 'shoulders', 'head', 'hair', 'candle', 'flame'] as const) parts[k].setMatrixAt(i, hidden)
+        for (const k of ['gown', 'shoulders', 'head', 'hair', 'candle', 'flame', 'bun'] as const) parts[k].setMatrixAt(i, hidden)
         parts.hands.setMatrixAt(i * 2, hidden)
         parts.hands.setMatrixAt(i * 2 + 1, hidden)
         glowPos.set([0, -50, 0], i * 3)
@@ -309,9 +420,22 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
         parts.shoulders.setMatrixAt(i, at4(0, 0.8, 0).multiply(m4.makeScale(1, 0.55, 0.85)))
         parts.head.setMatrixAt(i, at4(0, 0.97, 0))
         parts.hair.setMatrixAt(i, at4(0, 0.985, -0.012))
-        parts.hands.setMatrixAt(i * 2, at4(-0.035, 0.56, 0.15))
-        parts.hands.setMatrixAt(i * 2 + 1, at4(0.035, 0.56, 0.15))
-        parts.candle.setMatrixAt(i, at4(0, 0.62, 0.16))
+        if (fikaNow) {
+          // a bun in the hands, and every now and then a bite
+          const k = (time * 0.13 + w.phase) % 1
+          const bite = k < 0.12 ? Math.sin((k / 0.12) * Math.PI) : 0
+          const hy = 0.6 + bite * 0.3
+          const hz = 0.15 - bite * 0.03
+          parts.hands.setMatrixAt(i * 2, at4(-0.035, hy - 0.03, hz))
+          parts.hands.setMatrixAt(i * 2 + 1, at4(0.035, hy - 0.03, hz))
+          parts.bun.setMatrixAt(i, at4(0, hy, hz + 0.02).multiply(m4.makeRotationX(-1.1)))
+          parts.candle.setMatrixAt(i, hidden)
+        } else {
+          parts.hands.setMatrixAt(i * 2, at4(-0.035, 0.56, 0.15))
+          parts.hands.setMatrixAt(i * 2 + 1, at4(0.035, 0.56, 0.15))
+          parts.candle.setMatrixAt(i, at4(0, 0.62, 0.16))
+          parts.bun.setMatrixAt(i, hidden)
+        }
         if (w.lit) {
           const flicker = 0.85 + Math.sin(time * 17 + w.phase * 3) * 0.15
           parts.flame.setMatrixAt(i, at4(0, 0.715, 0.16).multiply(m4.makeScale(1, flicker, 1)))
@@ -342,6 +466,8 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     const w = walkers.find((w) => w.toon === toon)
     return !!w && w.shown && w.lit
   }
+  /** …or having fika afterwards? */
+  const eating = (toon: Toon) => fikaNow && walkers.some((w) => w.toon === toon)
 
   function show(on: boolean) {
     group.visible = on
@@ -354,5 +480,16 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
   }
   show(false)
 
-  return { group, update, show, singing, lucia: walkers[0] }
+  return {
+    group,
+    update,
+    show,
+    singing,
+    eating,
+    lucia: walkers[0],
+    /** The share of candles still alight (1 until the last song): the music fades with them. */
+    get litShare() {
+      return litShare
+    },
+  }
 }

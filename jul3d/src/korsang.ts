@@ -11,7 +11,7 @@ import { Playlist } from './sfx'
 import { rod, std } from './sleigh'
 import { glowTexture } from './tex'
 import { Kalle, Musse, Toon } from './toons'
-import { CYCLE, buildLuciaConcert, darknessAt, programAt } from './luciatag'
+import { CYCLE, buildLuciaConcert, darknessAt, luciaTray, programAt } from './luciatag'
 import type { Circle } from './world'
 
 const black = std(0x16161a, 0.55)
@@ -548,7 +548,8 @@ const moving = <T extends THREE.Object3D>(o: T): T => {
   return keepApart(o)
 }
 
-export function buildChoir(scene: THREE.Scene) {
+/** `bakery`: Tomtens bageri's group – there are lussebullar on its counter on Lucia day. */
+export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   const group = new THREE.Group()
   const colliders: Circle[] = []
   const song = new Playlist(2.5)
@@ -731,12 +732,26 @@ export function buildChoir(scene: THREE.Scene) {
     return ((sec % CYCLE) + CYCLE) % CYCLE
   }
 
+  // lussebullar on the bakery counter, all of Lucia day
+  const tray = bakery ? moving(luciaTray()) : null
+  if (tray && bakery) {
+    tray.position.set(-3.5, 0.85, 1.75)
+    tray.scale.setScalar(1.3)
+    bakery.add(tray)
+  }
+  const luciaDay = () => {
+    if (forced) return forced === 'lucia'
+    const d = new Date(wallClock())
+    return d.getUTCMonth() === 11 && d.getUTCDate() === 13
+  }
+
   /* ---------- the mode: who's where, wearing what ---------- */
   let mode: ChoirMode | null = null
   const setMode = (next: ChoirMode) => {
     if (next === mode) return
     mode = next
     people.visible = next !== 'borta'
+    if (tray) tray.visible = luciaDay()
     concert.show(next === 'lucia')
     // (a collider with a negative radius never pushes)
     for (const c of front) c.r = next === 'borta' || next === 'lucia' ? -1 : 0.25
@@ -844,7 +859,9 @@ export function buildChoir(scene: THREE.Scene) {
     candleLight.intensity = (6 * darkness * (lucia.lit && lucia.shown ? 1 : 0.1)) / exposure()
     if (mode === 'borta') return
     const d = Math.hypot(player.x - at.x, player.z - at.z)
-    const vol = enabled ? 0.9 * THREE.MathUtils.clamp((FAR - d) / (FAR - NEAR), 0, 1) : 0
+    // (at Lucia it fades too as the candles go out, one column after another)
+    const fade = mode === 'lucia' ? 0.12 + 0.88 * concert.litShare : 1
+    const vol = enabled ? 0.9 * fade * THREE.MathUtils.clamp((FAR - d) / (FAR - NEAR), 0, 1) : 0
     if (vol > 0.003) {
       if (mode === 'lucia') song.cue(cue ? `${S}${cue.song}.mp3` : null, cue?.offset ?? 0)
       else song.start(SONGS[mode!])
@@ -868,6 +885,8 @@ export function buildChoir(scene: THREE.Scene) {
       if (s.kind === 'squeak') want = sings ? 0.1 + level * (0.6 + 0.4 * Math.sin(t * 15 + s.phase)) : 0
       // Pluto only joins in now and then, with a long howl
       if (s.kind === 'howl') want = sings && Math.sin(t * 0.9) > 0.6 ? 0.9 : 0.1
+      // at the fika after the Lucia concert: munching lussebullar
+      if (mode === 'lucia' && concert.eating(s.toon)) want = 0.1 + Math.max(0, Math.sin(t * 7 + s.phase)) * 0.35
       s.open += (want - s.open) * Math.min(1, dt * 22)
       s.mouth.scale.y = 0.12 + s.open * 1.3
       const head = s.toon.head

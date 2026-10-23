@@ -186,7 +186,7 @@ async function build() {
     m.group.userData.onSnowball = () => toast('🪙 ¡Oye! Inte på kostymen!')
   }
   // the gang singing carols by the tree
-  choir = buildChoir(scene)
+  choir = buildChoir(scene, shops[0].shop.group)
   circles.push(...choir.colliders)
   solids.push(choir.group)
   const square = await buildSquare(scene, shops)
