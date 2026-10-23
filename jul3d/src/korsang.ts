@@ -854,9 +854,10 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     if (mode === 'lucia' && !dimmed.length) dim(true)
     if (mode !== 'lucia' && dimmed.length && darkness < 0.02) dim(false)
     const lucia = concert.lucia
-    if (darkness > 0.01) candleLight.position.set(lucia.pos.x, lucia.pos.y + 1.7, lucia.pos.z + 0.6)
+    // (over Lucia once she is there; until then over the choir)
+    if (darkness > 0.01) candleLight.position.set(lucia.shown ? lucia.pos.x : at.x, 1.7, (lucia.shown ? lucia.pos.z : at.z) + 0.6)
     // (the world is dimmed through exposure, which dims this light too – so it is turned up to match)
-    candleLight.intensity = (6 * darkness * (lucia.lit && lucia.shown ? 1 : 0.1)) / exposure()
+    candleLight.intensity = (6 * darkness * (lucia.lit && lucia.shown ? 1 : 0.45)) / exposure()
     if (mode === 'borta') return
     const d = Math.hypot(player.x - at.x, player.z - at.z)
     // (at Lucia it fades too as the candles go out, one column after another)

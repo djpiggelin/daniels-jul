@@ -4,9 +4,9 @@
 // choir: Lucia in front, tärnor with red sashes round her, star boys with their tall cones at the
 // sides and at the back.
 //
-// It follows the music, as a real one does: they walk in to one song, sing the concert, and end with
-// Sankta Lucia – during its last verse they blow out their candles one by one and fall silent, Lucia
-// last. In the dark they file in through the arch; the village's lights come back, and a few minutes
+// It follows the music, as a real one does: they walk in to one song, and as the concert begins Lucia
+// herself comes in, alone, up through the yard with her crown alight. They end with Sankta Lucia: in
+// its last verse they blow out their candles column by column and fall silent, Lucia last. In the dark they file in through the arch; the village's lights come back, and a few minutes
 // later a new procession sets off. The program runs on the clock, so everyone sees the same moment.
 //
 // The villagers are instanced (a dozen draw calls for all of them); the choir's toons walk along too.
@@ -76,6 +76,10 @@ const ROWS = [
   { z: -64.5, y: 0.88, n: 18 },
 ]
 const LUCIA_AT = new THREE.Vector3(0, 0, -58.5)
+/** Lucia comes in on her own, up the path through the yard, as the concert begins (with its second song). */
+const LUCIA_SONG = 1
+const LUCIA_FROM = new THREE.Vector3(0, 0, -44)
+const LUCIA_WALK = 22
 const ARCH = new THREE.Vector3(0, 0, -67)
 
 export type Walker = {
@@ -267,7 +271,8 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
   walkers[0].out = lastEnd - 4
 
   /** Fast enough that the last one is in place a few seconds before the first song ends. */
-  const speed = (length + (walkers.length - 1) * SPACING + 10) / (PROGRAM[0].length - 6)
+  // (Lucia isn't in the line: she comes in later on her own)
+  const speed = (length + (walkers.length - 2) * SPACING + 10) / (PROGRAM[0].length - 6)
 
   /* ---------- the riser they stand on ---------- */
   const riser = new THREE.Group()
@@ -327,9 +332,17 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     let lit = 0
     let shown = 0
     walkers.forEach((w, i) => {
-      const s = t * speed - i * SPACING
+      const s = t * speed - (i - 1) * SPACING
       w.lit = t < w.out
-      if (fikaNow) {
+      const lucia = i === 0
+      if (lucia && !fikaNow && t < outStart) {
+        // waiting for her song; then, crown alight, up through the yard to the front of the choir
+        const k = (t - starts[LUCIA_SONG]) / LUCIA_WALK
+        w.shown = k >= 0
+        w.walking = k >= 0 && k < 1
+        w.pos.lerpVectors(LUCIA_FROM, LUCIA_AT, THREE.MathUtils.clamp(k, 0, 1))
+        w.yaw = k < 1 ? Math.PI : 0
+      } else if (fikaNow) {
         const f = fika.get(w)!
         w.pos.copy(f.p)
         w.yaw = f.yaw
