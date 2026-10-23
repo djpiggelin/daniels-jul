@@ -49,7 +49,8 @@ renderer.setPixelRatio(SHARP)
 renderer.setSize(innerWidth, innerHeight)
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.15
+const EXPOSURE = 1.15
+renderer.toneMappingExposure = EXPOSURE
 renderer.shadowMap.enabled = QUALITY.shadows
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 // the world and then your own arms on top (see viewmodel.ts)
@@ -335,6 +336,7 @@ function collide(p: THREE.Vector3, RADIUS = 0.35) {
 function collidePlayer(p: THREE.Vector3) {
   collide(p, RADIUS)
   for (const e of elves) {
+    if (!e.group.visible) continue
     const dx = p.x - e.pos.x
     const dz = p.z - e.pos.z
     const d = Math.hypot(dx, dz)
@@ -1069,10 +1071,17 @@ function frame(now: number) {
     world.update(t, dt, flight.active ? flight.pos : player.pos)
     for (const s of shops) s.shop.update(t, dt)
     for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
-    for (const e of elves) e.update(dt, t)
+    // on Lucia morning the elves are all in the procession
+    const elvesOut = choir?.mode !== 'lucia'
+    for (const e of elves) {
+      e.group.visible = elvesOut
+      if (elvesOut) e.update(dt, t)
+    }
     // the tin soldiers' band plays as you come near (not from up in the sleigh)
     parade.near(player.pos, !flight.active)
     choir?.update(dt, player.pos, !flight.active)
+    // Lucia morning: the village goes dark round the procession's candles
+    renderer.toneMappingExposure = EXPOSURE * (choir?.exposure ?? 1)
     snowballs.update(dt, camera.position)
     if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
     world.showFar(flight.active)

@@ -1,0 +1,358 @@
+// The Lucia concert: on Lucia morning the whole village walks in procession – the choir and some sixty
+// villagers in white gowns, each with a candle – in from the south of the square, round the big tree
+// and up the path to Leksaksfabriken, where they stand in rising rows before the arch, like a church
+// choir: Lucia in front, tärnor with red sashes round her, star boys with their tall cones at the
+// sides and at the back.
+//
+// It follows the music, as a real one does: they walk in to one song, sing the concert, and end with
+// Sankta Lucia – during its last verse they blow out their candles one by one and fall silent, Lucia
+// last. In the dark they file in through the arch; the village's lights come back, and a few minutes
+// later a new procession sets off. The program runs on the clock, so everyone sees the same moment.
+//
+// The villagers are instanced (a dozen draw calls for all of them); the choir's toons walk along too.
+import * as THREE from 'three'
+import type { Toon } from './toons'
+
+/* ---------- the program ---------- */
+
+/** The songs, in order, with their lengths (s) – the first is the one they walk in to. */
+export const PROGRAM = [
+  { song: 'o-come-all-ye-faithful', length: 192.5 },
+  { song: 'stilla-natt', length: 192.8 },
+  { song: 'o-little-town-of-bethlehem', length: 70.4 },
+  { song: 'hark-the-herald-angels-sing', length: 114.6 },
+  { song: 'sankta-lucia', length: 202.5 },
+]
+/** A breath between songs, the walk out in the dark, and the wait before the next procession (s). */
+const GAP = 3
+const EXIT = 40
+const PAUSE = 4 * 60
+const starts: number[] = []
+let clock = 0
+for (const p of PROGRAM) {
+  starts.push(clock)
+  clock += p.length + GAP
+}
+const SONGS_END = clock - GAP
+const LAST = PROGRAM.length - 1
+/** The whole go round (s). */
+export const CYCLE = SONGS_END + EXIT + PAUSE
+
+/** What is playing `t` seconds into the cycle, and how far into it. */
+export function programAt(t: number) {
+  for (let i = 0; i < PROGRAM.length; i++) if (t >= starts[i] && t < starts[i] + PROGRAM[i].length) return { song: PROGRAM[i].song, offset: t - starts[i] }
+  return null
+}
+
+/** How dark the village should be: from the procession setting off until they've gone in. */
+export function darknessAt(t: number) {
+  return t < SONGS_END + EXIT ? 1 : 0
+}
+
+/* ---------- the way in, and where they stand ---------- */
+
+const SPACING = 0.9
+
+/** From the south of the square, round the west side of the big tree, up the path to the yard. */
+function route() {
+  const pts: THREE.Vector3[] = [new THREE.Vector3(0, 0, 24), new THREE.Vector3(0, 0, 9.6)]
+  for (let i = 1; i <= 24; i++) {
+    const a = Math.PI + (i / 24) * Math.PI
+    pts.push(new THREE.Vector3(Math.sin(a) * 9.6, 0, -Math.cos(a) * 9.6))
+  }
+  pts.push(new THREE.Vector3(0, 0, -50))
+  const path = new THREE.CurvePath<THREE.Vector3>()
+  for (let i = 1; i < pts.length; i++) path.add(new THREE.LineCurve3(pts[i - 1], pts[i]))
+  return path
+}
+
+/** Rising rows facing the yard (+z), before the arch at z = −68. */
+const ROWS = [
+  { z: -59.7, y: 0, n: 8 },
+  { z: -60.9, y: 0.22, n: 12 },
+  { z: -62.1, y: 0.44, n: 14 },
+  { z: -63.3, y: 0.66, n: 16 },
+  { z: -64.5, y: 0.88, n: 18 },
+]
+const LUCIA_AT = new THREE.Vector3(0, 0, -58.5)
+const ARCH = new THREE.Vector3(0, 0, -67)
+
+export type Walker = {
+  girl: boolean
+  /** Placed by hand (Lucia, the chipmunks, Pluto), otherwise given a spot in the rows. */
+  spot?: THREE.Vector3
+  tall?: boolean
+  toon?: Toon
+  /** Puts the toon's candle (and crown) out, or lights them again. */
+  light?: (on: boolean) => void
+  /** Index into the villagers' instances. */
+  extra?: number
+  /** When, into the cycle, this one blows out the candle. */
+  out: number
+  pos: THREE.Vector3
+  yaw: number
+  walking: boolean
+  shown: boolean
+  lit: boolean
+  phase: number
+}
+
+const std = (color: number, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
+
+export type LuciaToon = { toon: Toon; girl: boolean; lucia?: boolean; tall?: boolean; spot?: THREE.Vector3; light: (on: boolean) => void }
+
+export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTex: THREE.Texture) {
+  const path = route()
+  const length = path.getLength()
+  const end = path.getPoint(1)
+  const group = new THREE.Group()
+  scene.add(group)
+
+  /* ---------- the villagers, instanced ---------- */
+  const GIRLS = 34
+  const BOYS = 22
+  const N = GIRLS + BOYS
+  const parts = {
+    gown: new THREE.InstancedMesh(new THREE.CylinderGeometry(0.11, 0.2, 0.82, 12, 1, true), new THREE.MeshStandardMaterial({ color: 0xfbf8f2, roughness: 0.85, side: THREE.DoubleSide }), N),
+    shoulders: new THREE.InstancedMesh(new THREE.SphereGeometry(0.13, 12, 8), std(0xfbf8f2, 0.85), N),
+    head: new THREE.InstancedMesh(new THREE.SphereGeometry(0.1, 14, 10), std(0xf1c7a5, 0.6), N),
+    hair: new THREE.InstancedMesh(new THREE.SphereGeometry(0.108, 14, 8, 0, Math.PI * 2, 0, Math.PI * 0.62), std(0xffffff, 0.8), N),
+    hands: new THREE.InstancedMesh(new THREE.SphereGeometry(0.03, 8, 6), std(0xf1c7a5, 0.6), N * 2),
+    candle: new THREE.InstancedMesh(new THREE.CylinderGeometry(0.014, 0.016, 0.13, 8), std(0xfbf8f2, 0.5), N),
+    flame: new THREE.InstancedMesh(new THREE.ConeGeometry(0.018, 0.065, 8), new THREE.MeshBasicMaterial({ color: 0xffd27a, toneMapped: false }), N),
+    crown: new THREE.InstancedMesh(new THREE.TorusGeometry(0.1, 0.012, 6, 18), std(0xdfe3ea, 0.25, 0.8), GIRLS),
+    sash: new THREE.InstancedMesh(new THREE.TorusGeometry(0.15, 0.022, 6, 18), std(0xc8102e, 0.5), GIRLS),
+    strut: new THREE.InstancedMesh(new THREE.ConeGeometry(0.085, 0.36, 14), std(0xfbf8f2, 0.6), BOYS),
+    stars: new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.022), new THREE.MeshStandardMaterial({ color: 0xf6c453, roughness: 0.3, metalness: 0.7, emissive: 0x6a4a10, emissiveIntensity: 0.6 }), BOYS * 3),
+  }
+  const hairCols = [0xe8c77a, 0xd9b25e, 0x8a5a32, 0x5a3a22, 0xc9783a, 0x2a1d16, 0xf0d9a0].map((c) => new THREE.Color(c))
+  for (let i = 0; i < N; i++) parts.hair.setColorAt(i, hairCols[(i * 5) % hairCols.length])
+  for (const m of Object.values(parts)) {
+    m.frustumCulled = false
+    m.castShadow = false
+    group.add(m)
+  }
+  // a glow round every lit candle: one cloud of sprites
+  const glowPos = new Float32Array(N * 3)
+  const glowGeo = new THREE.BufferGeometry()
+  glowGeo.setAttribute('position', new THREE.BufferAttribute(glowPos, 3))
+  const glows = new THREE.Points(glowGeo, new THREE.PointsMaterial({ map: glowTex, size: 0.95, sizeAttenuation: true, transparent: true, depthWrite: false, blending: THREE.AdditiveBlending, toneMapped: false, color: 0xffc070 }))
+  glows.frustumCulled = false
+  group.add(glows)
+
+  /* ---------- who walks where ---------- */
+  // the order of the procession: Lucia, the tärnor, then the star boys (the small ones last)
+  const lucia = toons.find((t) => t.lucia)!
+  const walkers: Walker[] = []
+  const add = (w: Pick<Walker, 'girl' | 'spot' | 'tall' | 'toon' | 'light' | 'extra'>) =>
+    walkers.push({ ...w, out: 0, pos: new THREE.Vector3(), yaw: 0, walking: false, shown: false, lit: true, phase: Math.random() * 10 })
+  add({ girl: true, toon: lucia.toon, light: lucia.light, spot: LUCIA_AT.clone() })
+  const toonGirls = toons.filter((t) => t.girl && !t.lucia)
+  let g = 0
+  for (let i = 0; i < GIRLS; i++) {
+    add({ girl: true, extra: i })
+    if (i % 12 === 5 && g < toonGirls.length) add({ girl: true, toon: toonGirls[g].toon, light: toonGirls[g++].light })
+  }
+  for (const t of toonGirls.slice(g)) add({ girl: true, toon: t.toon, light: t.light })
+  const toonBoys = toons.filter((t) => !t.girl && !t.spot)
+  let b = 0
+  for (let i = 0; i < BOYS; i++) {
+    add({ girl: false, extra: GIRLS + i })
+    if (i % 3 === 1 && b < toonBoys.length) {
+      const t = toonBoys[b++]
+      add({ girl: false, toon: t.toon, tall: t.tall, light: t.light })
+    }
+  }
+  for (const t of toonBoys.slice(b)) add({ girl: false, toon: t.toon, tall: t.tall, light: t.light })
+  for (const t of toons.filter((t) => t.spot && !t.lucia)) add({ girl: false, toon: t.toon, light: t.light, spot: t.spot!.clone() })
+
+  // spots in the rows: the boys at the ends of the rows and at the back, the girls in the middle;
+  // the tall one in the back row; the choir's own girls in the front row
+  const slots: { p: THREE.Vector3; side: number }[] = []
+  ROWS.forEach((r, ri) => {
+    for (let k = 0; k < r.n; k++) {
+      const x = (k - (r.n - 1) / 2) * 0.82
+      slots.push({ p: new THREE.Vector3(x, r.y, r.z), side: Math.abs(x) / ((r.n * 0.82) / 2) + ri * 0.12 })
+    }
+  })
+  const free = walkers.filter((w) => !w.spot)
+  const taken = new Set<(typeof slots)[number]>()
+  const backRow = slots.filter((s) => s.p.z === ROWS[ROWS.length - 1].z).sort((a, b) => Math.abs(a.p.x) - Math.abs(b.p.x))
+  for (const w of free.filter((w) => !w.girl && w.tall)) {
+    const s = backRow.find((s) => !taken.has(s))!
+    taken.add(s)
+    w.spot = s.p.clone()
+  }
+  const bySide = [...slots].sort((a, b) => b.side - a.side)
+  for (const w of free.filter((w) => !w.girl && !w.tall)) {
+    const s = bySide.find((s) => !taken.has(s))!
+    taken.add(s)
+    w.spot = s.p.clone()
+  }
+  const middle = slots.filter((s) => !taken.has(s)).sort((a, b) => b.p.z - a.p.z || Math.abs(a.p.x) - Math.abs(b.p.x))
+  const girls = free.filter((w) => w.girl)
+  ;[...girls.filter((w) => w.toon), ...girls.filter((w) => !w.toon)].forEach((w, i) => (w.spot = (middle[i] ?? middle[middle.length - 1]).p.clone()))
+
+  // in the last verse of Sankta Lucia they put their candles out one by one – Lucia last of all
+  const lastEnd = starts[LAST] + PROGRAM[LAST].length
+  const blowFrom = lastEnd - 48
+  const blowTo = lastEnd - 10
+  // (in the same order for everyone: worked out from where they stand)
+  const shuffled = walkers.slice(1).sort((a, b) => ((a.spot!.x * 7.3 + a.spot!.z * 3.1) % 1) - ((b.spot!.x * 7.3 + b.spot!.z * 3.1) % 1))
+  shuffled.forEach((w, i) => (w.out = blowFrom + ((blowTo - blowFrom) * i) / shuffled.length))
+  walkers[0].out = lastEnd - 4
+
+  /** Fast enough that the last one is in place a few seconds before the first song ends. */
+  const speed = (length + (walkers.length - 1) * SPACING + 10) / (PROGRAM[0].length - 6)
+
+  /* ---------- the riser they stand on ---------- */
+  const riser = new THREE.Group()
+  ROWS.slice(1).forEach((r, i) => {
+    const w = r.n * 0.82 + 0.8
+    const step = new THREE.Mesh(new THREE.BoxGeometry(w, r.y, 1.25), std(0x3a2418, 0.85))
+    step.position.set(0, r.y / 2, r.z - (i === ROWS.length - 2 ? 0.3 : 0))
+    step.receiveShadow = true
+    riser.add(step)
+    const edge = new THREE.Mesh(new THREE.BoxGeometry(w + 0.02, 0.04, 0.06), std(0xd4a64a, 0.4, 0.6))
+    edge.position.set(0, r.y, r.z + 0.6)
+    riser.add(edge)
+  })
+  group.add(riser)
+
+  /* ---------- where everyone is, t seconds into the cycle ---------- */
+  const tmp = new THREE.Vector3()
+  const centre = new THREE.Vector3(0, 0, -62)
+  const middleOfLine = new THREE.Vector3()
+  function place(t: number) {
+    const outStart = SONGS_END + 2
+    walkers.forEach((w, i) => {
+      const s = t * speed - i * SPACING
+      w.lit = t < w.out
+      if (t >= SONGS_END + EXIT) {
+        w.shown = false
+      } else if (t >= outStart) {
+        // in the dark, in through the arch – front rows first
+        const lag = (w.spot!.z + 58.5) * -2.5
+        const dist = w.spot!.distanceTo(ARCH)
+        const k = THREE.MathUtils.clamp(((t - outStart - lag) * 0.9) / dist, 0, 1)
+        w.pos.lerpVectors(w.spot!, ARCH, k)
+        w.pos.y = w.spot!.y * (1 - k)
+        w.yaw = Math.atan2(ARCH.x - w.spot!.x, ARCH.z - w.spot!.z)
+        w.walking = k > 0 && k < 1
+        w.shown = k < 0.97
+      } else if (s < 0) {
+        w.shown = false
+      } else if (s < length) {
+        path.getPointAt(s / length, w.pos)
+        path.getTangentAt(s / length, tmp)
+        w.yaw = Math.atan2(tmp.x, tmp.z)
+        w.walking = true
+        w.shown = true
+      } else {
+        const d = s - length
+        const to = w.spot!
+        const run = Math.hypot(to.x - end.x, to.z - end.z)
+        if (d < run) {
+          w.pos.lerpVectors(end, to, d / run)
+          w.pos.y = to.y * (d / run)
+          w.yaw = Math.atan2(to.x - end.x, to.z - end.z)
+          w.walking = true
+        } else {
+          w.pos.copy(to)
+          w.yaw = 0
+          w.walking = false
+        }
+        w.shown = true
+      }
+      if (i === Math.floor(walkers.length / 2)) middleOfLine.copy(w.pos)
+    })
+    return t >= PROGRAM[0].length ? centre : middleOfLine
+  }
+
+  /* ---------- drawing them ---------- */
+  const m4 = new THREE.Matrix4()
+  const base = new THREE.Matrix4()
+  const q = new THREE.Quaternion()
+  const e = new THREE.Euler()
+  const size = new THREE.Vector3()
+  const hidden = new THREE.Matrix4().makeScale(0, 0, 0)
+  const flameAt = new THREE.Vector3()
+  const at4 = (x: number, y: number, z: number) => new THREE.Matrix4().makeTranslation(x, y, z).premultiply(base)
+  function update(t: number, time: number) {
+    const at = place(t)
+    let girlIx = 0
+    let boyIx = 0
+    for (const w of walkers) {
+      const bob = w.walking ? Math.abs(Math.sin(time * 5.5 + w.phase)) * 0.03 : Math.sin(time * 1.3 + w.phase) * 0.006
+      if (w.toon) {
+        const tg = w.toon.group
+        tg.visible = w.shown
+        tg.position.set(w.pos.x, w.pos.y + bob, w.pos.z)
+        w.toon.setYaw(w.yaw)
+        w.toon.walkPose(time * 5.5 + w.phase, w.walking ? 0.6 : 0)
+        w.light?.(w.lit)
+        continue
+      }
+      const i = w.extra!
+      const s = 0.95 + ((i * 7) % 5) * 0.06
+      const sway = w.walking ? Math.sin(time * 2.75 + w.phase) * 0.05 : Math.sin(time * 0.9 + w.phase) * 0.02
+      e.set(0, w.yaw, sway, 'YXZ')
+      q.setFromEuler(e)
+      base.compose(tmp.set(w.pos.x, w.pos.y + bob, w.pos.z), q, size.set(s, s, s))
+      if (!w.shown) {
+        for (const k of ['gown', 'shoulders', 'head', 'hair', 'candle', 'flame'] as const) parts[k].setMatrixAt(i, hidden)
+        parts.hands.setMatrixAt(i * 2, hidden)
+        parts.hands.setMatrixAt(i * 2 + 1, hidden)
+        glowPos.set([0, -50, 0], i * 3)
+      } else {
+        parts.gown.setMatrixAt(i, at4(0, 0.41, 0))
+        parts.shoulders.setMatrixAt(i, at4(0, 0.8, 0).multiply(m4.makeScale(1, 0.55, 0.85)))
+        parts.head.setMatrixAt(i, at4(0, 0.97, 0))
+        parts.hair.setMatrixAt(i, at4(0, 0.985, -0.012))
+        parts.hands.setMatrixAt(i * 2, at4(-0.035, 0.56, 0.15))
+        parts.hands.setMatrixAt(i * 2 + 1, at4(0.035, 0.56, 0.15))
+        parts.candle.setMatrixAt(i, at4(0, 0.62, 0.16))
+        if (w.lit) {
+          const flicker = 0.85 + Math.sin(time * 17 + w.phase * 3) * 0.15
+          parts.flame.setMatrixAt(i, at4(0, 0.715, 0.16).multiply(m4.makeScale(1, flicker, 1)))
+          flameAt.set(0, 0.725, 0.16).applyMatrix4(base)
+          glowPos.set([flameAt.x, flameAt.y, flameAt.z], i * 3)
+        } else {
+          parts.flame.setMatrixAt(i, hidden)
+          glowPos.set([0, -50, 0], i * 3)
+        }
+      }
+      if (w.girl) {
+        const j = girlIx++
+        parts.crown.setMatrixAt(j, w.shown ? at4(0, 1.04, 0).multiply(m4.makeRotationX(Math.PI / 2 - 0.15)) : hidden)
+        parts.sash.setMatrixAt(j, w.shown ? at4(0, 0.5, 0).multiply(m4.makeRotationX(Math.PI / 2)) : hidden)
+      } else {
+        const j = boyIx++
+        parts.strut.setMatrixAt(j, w.shown ? at4(0, 1.2, -0.01) : hidden)
+        for (let k = 0; k < 3; k++) parts.stars.setMatrixAt(j * 3 + k, w.shown ? at4(0, 1.08 + k * 0.08, 0.075 - k * 0.018).multiply(m4.makeScale(1, 1, 0.35)) : hidden)
+      }
+    }
+    for (const m of Object.values(parts)) m.instanceMatrix.needsUpdate = true
+    glowGeo.attributes.position.needsUpdate = true
+    return at
+  }
+
+  /** Is this toon still singing (in the procession, candle alight)? */
+  const singing = (toon: Toon) => {
+    const w = walkers.find((w) => w.toon === toon)
+    return !!w && w.shown && w.lit
+  }
+
+  function show(on: boolean) {
+    group.visible = on
+    if (!on)
+      for (const w of walkers)
+        if (w.toon) {
+          w.toon.group.visible = true
+          w.light?.(true)
+        }
+  }
+  show(false)
+
+  return { group, update, show, singing, lucia: walkers[0] }
+}

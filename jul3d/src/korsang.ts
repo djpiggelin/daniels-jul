@@ -11,6 +11,7 @@ import { Playlist } from './sfx'
 import { rod, std } from './sleigh'
 import { glowTexture } from './tex'
 import { Kalle, Musse, Toon } from './toons'
+import { CYCLE, buildLuciaConcert, darknessAt, programAt } from './luciatag'
 import type { Circle } from './world'
 
 const black = std(0x16161a, 0.55)
@@ -39,8 +40,10 @@ function eyes(head: THREE.Group, y: number, z: number, gap: number, r: number, l
   }
 }
 /** A dark open mouth that the song moves (scaled in y). */
+/** A dark open mouth that the song moves (scaled in y), with a red tongue showing when it opens. */
 function mouth(head: THREE.Group, x: number, y: number, z: number, r: number) {
-  const m = keepApart(ball(r, mouthMat, x, y, z, 1.3, 0.3, 0.5))
+  const m = keepApart(ball(r, mouthMat, x, y, z, 1.35, 0.3, 0.6))
+  m.add(ball(r * 0.55, std(0xd8505a, 0.6), 0, -r * 0.35, r * 0.4, 0.85, 0.6, 0.6))
   head.add(m)
   return m
 }
@@ -329,6 +332,7 @@ class Chipmunk extends Toon {
 //   otherwise           away (the nook and its little tree wait for them)
 //
 // To try it out: ?kor=advent|lucia|jul|julafton|borta, or a time: ?datum=2026-12-13&tid=07:00
+// (and with ?kor=lucia, &start=700 to begin that many seconds into the Lucia concert)
 // (it carries on ticking from there).
 
 export type ChoirMode = 'borta' | 'advent' | 'lucia' | 'jul' | 'julafton'
@@ -352,13 +356,13 @@ const pretend = (() => {
   return Date.UTC(Number(d[1]), Number(d[2]) - 1, Number(d[3]), Number(t[1]), Number(t[2]))
 })()
 const loadedAt = Date.now()
-const stockholm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', hourCycle: 'h23' })
+const stockholm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
 
 /** Stockholm's wall clock right now, as ms whose getUTC* parts are Stockholm's date and time. */
 function wallClock() {
   if (pretend !== null) return pretend + (Date.now() - loadedAt)
   const p = Object.fromEntries(stockholm.formatToParts(new Date()).map((x) => [x.type, x.value]))
-  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute))
+  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second))
 }
 
 /** The first Sunday of Advent: four Sundays before Christmas Day. */
@@ -408,6 +412,9 @@ type Singer = {
   /** Costume parts shown in one mode or another. */
   wear: { book: THREE.Object3D[]; lucia: THREE.Object3D[]; julafton: THREE.Object3D[] }
   spacing: number
+  look: Look
+  /** Light or put out the candle (and Lucia's crown). */
+  light: (on: boolean) => void
 }
 
 type Look = {
@@ -448,7 +455,7 @@ function candle(arm: THREE.Group, l: Look, glowTex: THREE.Texture) {
   const g = new THREE.Group()
   g.add(new THREE.Mesh(new THREE.CylinderGeometry(0.018, 0.02, 0.16, 8), std(0xfbf8f2, 0.5)).translateY(0.08))
   g.add(new THREE.Mesh(new THREE.ConeGeometry(0.014, 0.05, 8), flameMat).translateY(0.185))
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false }))
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }))
   glow.position.y = 0.19
   glow.scale.setScalar(0.32)
   g.add(glow)
@@ -472,7 +479,7 @@ function crown(head: THREE.Group, l: Look, glowTex: THREE.Texture) {
     g.add(new THREE.Mesh(new THREE.ConeGeometry(0.01, 0.035, 6), flameMat).translateX(Math.sin(a) * l.hatR).translateZ(Math.cos(a) * l.hatR).translateY(0.13))
     g.add(ball(0.012, std(0xc8102e, 0.4), Math.sin(a + 0.45) * l.hatR * 1.05, 0.01, Math.cos(a + 0.45) * l.hatR * 1.05))
   }
-  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false }))
+  const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTex, blending: THREE.AdditiveBlending, depthWrite: false, toneMapped: false }))
   glow.position.y = 0.12
   glow.scale.setScalar(0.7)
   g.add(glow)
@@ -657,20 +664,25 @@ export function buildChoir(scene: THREE.Scene) {
     wear.julafton.push(moving(tomteluva(toon.head, l)))
     const m = mouth(toon.head, ...l.mouth)
     mergeRigid(toon.group)
+    const flames: THREE.Object3D[] = []
+    for (const o of wear.lucia) o.traverse((x) => ((x as THREE.Mesh).material === flameMat || (x as THREE.Sprite).isSprite) && flames.push(x))
+    const light = (on: boolean) => {
+      for (const f of flames) f.visible = on
+    }
     const p = nook(x, z)
     toon.group.position.set(p.x, y, p.z)
     toon.setYaw(group.rotation.y + yaw)
     people.add(toon.group)
-    singers.push({ toon, mouth: m, open: 0, kind: l.kind ?? 'sing', phase: Math.random() * Math.PI * 2, home: { x: p.x, y, z: p.z, yaw: group.rotation.y + yaw }, wear, spacing })
+    singers.push({ toon, mouth: m, open: 0, kind: l.kind ?? 'sing', phase: Math.random() * Math.PI * 2, home: { x: p.x, y, z: p.z, yaw: group.rotation.y + yaw }, wear, spacing, look: l, light })
   }
-  const MUSSE: Look = { make: () => new Musse(), shoulder: 0.76, robe: [0.15, 0.24], hatY: 0.17, hatR: 0.13, hand: 0.33, mouth: [0, -0.115, 0.205, 0.05], book: [0.5, 0.2] }
-  const MIMMI: Look = { make: () => new Mimmi(), shoulder: 0.76, robe: [0.14, 0.26], hatY: 0.17, hatR: 0.15, hand: 0.31, girl: true, lucia: true, mouth: [0, -0.11, 0.19, 0.045], book: [0.5, 0.2] }
-  const KALLE: Look = { make: () => new Kalle(), shoulder: 0.6, robe: [0.17, 0.24], hatY: 0.15, hatR: 0.13, hand: 0.24, mouth: [0, -0.075, 0.2, 0.06], book: [0.4, 0.2] }
-  const KAJSA: Look = { make: () => new Kajsa(), shoulder: 0.6, robe: [0.16, 0.24], hatY: 0.14, hatR: 0.13, hand: 0.24, girl: true, mouth: [0, -0.075, 0.19, 0.055], book: [0.4, 0.2] }
-  const LANGBEN: Look = { make: () => new Langben(), shoulder: 1.1, robe: [0.15, 0.26], hatY: 0.29, hatR: 0.12, hand: 0.41, mouth: [0, -0.11, 0.25, 0.05], book: [0.78, 0.22] }
-  const knatte = (c: number): Look => ({ make: () => new Knatte(c), shoulder: 0.5, robe: [0.14, 0.2], hatY: 0.11, hatR: 0.12, hand: 0.2, mouth: [0, -0.07, 0.17, 0.05], book: [0.35, 0.17] })
-  const chip = (red: boolean): Look => ({ make: () => new Chipmunk(red), kind: 'squeak', shoulder: 0.3, robe: [0.09, 0.13], hatY: 0.08, hatR: 0.08, hand: 0.1, mouth: [0, -0.06, 0.1, 0.03], book: null })
-  const PLUTO: Look = { make: () => new Pluto(), kind: 'howl', shoulder: 0, robe: [0, 0], hatY: 0.1, hatR: 0.09, hand: 0, mouth: [0, -0.07, 0.25, 0.04], book: null }
+  const MUSSE: Look = { make: () => new Musse(), shoulder: 0.76, robe: [0.15, 0.24], hatY: 0.17, hatR: 0.13, hand: 0.33, mouth: [0, -0.15, 0.2, 0.065], book: [0.5, 0.2] }
+  const MIMMI: Look = { make: () => new Mimmi(), shoulder: 0.76, robe: [0.14, 0.26], hatY: 0.17, hatR: 0.15, hand: 0.31, girl: true, lucia: true, mouth: [0, -0.145, 0.19, 0.06], book: [0.5, 0.2] }
+  const KALLE: Look = { make: () => new Kalle(), shoulder: 0.6, robe: [0.17, 0.24], hatY: 0.15, hatR: 0.13, hand: 0.24, mouth: [0, -0.085, 0.24, 0.075], book: [0.4, 0.2] }
+  const KAJSA: Look = { make: () => new Kajsa(), shoulder: 0.6, robe: [0.16, 0.24], hatY: 0.14, hatR: 0.13, hand: 0.24, girl: true, mouth: [0, -0.085, 0.23, 0.07], book: [0.4, 0.2] }
+  const LANGBEN: Look = { make: () => new Langben(), shoulder: 1.1, robe: [0.15, 0.26], hatY: 0.29, hatR: 0.12, hand: 0.41, mouth: [0, -0.15, 0.26, 0.065], book: [0.78, 0.22] }
+  const knatte = (c: number): Look => ({ make: () => new Knatte(c), shoulder: 0.5, robe: [0.14, 0.2], hatY: 0.11, hatR: 0.12, hand: 0.2, mouth: [0, -0.08, 0.2, 0.065], book: [0.35, 0.17] })
+  const chip = (red: boolean): Look => ({ make: () => new Chipmunk(red), kind: 'squeak', shoulder: 0.3, robe: [0.09, 0.13], hatY: 0.08, hatR: 0.08, hand: 0.1, mouth: [0, -0.075, 0.11, 0.04], book: null })
+  const PLUTO: Look = { make: () => new Pluto(), kind: 'howl', shoulder: 0, robe: [0, 0], hatY: 0.1, hatR: 0.09, hand: 0, mouth: [0, -0.09, 0.24, 0.055], book: null }
   // in the order they walk in the Lucia procession: Lucia first, then her tärna, then the star boys
   join(MIMMI, 0.75, top, -0.75, -0.1)
   join(KAJSA, 1.5, top, -0.7, -0.25)
@@ -694,14 +706,38 @@ export function buildChoir(scene: THREE.Scene) {
   }
   colliders.push(...front)
 
+  /* ---------- the Lucia concert (luciatag.ts) ---------- */
+  const squeaks = singers.filter((s) => s.kind === 'squeak')
+  const concert = buildLuciaConcert(
+    scene,
+    singers.map((s) => ({
+      toon: s.toon,
+      girl: !!s.look.girl,
+      lucia: s.look.lucia,
+      tall: s.look.shoulder > 1,
+      // Pluto at Lucia's side, Piff and Puff at the ends of the front row
+      spot: s.kind === 'howl' ? new THREE.Vector3(1.0, 0, -58.3) : s.kind === 'squeak' ? new THREE.Vector3(s === squeaks[0] ? -3.9 : 3.9, 0, -59.0) : undefined,
+      light: s.light,
+    })),
+    glowTex,
+  )
+  // (?kor=lucia&start=700 starts that many seconds into it – handy for trying the end)
+  let luciaClock = Number(query.get('start')) || 0
+  /** Seconds into the Lucia concert's cycle: from 06:30 on the wall clock, or since ?kor=lucia was opened. */
+  function luciaTime(dt: number) {
+    if (forced) return (luciaClock += dt) % CYCLE
+    const d = new Date(wallClock())
+    const sec = d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds() - (6 * 3600 + 30 * 60)
+    return ((sec % CYCLE) + CYCLE) % CYCLE
+  }
+
   /* ---------- the mode: who's where, wearing what ---------- */
   let mode: ChoirMode | null = null
-  let walked = 0
-  const ROUTE = 9.6
   const setMode = (next: ChoirMode) => {
     if (next === mode) return
     mode = next
     people.visible = next !== 'borta'
+    concert.show(next === 'lucia')
     // (a collider with a negative radius never pushes)
     for (const c of front) c.r = next === 'borta' || next === 'lucia' ? -1 : 0.25
     for (const s of singers) {
@@ -726,22 +762,42 @@ export function buildChoir(scene: THREE.Scene) {
   }
   setMode(choirMode())
 
-  /** The procession: round the big tree, Lucia first; returns where the middle of it is (for the sound). */
-  const where = new THREE.Vector3()
-  function walk(dt: number, t: number) {
-    walked += dt * 0.55
-    let s = walked
-    singers.forEach((p, i) => {
-      if (i) s -= (singers[i - 1].spacing + p.spacing) / 2
-      const a = s / ROUTE
-      const x = Math.sin(a) * ROUTE
-      const z = -Math.cos(a) * ROUTE
-      p.toon.group.position.set(x, 0, z)
-      p.toon.setYaw(Math.atan2(Math.cos(a), Math.sin(a)))
-      p.toon.walkPose(t * 5.5 + i, 0.6)
-      if (i === Math.floor(singers.length / 2)) where.set(x, 0, z)
+  /* ---------- Lucia morning: everything else goes dark ---------- */
+  // The world is dimmed through the renderer's exposure (main.ts reads `darkness`). Things that
+  // ignore exposure – the bulbs on the trees, string lights, lamp flames – are made to follow it for
+  // as long as the procession walks; only the candles and Lucia's crown stay as bright as ever, with a
+  // warm light going along with them.
+  let darkness = 0
+  let dimmed: THREE.Material[] = []
+  const candleLight = new THREE.PointLight(0xffb060, 0, 14, 1.4)
+  /** What the renderer's exposure is multiplied by: about 2 % when it's fully dark (ACES needs it that low). */
+  const exposure = () => 1 - 0.982 * darkness
+  scene.add(candleLight)
+  const theirs = new Set<THREE.Material>()
+  for (const root of [people, concert.group]) root.traverse((o) => {
+    const m = (o as THREE.Mesh).material
+    for (const x of Array.isArray(m) ? m : m ? [m] : []) theirs.add(x)
+  })
+  function dim(on: boolean) {
+    if (!on) {
+      for (const m of dimmed) {
+        m.toneMapped = false
+        m.needsUpdate = true
+      }
+      dimmed = []
+      return
+    }
+    const seen = new Set<THREE.Material>()
+    scene.traverse((o) => {
+      const m = (o as THREE.Mesh).material
+      for (const x of Array.isArray(m) ? m : m ? [m] : []) {
+        if (seen.has(x) || theirs.has(x) || x.toneMapped !== false) continue
+        seen.add(x)
+        x.toneMapped = true
+        x.needsUpdate = true
+        dimmed.push(x)
+      }
     })
-    return where
   }
 
   let twinkle = 0
@@ -752,6 +808,8 @@ export function buildChoir(scene: THREE.Scene) {
   const FAR = 24
   const centre = nook(0, 0)
   let loud = 0
+  let floor = 0.2
+  let peak = 0.3
   let t = 0
   function update(dt: number, player: THREE.Vector3, enabled: boolean) {
     t += dt
@@ -766,27 +824,52 @@ export function buildChoir(scene: THREE.Scene) {
       modeCheck = 10
       setMode(choirMode())
     }
+    // Lucia: the concert runs on its clock – where everyone is, what's playing, how dark it is
+    let at = centre
+    let dark = 0
+    let cue: { song: string; offset: number } | null = null
+    if (mode === 'lucia') {
+      const lt = luciaTime(dt)
+      at = concert.update(lt, t)
+      dark = darknessAt(lt)
+      cue = programAt(lt)
+    }
+    // the dark comes in slowly as the procession sets off, and lifts as slowly afterwards
+    darkness += (dark - darkness) * Math.min(1, dt * 0.4)
+    if (mode === 'lucia' && !dimmed.length) dim(true)
+    if (mode !== 'lucia' && dimmed.length && darkness < 0.02) dim(false)
+    const lucia = concert.lucia
+    if (darkness > 0.01) candleLight.position.set(lucia.pos.x, lucia.pos.y + 1.7, lucia.pos.z + 0.6)
+    // (the world is dimmed through exposure, which dims this light too – so it is turned up to match)
+    candleLight.intensity = (6 * darkness * (lucia.lit && lucia.shown ? 1 : 0.1)) / exposure()
     if (mode === 'borta') return
-    const at = mode === 'lucia' ? walk(dt, t) : centre
     const d = Math.hypot(player.x - at.x, player.z - at.z)
     const vol = enabled ? 0.9 * THREE.MathUtils.clamp((FAR - d) / (FAR - NEAR), 0, 1) : 0
     if (vol > 0.003) {
-      song.start(SONGS[mode!])
+      if (mode === 'lucia') song.cue(cue ? `${S}${cue.song}.mp3` : null, cue?.offset ?? 0)
+      else song.start(SONGS[mode!])
       song.level(vol)
     } else if (song.playing) {
       song.level(0.0001)
       if (d > FAR + 4 || !enabled) song.stop()
     }
-    // the mouths follow how loud the singing is
-    loud += (song.loudness() - loud) * Math.min(1, dt * 20)
-    const singing = loud > 0.06
+    // the mouths follow the singing: how loud it is right now, between this song's quiet (the old
+    // records crackle) and its recent loudest – so every syllable opens and closes them
+    const raw = song.loudness()
+    loud += (raw - loud) * Math.min(1, dt * 25)
+    floor = loud < floor ? floor + (loud - floor) * Math.min(1, dt * 3) : floor + dt * 0.004
+    peak = Math.max(loud, peak - dt * 0.05, floor + 0.05)
+    const level = THREE.MathUtils.clamp((loud - floor) / (peak - floor), 0, 1)
+    const singing = loud > 0.04 && level > 0.12
     for (const s of singers) {
-      let want = singing ? 0.2 + loud * (0.7 + 0.3 * Math.sin(t * 7 + s.phase)) : 0.08
-      if (s.kind === 'squeak') want = singing ? 0.3 + loud * (0.6 + 0.4 * Math.sin(t * 13 + s.phase)) : 0.08
+      // (at Lucia, the ones who have put out their candle have stopped singing)
+      const sings = singing && (mode !== 'lucia' || concert.singing(s.toon))
+      let want = sings ? 0.05 + level ** 1.3 * (0.85 + 0.15 * Math.sin(t * 9 + s.phase)) : 0
+      if (s.kind === 'squeak') want = sings ? 0.1 + level * (0.6 + 0.4 * Math.sin(t * 15 + s.phase)) : 0
       // Pluto only joins in now and then, with a long howl
-      if (s.kind === 'howl') want = singing && Math.sin(t * 0.9) > 0.6 ? 0.9 : 0.1
-      s.open += (want - s.open) * Math.min(1, dt * 18)
-      s.mouth.scale.y = 0.15 + s.open * 0.95
+      if (s.kind === 'howl') want = sings && Math.sin(t * 0.9) > 0.6 ? 0.9 : 0.1
+      s.open += (want - s.open) * Math.min(1, dt * 22)
+      s.mouth.scale.y = 0.12 + s.open * 1.3
       const head = s.toon.head
       if (singing && mode !== 'lucia') {
         head.rotation.z = Math.sin(t * 2.6 + s.phase * 0.2) * 0.1
@@ -798,5 +881,21 @@ export function buildChoir(scene: THREE.Scene) {
     }
   }
 
-  return { group, people, colliders, update, get mode() { return mode } }
+  return {
+    group,
+    people,
+    colliders,
+    update,
+    get mode() {
+      return mode
+    },
+    /** 0 … 1: how far the world is dimmed for the Lucia procession. */
+    get darkness() {
+      return darkness
+    },
+    /** Multiplies the renderer's exposure (1 normally, about 0.03 in the dark of the Lucia concert). */
+    get exposure() {
+      return exposure()
+    },
+  }
 }

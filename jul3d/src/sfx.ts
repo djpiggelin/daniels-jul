@@ -709,14 +709,9 @@ export class Playlist {
     return this.buffers.get(url)!
   }
 
-  /** Start on these tracks (quietly; level() brings it up). Starting on a different list switches over. */
-  start(tracks: string[]) {
-    const same = this.playing && tracks.join('|') === this.tracks.join('|')
-    if (same) return
-    if (this.playing) this.stop()
-    this.tracks = tracks
-    this.index = Math.floor(Math.random() * tracks.length)
-    this.playing = true
+  /** The gain and analyser everything plays through; false if there's no audio. */
+  private open() {
+    if (this.gain) return true
     try {
       const a = audio()
       void a.resume()
@@ -727,11 +722,69 @@ export class Playlist {
       this.analyser.fftSize = 512
       this.data = new Uint8Array(this.analyser.fftSize)
       this.analyser.connect(this.gain).connect(a.destination)
+      this.playing = true
+      return true
     } catch {
-      this.playing = false
+      return false
+    }
+  }
+
+  /** Start on these tracks (quietly; level() brings it up). Starting on a different list switches over. */
+  start(tracks: string[]) {
+    const same = this.playing && !this.cued && tracks.join('|') === this.tracks.join('|')
+    if (same) return
+    if (this.playing) this.stop()
+    this.tracks = tracks
+    this.index = Math.floor(Math.random() * tracks.length)
+    if (this.open()) void this.playNext(0)
+  }
+
+  private cued: { url: string; at: number; offset: number } | null = null
+  private cueing: string | null = null
+  /**
+   * Play this track from `offset` seconds in – or nothing, for null – following someone else's clock
+   * (the Lucia concert): called every frame, it only starts over when the track or the place in it
+   * has drifted.
+   */
+  cue(url: string | null, offset: number) {
+    if (!this.open()) return
+    const a = audio()
+    if (!url) {
+      if (this.cued) this.stopSource()
       return
     }
-    void this.playNext(0)
+    if (this.cued?.url === url && Math.abs(a.currentTime - this.cued.at + this.cued.offset - offset) < 1.5) return
+    if (this.cueing === url) return
+    this.cueing = url
+    const asked = a.currentTime
+    void this.load(url).then((buf) => {
+      this.cueing = null
+      if (!buf || !this.gain) return
+      this.stopSource()
+      const from = Math.min(buf.duration - 0.05, offset + (a.currentTime - asked))
+      const src = a.createBufferSource()
+      src.buffer = buf
+      src.connect(this.analyser!)
+      src.onended = () => {
+        if (this.src === src) this.src = null
+      }
+      src.start(0, Math.max(0, from))
+      this.src = src
+      this.cued = { url, at: a.currentTime, offset: from }
+    })
+  }
+
+  private stopSource() {
+    const src = this.src
+    this.src = null
+    this.cued = null
+    if (!src) return
+    try {
+      src.stop()
+    } catch {
+      /* never started */
+    }
+    src.disconnect()
   }
 
   private async playNext(tries: number) {
@@ -773,6 +826,8 @@ export class Playlist {
   stop() {
     if (!this.playing) return
     this.playing = false
+    this.cued = null
+    this.cueing = null
     clearTimeout(this.gapTimer)
     const src = this.src
     const g = this.gain
