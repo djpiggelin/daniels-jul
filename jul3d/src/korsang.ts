@@ -11,7 +11,7 @@ import { Playlist } from './sfx'
 import { rod, std } from './sleigh'
 import { glowTexture } from './tex'
 import { Kalle, Musse, Toon } from './toons'
-import { CYCLE, buildLuciaConcert, darknessAt, luciaTray, programAt } from './luciatag'
+import { CYCLE, PROGRAM, buildLuciaConcert, darknessAt, luciaTray, programAt } from './luciatag'
 import type { Circle } from './world'
 
 const black = std(0x16161a, 0.55)
@@ -362,7 +362,7 @@ const stockholm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm
 function wallClock() {
   if (pretend !== null) return pretend + (Date.now() - loadedAt)
   const p = Object.fromEntries(stockholm.formatToParts(new Date()).map((x) => [x.type, x.value]))
-  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second))
+  return Date.UTC(Number(p.year), Number(p.month) - 1, Number(p.day), Number(p.hour), Number(p.minute), Number(p.second)) + (Date.now() % 1000)
 }
 
 /** The first Sunday of Advent: four Sundays before Christmas Day. */
@@ -552,7 +552,7 @@ const moving = <T extends THREE.Object3D>(o: T): T => {
 export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   const group = new THREE.Group()
   const colliders: Circle[] = []
-  const song = new Playlist(2.5)
+  const song = new Playlist(1)
   // a nook of their own on the east side of the square, between Tomtens stuga and Arkitektkontoret,
   // with a little tree behind them – facing out over the square towards the big tree
   const A = THREE.MathUtils.degToRad(104)
@@ -723,10 +723,11 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     glowTex,
   )
   // (?kor=lucia&start=700 starts that many seconds into it – handy for trying the end)
-  let luciaClock = Number(query.get('start')) || 0
+  // (on the real clock, not added up frame by frame: a slow frame rate mustn't leave it behind the music)
+  const luciaFrom = performance.now() / 1000 - (Number(query.get('start')) || 0)
   /** Seconds into the Lucia concert's cycle: from 06:30 on the wall clock, or since ?kor=lucia was opened. */
   function luciaTime(dt: number) {
-    if (forced) return (luciaClock += dt) % CYCLE
+    if (forced) return (performance.now() / 1000 - luciaFrom) % CYCLE
     const d = new Date(wallClock())
     const sec = d.getUTCHours() * 3600 + d.getUTCMinutes() * 60 + d.getUTCSeconds() - (6 * 3600 + 30 * 60)
     return ((sec % CYCLE) + CYCLE) % CYCLE
@@ -774,6 +775,7 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
       }
     }
     if (song.playing) song.stop()
+    if (next === 'lucia') song.preload([`${S}${PROGRAM[0].song}.mp3`])
   }
   setMode(choirMode())
 
@@ -859,12 +861,17 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     // (the world is dimmed through exposure, which dims this light too – so it is turned up to match)
     candleLight.intensity = (6 * darkness * (lucia.lit && lucia.shown ? 1 : 0.45)) / exposure()
     if (mode === 'borta') return
-    const d = Math.hypot(player.x - at.x, player.z - at.z)
+    const d = mode === 'lucia' ? concert.distanceTo(player) : Math.hypot(player.x - at.x, player.z - at.z)
     // (at Lucia it fades too as the candles go out, one column after another)
     const fade = mode === 'lucia' ? 0.12 + 0.88 * concert.litShare : 1
     const vol = enabled ? 0.9 * fade * THREE.MathUtils.clamp((FAR - d) / (FAR - NEAR), 0, 1) : 0
     if (vol > 0.003) {
-      if (mode === 'lucia') song.cue(cue ? `${S}${cue.song}.mp3` : null, cue?.offset ?? 0)
+      if (mode === 'lucia') {
+        song.cue(cue ? `${S}${cue.song}.mp3` : null, cue?.offset ?? 0)
+        // the next song of the concert, ready before this one ends
+        const i = cue ? PROGRAM.findIndex((p) => p.song === cue.song) : -1
+        if (cue && cue.offset > 15) song.preload([`${S}${PROGRAM[(i + 1) % PROGRAM.length].song}.mp3`])
+      }
       else song.start(SONGS[mode!])
       song.level(vol)
     } else if (song.playing) {

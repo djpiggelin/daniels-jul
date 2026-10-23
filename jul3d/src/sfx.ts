@@ -697,7 +697,13 @@ export class Playlist {
     private gap = 2.5,
   ) {}
 
+  private current = ''
   private load(url: string) {
+    // decoded songs are big (tens of MB each): keep only the one playing and the next couple
+    if (!this.buffers.has(url) && this.buffers.size >= 3) {
+      const old = [...this.buffers.keys()].find((k) => k !== this.current)
+      if (old) this.buffers.delete(old)
+    }
     if (!this.buffers.has(url))
       this.buffers.set(
         url,
@@ -729,6 +735,11 @@ export class Playlist {
     }
   }
 
+  /** Fetch and decode these ahead of time (a couple at most), so there's no wait when their turn comes. */
+  preload(tracks: string[]) {
+    for (const t of tracks) void this.load(t)
+  }
+
   /** Start on these tracks (quietly; level() brings it up). Starting on a different list switches over. */
   start(tracks: string[]) {
     const same = this.playing && !this.cued && tracks.join('|') === this.tracks.join('|')
@@ -753,7 +764,8 @@ export class Playlist {
       if (this.cued) this.stopSource()
       return
     }
-    if (this.cued?.url === url && Math.abs(a.currentTime - this.cued.at + this.cued.offset - offset) < 1.5) return
+    // (a little drift is fine – starting over mid-note is what sounds wrong)
+    if (this.cued?.url === url && Math.abs(a.currentTime - this.cued.at + this.cued.offset - offset) < 3) return
     if (this.cueing === url) return
     this.cueing = url
     const asked = a.currentTime
@@ -770,6 +782,7 @@ export class Playlist {
       }
       src.start(0, Math.max(0, from))
       this.src = src
+      this.current = url
       this.cued = { url, at: a.currentTime, offset: from }
     })
   }
@@ -805,7 +818,9 @@ export class Playlist {
       this.gapTimer = window.setTimeout(() => void this.playNext(0), this.gap * 1000)
     }
     this.src = src
+    this.current = url
     src.start()
+    void this.load(this.tracks[this.index % this.tracks.length])
   }
 
   /** Fade towards `vol` (a slow glide, as you walk up or away). */

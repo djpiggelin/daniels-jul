@@ -25,7 +25,7 @@ export const PROGRAM = [
   { song: 'sankta-lucia', length: 202.5 },
 ]
 /** A breath between songs, the walk out in the dark, and the wait before the next procession (s). */
-const GAP = 3
+const GAP = 1.5
 const EXIT = 40
 const PAUSE = 4 * 60
 const starts: number[] = []
@@ -499,6 +499,12 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     show,
     singing,
     eating,
+    /** How far `p` is from the nearest of them (the music is as loud as the nearest singer). */
+    distanceTo(p: THREE.Vector3) {
+      let best = Infinity
+      for (const w of walkers) if (w.shown) best = Math.min(best, Math.hypot(p.x - w.pos.x, p.z - w.pos.z))
+      return best
+    },
     lucia: walkers[0],
     /** The share of candles still alight (1 until the last song): the music fades with them. */
     get litShare() {
