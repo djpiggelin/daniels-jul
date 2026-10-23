@@ -775,7 +775,9 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
       }
     }
     if (song.playing) song.stop()
+    // the first song ready before anyone walks up (decoding takes a few seconds)
     if (next === 'lucia') song.preload([`${S}${PROGRAM[0].song}.mp3`])
+    else if (next !== 'borta') song.prepare(SONGS[next])
   }
   setMode(choirMode())
 
@@ -825,6 +827,8 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   const FAR = 24
   const centre = nook(0, 0)
   let loud = 0
+  /** How loud the singing was last frame, 0 … 1 (for the Lucia villagers' mouths). */
+  let voice = 0
   let floor = 0.2
   let peak = 0.3
   let t = 0
@@ -847,7 +851,7 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     let cue: { song: string; offset: number } | null = null
     if (mode === 'lucia') {
       const lt = luciaTime(dt)
-      at = concert.update(lt, t)
+      at = concert.update(lt, t, voice)
       dark = darknessAt(lt)
       cue = programAt(lt)
     }
@@ -861,6 +865,12 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     // (the world is dimmed through exposure, which dims this light too – so it is turned up to match)
     candleLight.intensity = (6 * darkness * (lucia.lit && lucia.shown ? 1 : 0.45)) / exposure()
     if (mode === 'borta') return
+    // at Lucia: whatever is playing now ready to hear wherever you are, and the next song too before it starts
+    if (mode === 'lucia') {
+      const i = cue ? PROGRAM.findIndex((p) => p.song === cue!.song) : -1
+      if (cue) song.preload([`${S}${cue.song}.mp3`])
+      if (!cue || cue.offset > 15) song.preload([`${S}${PROGRAM[(i + 1) % PROGRAM.length].song}.mp3`])
+    }
     const d = mode === 'lucia' ? concert.distanceTo(player) : Math.hypot(player.x - at.x, player.z - at.z)
     // (at Lucia it fades too as the candles go out, one column after another)
     const fade = mode === 'lucia' ? 0.12 + 0.88 * concert.litShare : 1
@@ -868,9 +878,6 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     if (vol > 0.003) {
       if (mode === 'lucia') {
         song.cue(cue ? `${S}${cue.song}.mp3` : null, cue?.offset ?? 0)
-        // the next song of the concert, ready before this one ends
-        const i = cue ? PROGRAM.findIndex((p) => p.song === cue.song) : -1
-        if (cue && cue.offset > 15) song.preload([`${S}${PROGRAM[(i + 1) % PROGRAM.length].song}.mp3`])
       }
       else song.start(SONGS[mode!])
       song.level(vol)
@@ -886,6 +893,7 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
     peak = Math.max(loud, peak - dt * 0.05, floor + 0.05)
     const level = THREE.MathUtils.clamp((loud - floor) / (peak - floor), 0, 1)
     const singing = loud > 0.04 && level > 0.12
+    voice = singing ? level : 0
     for (const s of singers) {
       // (at Lucia, the ones who have put out their candle have stopped singing)
       const sings = singing && (mode !== 'lucia' || concert.singing(s.toon))

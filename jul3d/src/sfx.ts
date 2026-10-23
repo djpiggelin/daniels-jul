@@ -745,9 +745,20 @@ export class Playlist {
     const same = this.playing && !this.cued && tracks.join('|') === this.tracks.join('|')
     if (same) return
     if (this.playing) this.stop()
+    this.choose(tracks)
+    if (this.open()) void this.playNext(0)
+  }
+
+  /** Pick where these tracks will start and get that one ready – long before anyone is near enough to hear. */
+  prepare(tracks: string[]) {
+    this.choose(tracks)
+    void this.load(tracks[this.index % tracks.length])
+  }
+
+  private choose(tracks: string[]) {
+    if (tracks.join('|') === this.tracks.join('|')) return
     this.tracks = tracks
     this.index = Math.floor(Math.random() * tracks.length)
-    if (this.open()) void this.playNext(0)
   }
 
   private cued: { url: string; at: number; offset: number } | null = null

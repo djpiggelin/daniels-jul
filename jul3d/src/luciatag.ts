@@ -28,6 +28,8 @@ export const PROGRAM = [
 const GAP = 1.5
 const EXIT = 40
 const PAUSE = 4 * 60
+/** After the fika they walk back out (lights still on) and line up for the next procession (s). */
+const WALK_BACK = 170
 const starts: number[] = []
 let clock = 0
 for (const p of PROGRAM) {
@@ -37,7 +39,8 @@ for (const p of PROGRAM) {
 const SONGS_END = clock - GAP
 const LAST = PROGRAM.length - 1
 /** The whole go round (s). */
-export const CYCLE = SONGS_END + EXIT + PAUSE
+const FIKA_END = SONGS_END + EXIT + PAUSE
+export const CYCLE = FIKA_END + WALK_BACK
 
 /** What is playing `t` seconds into the cycle, and how far into it. */
 export function programAt(t: number) {
@@ -54,18 +57,23 @@ export function darknessAt(t: number) {
 
 const SPACING = 0.9
 
-/** From the south of the square, round the west side of the big tree, up the path to the yard. */
-function route() {
-  const pts: THREE.Vector3[] = [new THREE.Vector3(0, 0, 24), new THREE.Vector3(0, 0, 9.6)]
-  for (let i = 1; i <= 24; i++) {
-    const a = Math.PI + (i / 24) * Math.PI
-    pts.push(new THREE.Vector3(Math.sin(a) * 9.6, 0, -Math.cos(a) * 9.6))
-  }
-  pts.push(new THREE.Vector3(0, 0, -50))
+/** The way in: from the south of the square, round the west side of the big tree, up the path to the yard. */
+const MAIN: THREE.Vector3[] = [new THREE.Vector3(0, 0, 24), new THREE.Vector3(0, 0, 9.6)]
+for (let i = 1; i <= 24; i++) {
+  const a = Math.PI + (i / 24) * Math.PI
+  MAIN.push(new THREE.Vector3(Math.sin(a) * 9.6, 0, -Math.cos(a) * 9.6))
+}
+MAIN.push(new THREE.Vector3(0, 0, -50))
+/** Where they wait their turn before it: along the east of the square, behind the shops, to the start. */
+const QUEUE: THREE.Vector3[] = []
+for (let a = 60; a <= 165; a += 7.5) QUEUE.push(new THREE.Vector3(Math.sin(THREE.MathUtils.degToRad(a)) * 30.5, 0, -Math.cos(THREE.MathUtils.degToRad(a)) * 30.5))
+QUEUE.push(MAIN[0].clone())
+function pathOf(pts: THREE.Vector3[]) {
   const path = new THREE.CurvePath<THREE.Vector3>()
   for (let i = 1; i < pts.length; i++) path.add(new THREE.LineCurve3(pts[i - 1], pts[i]))
   return path
 }
+const QUEUE_LENGTH = pathOf(QUEUE).getLength()
 
 /** Rising rows facing the yard (+z), before the arch at z = −68. */
 const ROWS = [
@@ -81,6 +89,10 @@ const LUCIA_SONG = 1
 const LUCIA_FROM = new THREE.Vector3(0, 0, -44)
 const LUCIA_WALK = 22
 const ARCH = new THREE.Vector3(0, 0, -67)
+/** The way back after the fika: out of the arch, down the path, round the tree and into the queue. */
+const WAY_BACK = pathOf([ARCH, ...[...MAIN].reverse(), ...QUEUE.slice(0, -1).reverse()])
+const WAY_BACK_LENGTH = WAY_BACK.getLength()
+const BACK_TO_START = WAY_BACK_LENGTH - QUEUE_LENGTH
 
 export type Walker = {
   girl: boolean
@@ -97,6 +109,8 @@ export type Walker = {
   pos: THREE.Vector3
   yaw: number
   walking: boolean
+  /** Having fika: a bun in the hands instead of a candle. */
+  eating: boolean
   shown: boolean
   lit: boolean
   phase: number
@@ -165,7 +179,8 @@ export function luciaTray(cookies = true) {
 export type LuciaToon = { toon: Toon; girl: boolean; lucia?: boolean; tall?: boolean; spot?: THREE.Vector3; light: (on: boolean) => void }
 
 export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTex: THREE.Texture) {
-  const path = route()
+  // the procession walks the queue and then the way in, all in one
+  const path = pathOf([...QUEUE, ...MAIN.slice(1)])
   const length = path.getLength()
   const end = path.getPoint(1)
   const group = new THREE.Group()
@@ -187,6 +202,10 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     sash: new THREE.InstancedMesh(new THREE.TorusGeometry(0.15, 0.022, 6, 18), std(0xc8102e, 0.5), GIRLS),
     strut: new THREE.InstancedMesh(new THREE.ConeGeometry(0.085, 0.36, 14), std(0xfbf8f2, 0.6), BOYS),
     bun: new THREE.InstancedMesh(lussebulle().bun, bunMat, N),
+    eyes: new THREE.InstancedMesh(new THREE.SphereGeometry(0.013, 8, 6), std(0x1a1210, 0.3), N * 2),
+    cheeks: new THREE.InstancedMesh(new THREE.SphereGeometry(0.017, 8, 6), std(0xe8908a, 0.7), N * 2),
+    nose: new THREE.InstancedMesh(new THREE.SphereGeometry(0.012, 8, 6), std(0xe8b090, 0.6), N),
+    mouth: new THREE.InstancedMesh(new THREE.SphereGeometry(0.017, 10, 6), std(0x5a1a1c, 0.6), N),
     stars: new THREE.InstancedMesh(new THREE.OctahedronGeometry(0.022), new THREE.MeshStandardMaterial({ color: 0xf6c453, roughness: 0.3, metalness: 0.7, emissive: 0x6a4a10, emissiveIntensity: 0.6 }), BOYS * 3),
   }
   const hairCols = [0xe8c77a, 0xd9b25e, 0x8a5a32, 0x5a3a22, 0xc9783a, 0x2a1d16, 0xf0d9a0].map((c) => new THREE.Color(c))
@@ -209,7 +228,7 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
   const lucia = toons.find((t) => t.lucia)!
   const walkers: Walker[] = []
   const add = (w: Pick<Walker, 'girl' | 'spot' | 'tall' | 'toon' | 'light' | 'extra'>) =>
-    walkers.push({ ...w, out: 0, pos: new THREE.Vector3(), yaw: 0, walking: false, shown: false, lit: true, phase: Math.random() * 10 })
+    walkers.push({ ...w, out: 0, pos: new THREE.Vector3(), yaw: 0, walking: false, eating: false, shown: false, lit: true, phase: Math.random() * 10 })
   add({ girl: true, toon: lucia.toon, light: lucia.light, spot: LUCIA_AT.clone() })
   const toonGirls = toons.filter((t) => t.girl && !t.lucia)
   let g = 0
@@ -272,7 +291,9 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
 
   /** Fast enough that the last one is in place a few seconds before the first song ends. */
   // (Lucia isn't in the line: she comes in later on her own)
-  const speed = (length + (walkers.length - 2) * SPACING + 10) / (PROGRAM[0].length - 6)
+  const speed = (length - QUEUE_LENGTH + (walkers.length - 2) * SPACING + 10) / (PROGRAM[0].length - 6)
+  /** Back to the queue, the whole line arriving together just before the next procession. */
+  const backSpeed = (BACK_TO_START + (walkers.length - 2) * SPACING) / (WALK_BACK - 8)
 
   /* ---------- the riser they stand on ---------- */
   const riser = new THREE.Group()
@@ -331,11 +352,36 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     fikaNow = t >= SONGS_END + EXIT
     let lit = 0
     let shown = 0
+    const back = t >= FIKA_END
     walkers.forEach((w, i) => {
-      const s = t * speed - (i - 1) * SPACING
+      // (in the queue before setting off: the first at its front, the last at its far end)
+      const s = QUEUE_LENGTH + t * speed - (i - 1) * SPACING
       w.lit = t < w.out
+      w.eating = false
       const lucia = i === 0
-      if (lucia && !fikaNow && t < outStart) {
+      if (back && !lucia) {
+        // after the fika, in a line out of the arch: the last of the procession leaves first, and
+        // they all reach their places in the queue together
+        const j = i - 1
+        const k = walkers.length - 2 - j
+        const u = (t - FIKA_END) * backSpeed - k * SPACING
+        const stop = BACK_TO_START + j * SPACING
+        if (u < 0) {
+          const f = fika.get(w)!
+          w.pos.copy(f.p)
+          w.yaw = f.yaw
+          w.walking = false
+          w.eating = true
+        } else {
+          const at = Math.min(u, stop) / WAY_BACK_LENGTH
+          WAY_BACK.getPointAt(at, w.pos)
+          WAY_BACK.getTangentAt(at, tmp)
+          w.yaw = Math.atan2(tmp.x, tmp.z)
+          w.walking = u < stop
+        }
+        w.shown = true
+        w.lit = false
+      } else if (lucia && !fikaNow && t < outStart) {
         // waiting for her song; then, crown alight, up through the yard to the front of the choir
         const k = (t - starts[LUCIA_SONG]) / LUCIA_WALK
         w.shown = k >= 0
@@ -349,6 +395,7 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
         w.walking = false
         w.shown = true
         w.lit = false
+        w.eating = true
       } else if (t >= outStart) {
         // in the dark, in through the arch – front rows first
         const lag = (w.spot!.z + 58.5) * -2.5
@@ -365,7 +412,7 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
         path.getPointAt(s / length, w.pos)
         path.getTangentAt(s / length, tmp)
         w.yaw = Math.atan2(tmp.x, tmp.z)
-        w.walking = true
+        w.walking = t > 0
         w.shown = true
       } else {
         const d = s - length
@@ -402,7 +449,8 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
   const hidden = new THREE.Matrix4().makeScale(0, 0, 0)
   const flameAt = new THREE.Vector3()
   const at4 = (x: number, y: number, z: number) => new THREE.Matrix4().makeTranslation(x, y, z).premultiply(base)
-  function update(t: number, time: number) {
+  /** `voice`: how loud the singing is, 0 … 1 – the villagers' mouths follow it. */
+  function update(t: number, time: number, voice = 0) {
     const at = place(t)
     let girlIx = 0
     let boyIx = 0
@@ -424,7 +472,8 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
       q.setFromEuler(e)
       base.compose(tmp.set(w.pos.x, w.pos.y + bob, w.pos.z), q, size.set(s, s, s))
       if (!w.shown) {
-        for (const k of ['gown', 'shoulders', 'head', 'hair', 'candle', 'flame', 'bun'] as const) parts[k].setMatrixAt(i, hidden)
+        for (const k of ['gown', 'shoulders', 'head', 'hair', 'candle', 'flame', 'bun', 'nose', 'mouth'] as const) parts[k].setMatrixAt(i, hidden)
+        for (const k of ['eyes', 'cheeks'] as const) for (const e of [0, 1]) parts[k].setMatrixAt(i * 2 + e, hidden)
         parts.hands.setMatrixAt(i * 2, hidden)
         parts.hands.setMatrixAt(i * 2 + 1, hidden)
         glowPos.set([0, -50, 0], i * 3)
@@ -433,7 +482,21 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
         parts.shoulders.setMatrixAt(i, at4(0, 0.8, 0).multiply(m4.makeScale(1, 0.55, 0.85)))
         parts.head.setMatrixAt(i, at4(0, 0.97, 0))
         parts.hair.setMatrixAt(i, at4(0, 0.985, -0.012))
-        if (fikaNow) {
+        // a face: eyes, rosy cheeks, a nose, and a mouth that sings with the music (or munches)
+        for (const sx of [-1, 1]) {
+          parts.eyes.setMatrixAt(i * 2 + (sx > 0 ? 1 : 0), at4(sx * 0.033, 0.99, 0.087).multiply(m4.makeScale(1, 1.25, 0.6)))
+          parts.cheeks.setMatrixAt(i * 2 + (sx > 0 ? 1 : 0), at4(sx * 0.054, 0.955, 0.076).multiply(m4.makeScale(1, 0.8, 0.4)))
+        }
+        parts.nose.setMatrixAt(i, at4(0, 0.968, 0.099))
+        const open = w.eating
+          ? 0.25 + Math.max(0, Math.sin(time * 7 + w.phase)) * 0.6
+          : w.lit && !w.walking
+            ? 0.2 + voice * (0.75 + 0.25 * Math.sin(time * 9 + w.phase))
+            : w.lit
+              ? 0.2 + voice * 0.6
+              : 0.15
+        parts.mouth.setMatrixAt(i, at4(0, 0.932, 0.09).multiply(m4.makeScale(1.6, 0.25 + open * 1.1, 0.55)))
+        if (w.eating) {
           // a bun in the hands, and every now and then a bite
           const k = (time * 0.13 + w.phase) % 1
           const bite = k < 0.12 ? Math.sin((k / 0.12) * Math.PI) : 0
@@ -480,7 +543,7 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     return !!w && w.shown && w.lit
   }
   /** …or having fika afterwards? */
-  const eating = (toon: Toon) => fikaNow && walkers.some((w) => w.toon === toon)
+  const eating = (toon: Toon) => walkers.some((w) => w.toon === toon && w.eating)
 
   function show(on: boolean) {
     group.visible = on
