@@ -10,9 +10,9 @@ export const VILLAGE_RADIUS = 34
 /** Footprints (centre, rotation, half size, roof height) where snow shouldn't fall. */
 export type Roof = { x: number; z: number; cos: number; sin: number; hw: number; hd: number; h: number }
 
-/** Height of the snow at (x, z): flat in the village, rolling drifts outside it. */
+/** Height of the snow at (x, z): flat in the village (Leksaksfabriken reaches right out to its edge), rolling drifts outside it. */
 export function groundHeight(x: number, z: number) {
-  const k = THREE.MathUtils.smoothstep(Math.hypot(x, z), VILLAGE_RADIUS - 6, VILLAGE_RADIUS + 10)
+  const k = THREE.MathUtils.smoothstep(Math.hypot(x, z), VILLAGE_RADIUS, VILLAGE_RADIUS + 12)
   return k * ((Math.sin(x * 0.17) * Math.cos(z * 0.13) + Math.sin(x * 0.06 + z * 0.08)) * 0.7 + 0.6)
 }
 

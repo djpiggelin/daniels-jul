@@ -150,12 +150,13 @@ async function build() {
   for (const s of shops) {
     scene.add(s.shop.group)
     s.shop.group.updateMatrixWorld(true)
-    const p = s.shop.group.localToWorld(new THREE.Vector3(NPC_SPOT.x, 0, NPC_SPOT.z))
+    const spot = s.spot ?? NPC_SPOT
+    const p = s.shop.group.localToWorld(new THREE.Vector3(spot.x, 0, spot.z))
     s.npc.group.position.copy(p)
-    s.npc.setYaw(s.shop.group.rotation.y + NPC_SPOT.yaw)
+    s.npc.setYaw(s.shop.group.rotation.y + spot.yaw)
     scene.add(s.npc.group)
     const g = s.shop.group
-    world.roofs.push({ x: g.position.x, z: g.position.z, cos: Math.cos(g.rotation.y), sin: Math.sin(g.rotation.y), hw: 5.9, hd: 4.7, h: 6.2 })
+    world.roofs.push({ x: g.position.x, z: g.position.z, cos: Math.cos(g.rotation.y), sin: Math.sin(g.rotation.y), ...s.shop.roof })
     rayRoots.push(s.shop.group)
     for (const ex of s.shop.exhibits) exhibitOf.set(ex.target, { kind: 'exhibit', ...ex })
     talkers.push({ npc: s.npc, talk: s.talk })

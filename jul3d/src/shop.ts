@@ -23,18 +23,25 @@ export type Exhibit = {
 }
 
 export type ShopColors = { wall: string; trim: number; roof: number; inner?: string }
+/** Width (x), depth (z), wall height and the gable's rise above it. */
+export type ShopSize = { w: number; d: number; h: number; ridge: number }
 
 export class Shop {
   readonly group = new THREE.Group()
   readonly boxes: Box[] = []
   readonly exhibits: Exhibit[] = []
   readonly updaters: ((t: number, dt: number) => void)[] = []
+  readonly size: ShopSize
   private sign: { canvas: HTMLCanvasElement; tex: THREE.Texture; title: string; last: string }
 
   constructor(
     readonly title: string,
     colors: ShopColors,
+    size: Partial<ShopSize> = {},
   ) {
+    this.size = { w: W, d: D, h: H, ridge: RIDGE, ...size }
+    // everything below is sized to this shop
+    const { w: W_, d: D_, h: H_, ridge: RIDGE_ } = this.size
     const g = this.group
     const outer = planksTexture(colors.wall, { boards: 7, seed: colors.wall.length * 13 })
     const inner = planksTexture(colors.inner ?? '#c89a68', { boards: 7, seed: 3 })
@@ -50,84 +57,85 @@ export class Shop {
 
     // floor
     const floorTex = planksTexture('#7a5232', { boards: 8, vertical: false, seed: 9 })
-    floorTex.repeat.set(W / 2, D / 2)
-    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W, D), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.8 }))
+    floorTex.repeat.set(W_ / 2, D_ / 2)
+    const floor = new THREE.Mesh(new THREE.PlaneGeometry(W_, D_), new THREE.MeshStandardMaterial({ map: floorTex, roughness: 0.8 }))
     floor.rotation.x = -Math.PI / 2
     floor.position.y = 0.03
     floor.receiveShadow = true
     g.add(floor)
 
     // walls: box faces order is +x, -x, +y, -y, +z, -z
-    const back = wallMats(W, H)
-    const backWall = new THREE.Mesh(new THREE.BoxGeometry(W, H, 0.2), [back.o, back.o, trim, trim, back.i, back.o])
-    backWall.position.set(0, H / 2, -D / 2)
-    const side = wallMats(D, H)
-    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, H, D), [side.i, side.o, trim, trim, side.o, side.o])
-    leftWall.position.set(-W / 2, H / 2, 0)
-    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, H, D), [side.o, side.i, trim, trim, side.o, side.o])
-    rightWall.position.set(W / 2, H / 2, 0)
+    const back = wallMats(W_, H_)
+    const backWall = new THREE.Mesh(new THREE.BoxGeometry(W_, H_, 0.2), [back.o, back.o, trim, trim, back.i, back.o])
+    backWall.position.set(0, H_ / 2, -D_ / 2)
+    const side = wallMats(D_, H_)
+    const leftWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, H_, D_), [side.i, side.o, trim, trim, side.o, side.o])
+    leftWall.position.set(-W_ / 2, H_ / 2, 0)
+    const rightWall = new THREE.Mesh(new THREE.BoxGeometry(0.2, H_, D_), [side.o, side.i, trim, trim, side.o, side.o])
+    rightWall.position.set(W_ / 2, H_ / 2, 0)
     for (const w of [backWall, leftWall, rightWall]) {
       w.castShadow = w.receiveShadow = true
       g.add(w)
     }
-    this.boxes.push({ x: 0, z: -D / 2, hw: W / 2 + 0.2, hd: 0.25 }, { x: -W / 2, z: 0, hw: 0.25, hd: D / 2 + 0.2 }, { x: W / 2, z: 0, hw: 0.25, hd: D / 2 + 0.2 })
+    this.boxes.push({ x: 0, z: -D_ / 2, hw: W_ / 2 + 0.2, hd: 0.25 }, { x: -W_ / 2, z: 0, hw: 0.25, hd: D_ / 2 + 0.2 }, { x: W_ / 2, z: 0, hw: 0.25, hd: D_ / 2 + 0.2 })
 
     // front posts + header beam
-    for (const x of [-W / 2, W / 2]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, H, 0.4), trim)
-      post.position.set(x, H / 2, D / 2)
+    for (const x of [-W_ / 2, W_ / 2]) {
+      const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, H_, 0.4), trim)
+      post.position.set(x, H_ / 2, D_ / 2)
       post.castShadow = true
       g.add(post)
     }
-    const header = new THREE.Mesh(new THREE.BoxGeometry(W + 0.4, 0.45, 0.4), trim)
-    header.position.set(0, H - 0.22, D / 2)
+    const header = new THREE.Mesh(new THREE.BoxGeometry(W_ + 0.4, 0.45, 0.4), trim)
+    header.position.set(0, H_ - 0.22, D_ / 2)
     g.add(header)
 
     // gables
     const tri = new THREE.Shape()
-    tri.moveTo(-W / 2 - 0.1, 0)
-    tri.lineTo(W / 2 + 0.1, 0)
-    tri.lineTo(0, RIDGE)
+    tri.moveTo(-W_ / 2 - 0.1, 0)
+    tri.lineTo(W_ / 2 + 0.1, 0)
+    tri.lineTo(0, RIDGE_)
     tri.closePath()
     const gableGeo = new THREE.ExtrudeGeometry(tri, { depth: 0.2, bevelEnabled: false })
     const gableTex = outer.clone()
     gableTex.repeat.set(1 / 1.6, 1 / 1.6)
     const gableMat = new THREE.MeshStandardMaterial({ map: gableTex, roughness: 0.85 })
-    for (const z of [D / 2 - 0.1, -D / 2 - 0.1]) {
+    for (const z of [D_ / 2 - 0.1, -D_ / 2 - 0.1]) {
       const gable = new THREE.Mesh(gableGeo, gableMat)
-      gable.position.set(0, H, z)
+      gable.position.set(0, H_, z)
       gable.castShadow = true
       g.add(gable)
     }
     // inner ceiling so the room feels cosy and closed
     const ceilMat = back.i.clone()
     ceilMat.color.setHex(0x8a6a50)
-    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W, D), ceilMat)
+    const ceil = new THREE.Mesh(new THREE.PlaneGeometry(W_, D_), ceilMat)
     ceil.rotation.x = Math.PI / 2
-    ceil.position.y = H
+    ceil.position.y = H_
     g.add(ceil)
     const beamMat = new THREE.MeshStandardMaterial({ color: 0x4a2c1c, roughness: 0.8 })
-    for (const z of [-2.6, 0, 2.6]) {
-      const beam = new THREE.Mesh(new THREE.BoxGeometry(W, 0.22, 0.2), beamMat)
-      beam.position.set(0, H - 0.11, z)
+    for (let i = 0, n = Math.max(3, Math.round(D_ / 2.6)); i < n; i++) {
+      const z = (i - (n - 1) / 2) * 2.6
+      const beam = new THREE.Mesh(new THREE.BoxGeometry(W_, 0.22, 0.2), beamMat)
+      beam.position.set(0, H_ - 0.11, z)
       g.add(beam)
     }
 
     // roof panels with snow on top
-    const a = Math.atan2(RIDGE, W / 2)
+    const a = Math.atan2(RIDGE_, W_ / 2)
     const over = 0.7
-    const len = (W / 2 + over) / Math.cos(a)
+    const len = (W_ / 2 + over) / Math.cos(a)
     const roofMat = new THREE.MeshStandardMaterial({ color: colors.roof, roughness: 0.8 })
     for (const s of [-1, 1]) {
-      const ex = s * (W / 2 + over)
-      const ey = H - over * Math.tan(a)
+      const ex = s * (W_ / 2 + over)
+      const ey = H_ - over * Math.tan(a)
       const cx = ex / 2
-      const cy = (ey + H + RIDGE) / 2
-      const panel = new THREE.Mesh(new THREE.BoxGeometry(len, 0.18, D + 1.2), roofMat)
+      const cy = (ey + H_ + RIDGE_) / 2
+      const panel = new THREE.Mesh(new THREE.BoxGeometry(len, 0.18, D_ + 1.2), roofMat)
       panel.position.set(cx, cy, 0)
       panel.rotation.z = -s * a
       panel.castShadow = panel.receiveShadow = true
-      const cover = new THREE.Mesh(new THREE.BoxGeometry(len * 0.98, 0.16, D + 1.3), snow)
+      const cover = new THREE.Mesh(new THREE.BoxGeometry(len * 0.98, 0.16, D_ + 1.3), snow)
       cover.position.set(cx + s * Math.sin(a) * 0.15, cy + Math.cos(a) * 0.15, 0)
       cover.rotation.z = -s * a
       cover.castShadow = true
@@ -136,29 +144,30 @@ export class Shop {
     // icicles along the front eaves
     const iceMat = new THREE.MeshStandardMaterial({ color: 0xdff3ff, roughness: 0.15, metalness: 0.1, transparent: true, opacity: 0.85 })
     const iceGeo = new THREE.ConeGeometry(0.05, 1, 6)
-    for (let i = 0; i < 26; i++) {
-      const k = i / 25
-      const x = THREE.MathUtils.lerp(-W / 2, W / 2, k)
-      const y = H + RIDGE * (1 - Math.abs(x) / (W / 2)) - 0.05
+    const icicles = Math.round(W_ * 2.6)
+    for (let i = 0; i < icicles; i++) {
+      const k = i / (icicles - 1)
+      const x = THREE.MathUtils.lerp(-W_ / 2, W_ / 2, k)
+      const y = H_ + RIDGE_ * (1 - Math.abs(x) / (W_ / 2)) - 0.05
       const h = 0.15 + ((i * 37) % 10) / 22
       const ice = new THREE.Mesh(iceGeo, iceMat)
       ice.scale.set(1, h, 1)
       ice.rotation.x = Math.PI
-      ice.position.set(x, y - h / 2 + 0.02, D / 2 + 0.2)
+      ice.position.set(x, y - h / 2 + 0.02, D_ / 2 + 0.2)
       if (Math.abs(x) > 0.4) g.add(ice)
     }
 
     // string lights along the gable edge
     // (one instanced mesh: 31 bulbs in a single draw call, each still twinkling on its own)
     const cols = [0xff4d4d, 0xffd34d, 0x5dff9a, 0x5db8ff].map((c) => new THREE.Color(c))
-    const N = 31
+    const N = Math.round(W_ * 3.1)
     const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.07, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false }), N)
     const spots: THREE.Vector3[] = []
     for (let i = 0; i < N; i++) {
       const k = i / (N - 1)
-      const x = THREE.MathUtils.lerp(-W / 2 - 0.3, W / 2 + 0.3, k)
-      const y = H + RIDGE * (1 - Math.abs(x) / (W / 2)) - 0.18 - Math.sin(k * Math.PI * 6) ** 2 * 0.12
-      spots.push(new THREE.Vector3(x, y, D / 2 + 0.25))
+      const x = THREE.MathUtils.lerp(-W_ / 2 - 0.3, W_ / 2 + 0.3, k)
+      const y = H_ + RIDGE_ * (1 - Math.abs(x) / (W_ / 2)) - 0.18 - Math.sin(k * Math.PI * 6) ** 2 * 0.12
+      spots.push(new THREE.Vector3(x, y, D_ / 2 + 0.25))
       bulbs.setColorAt(i, cols[i % 4])
     }
     g.add(bulbs)
@@ -174,19 +183,20 @@ export class Shop {
     })
 
     // sign on the gable
+    const sk = Math.min(1.6, RIDGE_ / 2.4)
     const canvas = drawSign(title, '')
     const tex = toTexture(canvas, { live: true })
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4, 1.29), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.18 }))
-    sign.position.set(0, H + 0.78, D / 2 + 0.13)
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4 * sk, 1.29 * sk), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.18 }))
+    sign.position.set(0, H_ + 0.78 * sk, D_ / 2 + 0.13)
     g.add(sign)
     this.sign = { canvas, tex, title, last: '' }
 
     // warm light inside + a lantern at the door
-    const light = new THREE.PointLight(0xffc98a, 16, 13, 1.4)
-    light.position.set(0, 2.5, -0.3)
+    const light = new THREE.PointLight(0xffc98a, 16 * (W_ / 10) ** 2, 13 * (W_ / 10), 1.4)
+    light.position.set(0, Math.min(2.5, H_ - 1.1) + (H_ - 3.6) * 0.5, -0.3)
     g.add(light)
     const fill = new THREE.PointLight(0xffb070, 6, 7, 1.5)
-    fill.position.set(0, 2.2, D / 2 + 1.2)
+    fill.position.set(0, 2.2, D_ / 2 + 1.2)
     g.add(fill)
   }
 
@@ -205,13 +215,13 @@ export class Shop {
   hang(obj: THREE.Object3D, wall: Wall, along: number, y: number) {
     const inset = 0.13
     if (wall === 'back') {
-      obj.position.set(along, y, -D / 2 + inset)
+      obj.position.set(along, y, -this.size.d / 2 + inset)
       obj.rotation.y = 0
     } else if (wall === 'left') {
-      obj.position.set(-W / 2 + inset, y, -along)
+      obj.position.set(-this.size.w / 2 + inset, y, -along)
       obj.rotation.y = Math.PI / 2
     } else {
-      obj.position.set(W / 2 - inset, y, along)
+      obj.position.set(this.size.w / 2 - inset, y, along)
       obj.rotation.y = -Math.PI / 2
     }
     this.group.add(obj)
@@ -224,6 +234,12 @@ export class Shop {
 
   block(x: number, z: number, hw: number, hd: number) {
     this.boxes.push({ x, z, hw, hd })
+  }
+
+  /** Where snow stops falling: the roof's footprint (with its overhang) and top, in shop-local half extents. */
+  get roof() {
+    const { w, d, h, ridge } = this.size
+    return { hw: w / 2 + 0.9, hd: d / 2 + 0.7, h: h + ridge + 0.2 }
   }
 
   place(angleDeg: number, radius: number) {
