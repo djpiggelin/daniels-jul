@@ -206,7 +206,7 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   const BULBS = 190
   const bulbs = new THREE.InstancedMesh(new THREE.SphereGeometry(0.075, 8, 6), new THREE.MeshBasicMaterial({ toneMapped: false }), BULBS)
   // (they stay faintly lit through the dark of the Lucia procession – see korsang.ts)
-  bulbs.material.userData.treeLights = true
+  bulbs.material.userData.glimmer = 0.22
   const bulbColors = [0xff4d4d, 0xffd34d, 0x5dff9a, 0x5db8ff, 0xff8de1, 0xfff4d6].map((c) => new THREE.Color(c))
   const base: THREE.Color[] = []
   const m4 = new THREE.Matrix4()
@@ -413,6 +413,8 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   const lampGlow = glowTexture('rgba(255,214,140,1)', 'rgba(255,170,70,0)')
   const iron = new THREE.MeshStandardMaterial({ color: 0x15151c, roughness: 0.5, metalness: 0.6 })
   const flame = new THREE.MeshBasicMaterial({ color: 0xffd38a, toneMapped: false })
+  // (still glowing a little through the dark of the Lucia procession, so you can find your way – see korsang.ts)
+  flame.userData.glimmer = 0.45
   const addLamp = (x: number, z: number) => {
     const g = new THREE.Group()
     const post = new THREE.Mesh(new THREE.CylinderGeometry(0.07, 0.11, 3.2, 8), iron)
