@@ -294,16 +294,18 @@ export class Stamping {
     const under = this.items.find((it) => it.live && !it.stamped && Math.abs(it.x) < 0.3)
     if (!under) return
     under.stamped = true
+    // (the inspector stamping on his own does it quietly: sounds here aren't fainter with distance,
+    // so his ding would carry right across the village)
     if (under.coal) {
-      puff(0.3)
       if (!this.active) return
+      puff(0.3)
       this.oops++
       this.score = Math.max(0, this.score - 1)
       this.say('🙈 Kol! Det ska inte stämplas. −1')
     } else {
       under.ok.visible = true
-      blip(1320, 0.1, 'triangle', 0.06)
       if (!this.active) return
+      blip(1320, 0.1, 'triangle', 0.06)
       this.score++
       if (this.score % 5 === 0) this.say(['Bra jobbat! ⭐', 'Verkmästaren nickar gillande.', 'Lasse vill också prova!', 'Snabba händer!'][(this.score / 5) % 4])
     }
