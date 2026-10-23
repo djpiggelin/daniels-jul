@@ -27,9 +27,10 @@ export const PROGRAM = [
 /** A breath between songs, the walk out in the dark, and the wait before the next procession (s). */
 const GAP = 1.5
 const EXIT = 80
-const PAUSE = 4 * 60
+// (counted from when the last of them is in place – the choir at the table sits down a minute before)
+const PAUSE = 200
 /** After the fika they walk back out (lights still on) and line up for the next procession (s). */
-const WALK_BACK = 200
+const WALK_BACK = 300
 const starts: number[] = []
 let clock = 0
 for (const p of PROGRAM) {
@@ -351,14 +352,35 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
     }
     into.set(w, pathOf(pts))
   }
-  const longestInto = Math.max(...[...into.values()].map((p) => p.getLength()))
-  /** Back to the queue, the whole line arriving together just before the next procession. */
-  const backSpeed = (longestInto + BACK_TO_START + (walkers.length - 2) * SPACING) / (WALK_BACK - 8)
   const outOf = new Map<Walker, { path: THREE.CurvePath<THREE.Vector3>; hall: number }>()
   for (const [w, p] of into) {
     const pts = p.curves.map((c) => (c as THREE.LineCurve3).v1)
     pts.push((p.curves[p.curves.length - 1] as THREE.LineCurve3).v2)
     outOf.set(w, { path: pathOf([...pts.reverse(), ...WAY_BACK.curves.map((c) => (c as THREE.LineCurve3).v2)]), hall: p.getLength() })
+  }
+
+  /** Who strolls back when, how fast and how far to the side: little groups of three to five, setting off
+   *  over a minute and a half – each still in the queue in time for the next procession. */
+  const stroll: { leave: number; speed: number; side: number }[] = []
+  {
+    let seed = 7
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+    let left = 0
+    let size = 0
+    let leave = 0
+    let pace = 1
+    let middle = 0
+    for (let j = 0; j < walkers.length - 1; j++) {
+      if (left === 0) {
+        size = left = 3 + Math.floor(rnd() * 3)
+        leave = rnd() * 90
+        pace = 0.85 + rnd() * 0.3
+        middle = (rnd() - 0.5) * 1.2
+      }
+      const dist = outOf.get(walkers[j + 1])!.hall + BACK_TO_START + j * SPACING
+      stroll.push({ leave, speed: Math.max(pace * (0.95 + rnd() * 0.1), dist / (WALK_BACK - 8 - leave)), side: middle + (left - (size + 1) / 2) * 0.5 })
+      left--
+    }
   }
 
   const table = new THREE.Group()
@@ -395,14 +417,13 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
       w.eating = false
       const lucia = i === 0
       if (back && !lucia) {
-        // after the fika, in a line out of the arch: the last of the procession leaves first, and
-        // they all reach their places in the queue together
+        // after the fika they wander back in little groups, each at its own pace and spread across the
+        // path and the square – only falling into line as they reach the queue for the next procession
         const j = i - 1
-        const k = walkers.length - 2 - j
         const way = outOf.get(w)!
-        // (down from the galleries first: each sets off so as to reach the arch in its turn)
-        const u = (t - FIKA_END) * backSpeed - k * SPACING - (longestInto - way.hall)
+        const plan = stroll[j]
         const stop = way.hall + BACK_TO_START + j * SPACING
+        const u = (t - FIKA_END - plan.leave) * plan.speed
         if (u < 0) {
           const f = fika.get(w)!
           w.pos.copy(f.p)
@@ -411,10 +432,14 @@ export function buildLuciaConcert(scene: THREE.Scene, toons: LuciaToon[], glowTe
           w.eating = true
         } else {
           const len = way.path.getLength()
-          const at = Math.min(u, stop) / len
-          way.path.getPointAt(at, w.pos)
-          way.path.getTangentAt(at, tmp)
+          const d = Math.min(u, stop)
+          way.path.getPointAt(d / len, w.pos)
+          way.path.getTangentAt(d / len, tmp)
           w.yaw = Math.atan2(tmp.x, tmp.z)
+          // out of the hall in single file, then spread out side by side, and in line again near the queue
+          const spread = THREE.MathUtils.smoothstep(d, way.hall + 2, way.hall + 10) * (1 - THREE.MathUtils.smoothstep(d, way.hall + BACK_TO_START - 14, way.hall + BACK_TO_START - 2))
+          w.pos.x += tmp.z * plan.side * spread
+          w.pos.z -= tmp.x * plan.side * spread
           w.walking = u < stop
         }
         w.shown = true
