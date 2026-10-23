@@ -32,15 +32,44 @@ export class Shop {
   readonly exhibits: Exhibit[] = []
   readonly updaters: ((t: number, dt: number) => void)[] = []
   readonly size: ShopSize
+  /** The countdown sign – a `bare` shop hangs it wherever its own building wants it. */
+  readonly signMesh: THREE.Mesh
   private sign: { canvas: HTMLCanvasElement; tex: THREE.Texture; title: string; last: string }
 
   constructor(
     readonly title: string,
     colors: ShopColors,
-    size: Partial<ShopSize> = {},
+    /** `bare`: no house at all, just the sign – for a building that makes its own (Leksaksfabriken). */
+    size: Partial<ShopSize> & { bare?: boolean } = {},
   ) {
-    this.size = { w: W, d: D, h: H, ridge: RIDGE, ...size }
-    // everything below is sized to this shop
+    const { bare, ...dims } = size
+    this.size = { w: W, d: D, h: H, ridge: RIDGE, ...dims }
+    const { w: W_, d: D_, h: H_, ridge: RIDGE_ } = this.size
+    const g = this.group
+    if (!bare) this.house(colors)
+
+    // sign on the gable
+    const sk = Math.min(1.6, RIDGE_ / 2.4)
+    const canvas = drawSign(title, '')
+    const tex = toTexture(canvas, { live: true })
+    const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4 * sk, 1.29 * sk), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.18 }))
+    sign.position.set(0, H_ + 0.78 * sk, D_ / 2 + 0.13)
+    g.add(sign)
+    this.signMesh = sign
+    this.sign = { canvas, tex, title, last: '' }
+
+    if (bare) return
+    // warm light inside + a lantern at the door
+    const light = new THREE.PointLight(0xffc98a, 16 * (W_ / 10) ** 2, 13 * (W_ / 10), 1.4)
+    light.position.set(0, Math.min(2.5, H_ - 1.1) + (H_ - 3.6) * 0.5, -0.3)
+    g.add(light)
+    const fill = new THREE.PointLight(0xffb070, 6, 7, 1.5)
+    fill.position.set(0, 2.2, D_ / 2 + 1.2)
+    g.add(fill)
+  }
+
+  /** The house itself: floor, walls, open front, gables, roof, icicles and string lights – sized to this shop. */
+  private house(colors: ShopColors) {
     const { w: W_, d: D_, h: H_, ridge: RIDGE_ } = this.size
     const g = this.group
     const outer = planksTexture(colors.wall, { boards: 7, seed: colors.wall.length * 13 })
@@ -181,23 +210,6 @@ export class Shop {
       }
       bulbs.instanceMatrix.needsUpdate = true
     })
-
-    // sign on the gable
-    const sk = Math.min(1.6, RIDGE_ / 2.4)
-    const canvas = drawSign(title, '')
-    const tex = toTexture(canvas, { live: true })
-    const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4 * sk, 1.29 * sk), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.18 }))
-    sign.position.set(0, H_ + 0.78 * sk, D_ / 2 + 0.13)
-    g.add(sign)
-    this.sign = { canvas, tex, title, last: '' }
-
-    // warm light inside + a lantern at the door
-    const light = new THREE.PointLight(0xffc98a, 16 * (W_ / 10) ** 2, 13 * (W_ / 10), 1.4)
-    light.position.set(0, Math.min(2.5, H_ - 1.1) + (H_ - 3.6) * 0.5, -0.3)
-    g.add(light)
-    const fill = new THREE.PointLight(0xffb070, 6, 7, 1.5)
-    fill.position.set(0, 2.2, D_ / 2 + 1.2)
-    g.add(fill)
   }
 
   setSignLine(text: string) {

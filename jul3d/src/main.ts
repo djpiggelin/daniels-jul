@@ -24,7 +24,7 @@ import { bakeStatic, mergeRigid } from './batch'
 import { PARTICIPANTS } from './data'
 import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
-import { VILLAGE_RADIUS, buildWorld } from './world'
+import { buildWorld, keepInside } from './world'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 
 const $ = (id: string) => document.getElementById(id)!
@@ -157,10 +157,12 @@ async function build() {
     scene.add(s.npc.group)
     const g = s.shop.group
     world.roofs.push({ x: g.position.x, z: g.position.z, cos: Math.cos(g.rotation.y), sin: Math.sin(g.rotation.y), ...s.shop.roof })
-    rayRoots.push(s.shop.group)
+    // a big building is aimed at and hit through a few simple boxes instead of its every triangle
+    const hits = s.hitboxes ? [s.hitboxes, ...s.shop.exhibits.map((e) => e.target)] : [s.shop.group]
+    rayRoots.push(...hits)
     for (const ex of s.shop.exhibits) exhibitOf.set(ex.target, { kind: 'exhibit', ...ex })
     talkers.push({ npc: s.npc, talk: s.talk })
-    solids.push(s.shop.group, s.npc.group)
+    solids.push(...hits, s.npc.group)
     flinchOnHit(s.npc)
     // more people to talk to in some shops (Lasse Långnisse in Leksaksfabriken)
     for (const x of s.extras ?? []) {
@@ -320,8 +322,7 @@ function collide(p: THREE.Vector3, RADIUS = 0.35) {
     p.x = g.position.x + lx * cos + lz * sin
     p.z = g.position.z - lx * sin + lz * cos
   }
-  const r = Math.hypot(p.x, p.z)
-  if (r > VILLAGE_RADIUS) p.multiplyScalar(VILLAGE_RADIUS / r)
+  keepInside(p)
 }
 /** You also bump into elves. */
 function collidePlayer(p: THREE.Vector3) {

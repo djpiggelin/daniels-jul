@@ -15,8 +15,8 @@ export const LIMITS = {
   saySeconds: 2,
   /** Largest message, in characters. */
   message: 400,
-  /** Nobody stands further out than this. */
-  radius: 40,
+  /** Nobody stands further out than this (Leksaksfabriken is up to 90 m north). */
+  radius: 95,
 }
 
 /** How often the server sends everyone where everyone is. */

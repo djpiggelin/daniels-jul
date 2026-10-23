@@ -10,9 +10,34 @@ export const VILLAGE_RADIUS = 34
 /** Footprints (centre, rotation, half size, roof height) where snow shouldn't fall. */
 export type Roof = { x: number; z: number; cos: number; sin: number; hw: number; hd: number; h: number }
 
-/** Height of the snow at (x, z): flat in the village (Leksaksfabriken reaches right out to its edge), rolling drifts outside it. */
+type Rect = { x0: number; x1: number; z0: number; z1: number }
+/** North of the village, through the forest: the path, and the yard Leksaksfabriken stands in (the hall included). */
+export const NORTH: { path: Rect; yard: Rect } = {
+  path: { x0: -3.5, x1: 3.5, z0: -42, z1: -26 },
+  yard: { x0: -26, x1: 26, z0: -90, z1: -40 },
+}
+const rectDist = (r: Rect, x: number, z: number) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1))
+
+/** How far (x, z) is from the ground you can walk on: the village circle, the path north and the yard. */
+export function outside(x: number, z: number) {
+  return Math.min(Math.max(0, Math.hypot(x, z) - VILLAGE_RADIUS), rectDist(NORTH.path, x, z), rectDist(NORTH.yard, x, z))
+}
+
+/** Back onto that ground, the shortest way. */
+export function keepInside(p: THREE.Vector3) {
+  if (outside(p.x, p.z) === 0) return
+  const r = Math.hypot(p.x, p.z)
+  const options = [{ x: (p.x / r) * VILLAGE_RADIUS, z: (p.z / r) * VILLAGE_RADIUS }]
+  for (const b of [NORTH.path, NORTH.yard]) options.push({ x: THREE.MathUtils.clamp(p.x, b.x0, b.x1), z: THREE.MathUtils.clamp(p.z, b.z0, b.z1) })
+  let best = options[0]
+  for (const o of options) if (Math.hypot(o.x - p.x, o.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z)) best = o
+  p.x = best.x
+  p.z = best.z
+}
+
+/** Height of the snow at (x, z): flat where you can walk, rolling drifts outside it. */
 export function groundHeight(x: number, z: number) {
-  const k = THREE.MathUtils.smoothstep(Math.hypot(x, z), VILLAGE_RADIUS, VILLAGE_RADIUS + 12)
+  const k = THREE.MathUtils.smoothstep(outside(x, z), 0, 12)
   return k * ((Math.sin(x * 0.17) * Math.cos(z * 0.13) + Math.sin(x * 0.06 + z * 0.08)) * 0.7 + 0.6)
 }
 
@@ -248,7 +273,10 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   while (firs.length < (opts.lowPower ? 140 : 220)) {
     const a = rand() * Math.PI * 2
     const r = VILLAGE_RADIUS + 2 + Math.pow(rand(), 0.7) * 60
-    firs.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, s: 0.9 + rand() * 1.1 })
+    const s = 0.9 + rand() * 1.1
+    // the way north to Leksaksfabriken stays clear
+    if (outside(Math.cos(a) * r, Math.sin(a) * r) < 2 + s * 1.7) continue
+    firs.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, s })
   }
   // and far out, for flying over in Tomtens släde (hidden in the fog while you walk, so only drawn when flying)
   const farFirs: typeof firs = []
@@ -299,7 +327,7 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     scene.add(group)
     return { group, cones: firCones }
   }
-  for (const f of firs) if (Math.hypot(f.x, f.z) < VILLAGE_RADIUS + 2) colliders.push({ x: f.x, z: f.z, r: 1.2 * f.s })
+  for (const f of firs) if (outside(f.x, f.z) < 3) colliders.push({ x: f.x, z: f.z, r: 1.2 * f.s })
   const inShadow = (f: (typeof firs)[number]) => Math.abs(f.x) < 42 && Math.abs(f.z) < 42
   const near = plant(firs.filter(inShadow), true)
   plant(firs.filter((f) => !inShadow(f)), false)
@@ -333,9 +361,10 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     solids.push(post, cap)
     colliders.push({ x, z, r: 0.25 })
   }
-  for (const deg of [-50, 0, 50, -112, 112, -150, 150]) {
+  // (none straight north: that way you look out through the gap at Leksaksfabriken)
+  for (const deg of [-50, -17, 17, 50, -112, 112, -150, 150]) {
     const a = THREE.MathUtils.degToRad(deg)
-    const r = deg === 0 || Math.abs(deg) === 50 ? 9.5 : 12
+    const r = Math.abs(deg) <= 50 ? 9.5 : 12
     addLamp(Math.sin(a) * r, -Math.cos(a) * r)
   }
 

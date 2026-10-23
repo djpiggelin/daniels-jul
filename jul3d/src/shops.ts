@@ -25,8 +25,9 @@ const DESTILLERI = JULBAK.competitions?.find((c) => c.art === 'destilleri')
 export type Extra = { npc: Nisse; talk: Talk; x: number; z: number; yaw: number }
 
 /** `event` drives the sign over the door; `emoji` (default: the event's) is used on the signpost. */
-/** `spot`: where the shopkeeper stands, if not behind the usual counter (NPC_SPOT). */
-export type BuiltShop = { shop: Shop; event: JulEvent; npc: Nisse; talk: Talk; emoji?: string; extras?: Extra[]; spot?: { x: number; z: number; yaw: number } }
+/** `spot`: where the shopkeeper stands, if not behind the usual counter (NPC_SPOT).
+ *  `hitboxes`: invisible stand-ins that rays and snowballs hit instead of the whole building. */
+export type BuiltShop = { shop: Shop; event: JulEvent; npc: Nisse; talk: Talk; emoji?: string; extras?: Extra[]; spot?: { x: number; z: number; yaw: number }; hitboxes?: THREE.Object3D }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const dataUrl = (c: HTMLCanvasElement) => {
