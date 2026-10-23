@@ -11,6 +11,7 @@ import { Player } from './player'
 import { Slide } from './rutschkana'
 import { ARRIVE, STUMP, buildMine, buildStump, type Mine } from './kolgruvan'
 import { CartRun } from './gruvvagn'
+import { Hacking } from './kolhackning'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -138,6 +139,7 @@ type Target =
   | { kind: 'stump' }
   | { kind: 'ladder' }
   | { kind: 'cart' }
+  | { kind: 'hack' }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
@@ -152,6 +154,8 @@ let mine: Mine | null = null
 let inMine = false
 /** Gruvexpressen: the mine cart ride (made the first time you get in). */
 let cartRun: CartRun | null = null
+/** Your turn at the coal face (made the first time you take the pick). */
+let hacking: Hacking | null = null
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -467,7 +471,7 @@ let talking: Nisse | null = null
 
 function findTarget(): Target | null {
   // down in the mine: only the ladder back up (for now)
-  if (inMine) return mine?.nearLadder(player.pos, player.forward) ? { kind: 'ladder' } : mine?.nearCart(player.pos, player.forward) ? { kind: 'cart' } : null
+  if (inMine) return mine?.nearLadder(player.pos, player.forward) ? { kind: 'ladder' } : mine?.nearCart(player.pos, player.forward) ? { kind: 'cart' } : mine?.nearHack(player.pos, player.forward) ? { kind: 'hack' } : null
   ray.setFromCamera(new THREE.Vector2(0, 0), camera)
   const hit = ray.intersectObjects(rayRoots, true)[0]
   let aimed: Target | null = null
@@ -584,7 +588,9 @@ function setTarget(t: Target | null) {
                     ? 'Klättra upp'
                     : t.kind === 'cart'
                       ? 'Åk Gruvexpressen'
-                      : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
+                      : t.kind === 'hack'
+                        ? 'Ta hackan och hacka kol'
+                        : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -773,6 +779,7 @@ function onEsc() {
   if (trip.active) return trip.leave()
   if (corrida.active) return corrida.leave()
   if (cartRun?.active) return cartRun.leave()
+  if (hacking?.active) return hacking.leave()
   openMenu()
 }
 addEventListener('keydown', (e) => {
@@ -876,6 +883,7 @@ function interact() {
   } else if (t.kind === 'stump') goDown()
   else if (t.kind === 'ladder') goUp()
   else if (t.kind === 'cart') ride()
+  else if (t.kind === 'hack') hack()
   else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
 }
@@ -897,6 +905,25 @@ function goDown() {
     $('fade').classList.remove('on')
     resume()
   }, 1100)
+}
+/** Take up the pick at the free seam in Stora orten. */
+function hack() {
+  if (!mine) return
+  cursor.hide()
+  $('hud').classList.add('busy')
+  if (!hacking) {
+    hacking = new Hacking(mine.scene, camera)
+    hacking.onLeft = () => {
+      const s = mine!.hack
+      // (stepping back from the seam)
+      player.pos.set(s.x - Math.sin(s.yaw) * 0.8, 0, s.z - Math.cos(s.yaw) * 0.8)
+      player.yaw = s.yaw + Math.PI
+      player.pitch = 0
+      resume()
+    }
+  }
+  setTarget(null)
+  hacking.start(mine.hack, mine.heave)
 }
 /** Into Gruvexpressen: off down the tunnels until you crash (or get out). */
 function ride() {
@@ -995,7 +1022,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || hacking?.active || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
@@ -1156,7 +1183,8 @@ function frame(now: number) {
     renderer.toneMappingExposure = EXPOSURE
   } else if (inMine && mine) {
     // down in the mine: just you, the miners and their song (the village waits up above)
-    player.update(dt, mine.collide, mine.ground)
+    if (hacking?.active) hacking.update(dt)
+    else player.update(dt, mine.collide, mine.ground)
     mine.update(t, dt, player.pos, player.enabled)
     choir?.update(dt, player.pos, false)
     parade.near(player.pos, false)
@@ -1285,4 +1313,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })

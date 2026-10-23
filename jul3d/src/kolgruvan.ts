@@ -16,6 +16,7 @@ import { Playlist, blip, noise } from './sfx'
 import { SUNG } from './sung'
 import { glowTexture, makeCanvas, toTexture } from './tex'
 import type { Circle } from './world'
+import type { HackSpot } from './kolhackning'
 
 const std = (color: number, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
@@ -440,7 +441,7 @@ export function buildMine() {
   heap(3, -26.5, 1.3, 110)
   heap(-3.5, -22, 0.9, 60)
   // the coal faces round the walls (clear of the tunnel mouths), a miner at each
-  const faces = [122, 150, 212, 238, 302, 328, 32, 58].map((deg) => {
+  const faces = [122, 150, 205, 226, 302, 328, 32, 58].map((deg) => {
     const a = THREE.MathUtils.degToRad(deg)
     const x = hall.x + Math.cos(a) * hall.rx * 0.95
     const z = hall.z + Math.sin(a) * hall.rz * 0.95
@@ -457,6 +458,39 @@ export function buildMine() {
       lumps.push(new THREE.Matrix4().compose(new THREE.Vector3(bx + Math.cos(f.yaw) * side, 0.3 + rnd() * 1.8, bz - Math.sin(f.yaw) * side), q, new THREE.Vector3(s, s, s)))
     }
   }
+  // a free seam of your own, with a pick left leaning on a rock and a tub for the coal (kolhackning.ts)
+  const hackA = THREE.MathUtils.degToRad(249)
+  const hx = hall.x + Math.cos(hackA) * hall.rx * 0.88
+  const hz = hall.z + Math.sin(hackA) * hall.rz * 0.88
+  const hyaw = Math.atan2(hx - hall.x, (hz - hall.z) * (hall.rx / hall.rz))
+  const hack: HackSpot = { x: hx, z: hz, yaw: hyaw, seam: new THREE.Vector3(hx + Math.sin(hyaw) * 1.25, 1.2, hz + Math.cos(hyaw) * 1.25) }
+  for (let i = 0; i < 90; i++) {
+    q.setFromEuler(new THREE.Euler(rnd() * 3, rnd() * 3, rnd() * 3))
+    const s = 0.6 + rnd() * 1.2
+    const side = (rnd() - 0.5) * 2.8
+    lumps.push(new THREE.Matrix4().compose(new THREE.Vector3(hack.seam.x + Math.cos(hyaw) * side + Math.sin(hyaw) * 0.15, 0.3 + rnd() * 1.9, hack.seam.z - Math.sin(hyaw) * side + Math.cos(hyaw) * 0.15), q, new THREE.Vector3(s, s, s)))
+  }
+  const restRock = new THREE.Mesh(new THREE.DodecahedronGeometry(0.35, 0), std(0x3a322c, 0.9))
+  const rx0 = hx + Math.cos(hyaw) * 1.3 + Math.sin(hyaw) * 0.6
+  const rz0 = hz - Math.sin(hyaw) * 1.3 + Math.cos(hyaw) * 0.6
+  restRock.position.set(rx0, 0.2, rz0)
+  statics.add(restRock)
+  const leaning = pick()
+  leaning.position.set(rx0, 0.95, rz0)
+  leaning.rotation.set(0.35, hyaw, 0.2)
+  statics.add(leaning)
+  const tub = new THREE.Mesh(new THREE.CylinderGeometry(0.45, 0.38, 0.5, 14, 1, true), new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 0.9, side: THREE.DoubleSide }))
+  const tx = hx - Math.cos(hyaw) * 1.3 + Math.sin(hyaw) * 0.7
+  const tz = hz + Math.sin(hyaw) * 1.3 + Math.cos(hyaw) * 0.7
+  tub.position.set(tx, 0.25, tz)
+  statics.add(tub)
+  obstacles.push({ x: rx0, z: rz0, r: 0.4 }, { x: tx, z: tz, r: 0.5 })
+  const free = sign('LEDIG ÅDER', 1.2, 0.3, 64)
+  free.position.set(rx0 - Math.sin(hyaw) * 0.1, 1.55, rz0 - Math.cos(hyaw) * 0.1)
+  free.rotation.y = hyaw + Math.PI
+  statics.add(free)
+  statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 1.5, 0.06), darkWood).translateX(rx0 + Math.sin(hyaw) * 0.05).translateY(0.75).translateZ(rz0 + Math.cos(hyaw) * 0.05))
+
   lantern(0, 4.2, -25, 70, 30)
   lantern(-5, 3.8, -29.5, 0)
   lantern(5, 3.8, -20.5, 0)
@@ -819,6 +853,7 @@ export function buildMine() {
   let was = 0
   let lastStrike = 0
   let drip = 2
+  let now = 0
   function sungNow() {
     const p = song.position()
     if (!p) return false
@@ -884,14 +919,17 @@ export function buildMine() {
   }
   /** By the ladder, facing it: climb back up. */
   const nearLadder = (pos: THREE.Vector3, fwd: THREE.Vector3) => facing(pos, fwd, LADDER.x, LADDER.z, 1.6)
+  /** At the free seam, facing it: take the pick. */
+  const nearHack = (pos: THREE.Vector3, fwd: THREE.Vector3) => facing(pos, fwd, hack.seam.x, hack.seam.z, 3.4)
   /** By Gruvexpressen, facing it: get in. */
   const nearCart = (pos: THREE.Vector3, fwd: THREE.Vector3) => facing(pos, fwd, STATION.x, STATION.z, 2.2)
 
   const centre = new THREE.Vector3(hall.x, 0, hall.z + 2)
   function update(t: number, dt: number, player: THREE.Vector3, enabled: boolean) {
+    now = t
     // the song: loud in Stora orten, a far-off echo down the tunnels
     const d = Math.hypot(player.x - centre.x, player.z - centre.z)
-    const vol = enabled ? 0.9 * THREE.MathUtils.clamp(1 - (d - 8) / 32, 0.1, 1) : 0
+    const vol = enabled ? 0.75 * THREE.MathUtils.clamp(1 - (d - 8) / 32, 0.1, 1) : 0
     if (vol > 0.003) {
       song.start([SONG])
       song.level(vol)
@@ -943,6 +981,10 @@ export function buildMine() {
     for (let i = 0; i < 6; i++) setTimeout(() => noise(0.12, 600, 300, 0.12, 1.2), i * 160)
   }
 
-  return { scene, collide, ground, update, nearLadder, nearCart, leave, climb, arrive: ARRIVE, station: STATION }
+  return {
+    scene, collide, ground, update, nearLadder, nearCart, nearHack, leave, climb, arrive: ARRIVE, station: STATION, hack,
+    /** Seconds since the miners' picks last came down on the heave. */
+    heave: () => now - lastStrike,
+  }
 }
 export type Mine = ReturnType<typeof buildMine>

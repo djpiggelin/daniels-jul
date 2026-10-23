@@ -890,13 +890,13 @@ export class Playlist {
 }
 
 /* ---------- the mine cart ride ---------- */
-/** "I Bergakungens sal" (Grieg): plucked strings creeping up, a bassoon under them, a drum on the beat. */
+/** "I Bergakungens sal" (Grieg): low plucked strings creeping up, a deep bassoon under them, a drum on the beat. */
 const MOUNTAIN = {
   melody: [
-    'B3:2 C#4:2 D4:2 E4:2 F#4:2 D4:2 F#4:4', 'F4:2 C#4:2 F4:4 E4:2 C4:2 E4:4',
-    'B3:2 C#4:2 D4:2 E4:2 F#4:2 D4:2 F#4:2 B4:2', 'A4:2 F#4:2 D4:2 F#4:2 A4:8',
-    'F#4:2 G#4:2 A#4:2 B4:2 C#5:2 A#4:2 C#5:4', 'D5:2 A#4:2 D5:4 C#5:2 A#4:2 C#5:4',
-    'F#4:2 G#4:2 A#4:2 B4:2 C#5:2 A#4:2 C#5:2 D5:2', 'C#5:2 A#4:2 F#4:2 A#4:2 C#5:8',
+    'B2:2 C#3:2 D3:2 E3:2 F#3:2 D3:2 F#3:4', 'F3:2 C#3:2 F3:4 E3:2 C3:2 E3:4',
+    'B2:2 C#3:2 D3:2 E3:2 F#3:2 D3:2 F#3:2 B3:2', 'A3:2 F#3:2 D3:2 F#3:2 A3:8',
+    'F#3:2 G#3:2 A#3:2 B3:2 C#4:2 A#3:2 C#4:4', 'D4:2 A#3:2 D4:4 C#4:2 A#3:2 C#4:4',
+    'F#3:2 G#3:2 A#3:2 B3:2 C#4:2 A#3:2 C#4:2 D4:2', 'C#4:2 A#3:2 F#3:2 A#3:2 C#4:8',
   ],
   bass: ['B1', 'B1', 'B1', 'F#1', 'F#1', 'F#1', 'F#1', 'C#2'],
 }
@@ -938,7 +938,7 @@ export class MountainKing {
     this.length = s
   }
 
-  start(vol = 0.32) {
+  start(vol = 0.2) {
     if (this.playing) return
     try {
       const a = audio()
@@ -947,7 +947,11 @@ export class MountainKing {
       this.gain = a.createGain()
       this.gain.gain.setValueAtTime(0.0001, a.currentTime)
       this.gain.gain.exponentialRampToValueAtTime(vol, a.currentTime + 0.2)
-      this.gain.connect(a.destination)
+      // (warm and low: the top taken off everything)
+      const warm = a.createBiquadFilter()
+      warm.type = 'lowpass'
+      warm.frequency.value = 1800
+      this.gain.connect(warm).connect(a.destination)
       this.step = 0
       this.stepAt = a.currentTime + 0.1
       this.timer = window.setInterval(() => this.schedule(), 50)
@@ -994,11 +998,11 @@ export class MountainKing {
     o.type = 'sawtooth'
     o.frequency.setValueAtTime(f, t)
     filter.type = 'lowpass'
-    filter.frequency.setValueAtTime(3200, t)
-    filter.frequency.exponentialRampToValueAtTime(600, t + 0.18)
+    filter.frequency.setValueAtTime(1400, t)
+    filter.frequency.exponentialRampToValueAtTime(300, t + 0.2)
     g.gain.setValueAtTime(0.0001, t)
-    g.gain.exponentialRampToValueAtTime(0.12, t + 0.005)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22)
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.006)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
     o.connect(filter).connect(g).connect(out)
     o.start(t)
     o.stop(t + 0.25)
@@ -1009,13 +1013,13 @@ export class MountainKing {
     const o = a.createOscillator()
     const filter = a.createBiquadFilter()
     const g = a.createGain()
-    o.type = 'square'
+    o.type = 'sawtooth'
     o.frequency.setValueAtTime(f, t)
     filter.type = 'lowpass'
-    filter.frequency.setValueAtTime(380, t)
+    filter.frequency.setValueAtTime(260, t)
     g.gain.setValueAtTime(0.0001, t)
-    g.gain.exponentialRampToValueAtTime(0.2, t + 0.02)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2)
+    g.gain.exponentialRampToValueAtTime(0.55, t + 0.02)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28)
     o.connect(filter).connect(g).connect(out)
     o.start(t)
     o.stop(t + 0.22)
@@ -1027,11 +1031,11 @@ export class MountainKing {
     const o = a.createOscillator()
     const g = a.createGain()
     o.type = 'sine'
-    o.frequency.setValueAtTime(120, t)
-    o.frequency.exponentialRampToValueAtTime(55, t + 0.18)
+    o.frequency.setValueAtTime(90, t)
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.22)
     g.gain.setValueAtTime(0.0001, t)
-    g.gain.exponentialRampToValueAtTime(0.5, t + 0.005)
-    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3)
+    g.gain.exponentialRampToValueAtTime(0.8, t + 0.005)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38)
     o.connect(g).connect(out)
     o.start(t)
     o.stop(t + 0.32)
