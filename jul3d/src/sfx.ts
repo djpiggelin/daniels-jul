@@ -888,3 +888,152 @@ export class Playlist {
     }, 500)
   }
 }
+
+/* ---------- the mine cart ride ---------- */
+/** "I Bergakungens sal" (Grieg): plucked strings creeping up, a bassoon under them, a drum on the beat. */
+const MOUNTAIN = {
+  melody: [
+    'B3:2 C#4:2 D4:2 E4:2 F#4:2 D4:2 F#4:4', 'F4:2 C#4:2 F4:4 E4:2 C4:2 E4:4',
+    'B3:2 C#4:2 D4:2 E4:2 F#4:2 D4:2 F#4:2 B4:2', 'A4:2 F#4:2 D4:2 F#4:2 A4:8',
+    'F#4:2 G#4:2 A#4:2 B4:2 C#5:2 A#4:2 C#5:4', 'D5:2 A#4:2 D5:4 C#5:2 A#4:2 C#5:4',
+    'F#4:2 G#4:2 A#4:2 B4:2 C#5:2 A#4:2 C#5:2 D5:2', 'C#5:2 A#4:2 F#4:2 A#4:2 C#5:8',
+  ],
+  bass: ['B1', 'B1', 'B1', 'F#1', 'F#1', 'F#1', 'F#1', 'C#2'],
+}
+
+/**
+ * The mine cart's music: Grieg's troll king's hall, faster and faster as the cart picks up speed
+ * (`rate` 1 is a creep; it is played step by step, so the tempo can change as it goes).
+ */
+export class MountainKing {
+  private gain: GainNode | null = null
+  private timer = 0
+  private steps = new Map<number, ((t: number, out: AudioNode) => void)[]>()
+  private length = 0
+  private step = 0
+  private stepAt = 0
+  rate = 1
+  playing = false
+
+  constructor() {
+    const on = (s: number, fn: (t: number, out: AudioNode) => void) => {
+      if (!this.steps.has(s)) this.steps.set(s, [])
+      this.steps.get(s)!.push(fn)
+    }
+    let s = 0
+    MOUNTAIN.melody.forEach((line, i) => {
+      const start = s
+      for (const [m, beats] of bar(line)) {
+        const len = beats * 4
+        if (m) on(s, (t, out) => this.pluck(t, hz(m), out))
+        s += len
+      }
+      // the bassoon on every beat, the drum on one and three
+      const b = hz(midi(MOUNTAIN.bass[i]))
+      for (let k = 0; k < 16; k += 4) {
+        on(start + k, (t, out) => this.bassoon(t, k % 8 === 0 ? b : b * 1.5, out))
+        if (k % 8 === 0) on(start + k, (t, out) => this.drum(t, out))
+      }
+    })
+    this.length = s
+  }
+
+  start(vol = 0.32) {
+    if (this.playing) return
+    try {
+      const a = audio()
+      void a.resume()
+      this.playing = true
+      this.gain = a.createGain()
+      this.gain.gain.setValueAtTime(0.0001, a.currentTime)
+      this.gain.gain.exponentialRampToValueAtTime(vol, a.currentTime + 0.2)
+      this.gain.connect(a.destination)
+      this.step = 0
+      this.stepAt = a.currentTime + 0.1
+      this.timer = window.setInterval(() => this.schedule(), 50)
+      this.schedule()
+    } catch {
+      /* audio not available */
+    }
+  }
+
+  stop() {
+    if (!this.playing) return
+    this.playing = false
+    clearInterval(this.timer)
+    const g = this.gain
+    this.gain = null
+    if (!g) return
+    const a = audio()
+    g.gain.cancelScheduledValues(a.currentTime)
+    g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), a.currentTime)
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.3)
+    setTimeout(() => g.disconnect(), 500)
+  }
+
+  private schedule() {
+    const a = audio()
+    const out = this.gain
+    if (!out) return
+    // (a sixteenth at the tempo right now: from 96 beats a minute up to about four times that)
+    const sixteenth = 60 / (96 * this.rate) / 4
+    if (this.stepAt < a.currentTime - 0.1) this.stepAt = a.currentTime + 0.02
+    while (this.stepAt < a.currentTime + 0.25) {
+      for (const fn of this.steps.get(this.step) ?? []) fn(this.stepAt, out)
+      this.step = (this.step + 1) % this.length
+      this.stepAt += sixteenth
+    }
+  }
+
+  /** Plucked strings: a bright attack dying away. */
+  private pluck(t: number, f: number, out: AudioNode) {
+    const a = audio()
+    const o = a.createOscillator()
+    const filter = a.createBiquadFilter()
+    const g = a.createGain()
+    o.type = 'sawtooth'
+    o.frequency.setValueAtTime(f, t)
+    filter.type = 'lowpass'
+    filter.frequency.setValueAtTime(3200, t)
+    filter.frequency.exponentialRampToValueAtTime(600, t + 0.18)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.12, t + 0.005)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.22)
+    o.connect(filter).connect(g).connect(out)
+    o.start(t)
+    o.stop(t + 0.25)
+  }
+
+  private bassoon(t: number, f: number, out: AudioNode) {
+    const a = audio()
+    const o = a.createOscillator()
+    const filter = a.createBiquadFilter()
+    const g = a.createGain()
+    o.type = 'square'
+    o.frequency.setValueAtTime(f, t)
+    filter.type = 'lowpass'
+    filter.frequency.setValueAtTime(380, t)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.2, t + 0.02)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.2)
+    o.connect(filter).connect(g).connect(out)
+    o.start(t)
+    o.stop(t + 0.22)
+  }
+
+  /** A timpani-ish thump. */
+  private drum(t: number, out: AudioNode) {
+    const a = audio()
+    const o = a.createOscillator()
+    const g = a.createGain()
+    o.type = 'sine'
+    o.frequency.setValueAtTime(120, t)
+    o.frequency.exponentialRampToValueAtTime(55, t + 0.18)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.5, t + 0.005)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.3)
+    o.connect(g).connect(out)
+    o.start(t)
+    o.stop(t + 0.32)
+  }
+}

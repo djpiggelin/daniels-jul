@@ -1,11 +1,14 @@
 // Kolgruvan – the secret coal mine. The nissar who weren't quite nice enough to work in Leksaksfabriken
 // work down here instead, digging out all the coal that goes to the naughty children. The way in is
 // a hollow old stump, hidden behind a fir at the far west edge of the village: stand right at it and
-// look down into it, and you can climb down. Below: a ladder shaft, a timbered tunnel and a great
-// cavern lit by lanterns, where sooty nissar with headlamps hack at the coal faces, singing the
-// boatmen's song in deep dark voices, their picks coming down on the heave.
+// look down into it, and you can climb down. Below: a ladder shaft and timbered tunnels to Stora orten,
+// a great cavern lit by lanterns where sooty nissar with headlamps hack at the coal faces, singing the
+// boatmen's song in deep dark voices, their picks coming down on the heave; Svartsjön, a black lake
+// with glowing mushrooms and an old miner fishing; Sorteringen, where the coal goes into sacks and
+// Gruvexpressen leaves from (gruvvagn.ts); the foreman's office with Stygga listan; and deepest of
+// all, Kristallgrottan.
 // Everything down here is a scene of its own (like the bull ring): x/z on the mine floor, the shaft at
-// the origin, the tunnel running north (−z) to the cavern.
+// the origin, the tunnels running north (−z) from it.
 import * as THREE from 'three'
 import { bakeStatic, keepApart, mergeRigid } from './batch'
 import { Nisse } from './npc'
@@ -97,15 +100,38 @@ export function buildStump(scene: THREE.Scene) {
 
 /* ---------- the mine ---------- */
 
-/** The shaft at the bottom of the ladder: you arrive here, facing down the tunnel. */
+// The mine, seen from above (north is −z): the ladder shaft, a tunnel north to Stora orten (the great
+// cavern where they dig); off it west to Svartsjön (the black lake), east to Sorteringen (and
+// Gruvexpressen's platform), and south down a long winding tunnel past the foreman's office to
+// Kristallgrottan, deepest of all.
+type Room = { x: number; z: number; rx: number; rz: number; h: number }
 const SHAFT_R = 2.6
-const TUNNEL = { x0: -1.7, x1: 1.7, z0: -15, z1: -1.2 }
-const CAVE = { x: 0, z: -25, rx: 11.5, rz: 9.5 }
-/** How high the cavern's dome is. */
-const DOME = 7
+const ROOMS = {
+  hall: { x: 0, z: -25, rx: 11.5, rz: 9.5, h: 7 },
+  lake: { x: -31, z: -27, rx: 10, rz: 8, h: 6 },
+  sort: { x: 28, z: -22, rx: 8.5, rz: 6.5, h: 5.5 },
+  bend: { x: 4, z: -46, rx: 2.6, rz: 2.6, h: 3.4 },
+  office: { x: -9.5, z: -52, rx: 4.4, rz: 3.8, h: 3.8 },
+  crystal: { x: 5, z: -70, rx: 8, rz: 7.5, h: 7 },
+} satisfies Record<string, Room>
+/** The tunnels, as centre lines (they reach a little into the rooms at each end). */
+const TUNNELS: [number, number, number, number][] = [
+  [0, -1.2, 0, -16.2],
+  [-11.0, -26, -21.4, -27],
+  [11.0, -24, 19.8, -22],
+  [0, -34.2, 4, -46],
+  [4, -46, 5, -62.8],
+  [2.2, -46.6, -5.4, -51],
+]
+/** Half the width of a tunnel. */
+const TUNNEL_W = 1.7
+/** The black lake, in Svartsjön (you walk round it). */
+const LAKE = { x: -31.5, z: -27.5, rx: 6, rz: 4.2 }
 /** Where you arrive at the foot of the ladder, facing down the tunnel. */
 export const ARRIVE = { x: 0, z: 0.9, yaw: 0 }
 const LADDER = new THREE.Vector3(0, 0, SHAFT_R - 0.25)
+/** Gruvexpressen, waiting at its platform in Sorteringen. */
+const STATION = { x: 33.2, z: -21.6 }
 
 /** A rough rock texture: dark stone with seams of coal and a glint here and there. */
 function rockTexture() {
@@ -187,8 +213,16 @@ function cut(mesh: THREE.Mesh, gone: (c: THREE.Vector3) => boolean) {
   mesh.scale.set(1, 1, 1)
   return mesh
 }
-/** The way through from the shaft to the tunnel, and from the tunnel into the cavern. */
-const doorway = (c: THREE.Vector3) => Math.abs(c.x) < 2.1 && c.y < 3.1
+
+/** How far (x, z) is from the line from (ax, az) to (bx, bz). */
+function toSegment(x: number, z: number, ax: number, az: number, bx: number, bz: number) {
+  const dx = bx - ax
+  const dz = bz - az
+  const k = THREE.MathUtils.clamp(((x - ax) * dx + (z - az) * dz) / (dx * dx + dz * dz), 0, 1)
+  return { d: Math.hypot(x - ax - dx * k, z - az - dz * k), px: ax + dx * k, pz: az + dz * k }
+}
+/** Is this point where a tunnel goes through a wall (so the wall has a hole there)? */
+const inTunnel = (c: THREE.Vector3) => c.y < 3.2 && TUNNELS.some(([ax, az, bx, bz]) => toSegment(c.x, c.z, ax, az, bx, bz).d < TUNNEL_W + 0.35)
 
 /** A pick, for a nisse's right hand. */
 function pick() {
@@ -225,16 +259,35 @@ function miner(i: number) {
 }
 let lampGlow: THREE.Texture
 
+/** A painted sign on a board. */
+function sign(text: string, w: number, h: number, size: number) {
+  const [c, ctx] = makeCanvas(512, Math.round((512 * h) / w))
+  ctx.fillStyle = '#3a2614'
+  ctx.fillRect(0, 0, c.width, c.height)
+  ctx.strokeStyle = '#c8962a'
+  ctx.lineWidth = 10
+  ctx.strokeRect(8, 8, c.width - 16, c.height - 16)
+  ctx.fillStyle = '#f2d48a'
+  ctx.font = `bold ${size}px Georgia, serif`
+  ctx.textAlign = 'center'
+  ctx.textBaseline = 'middle'
+  ctx.fillText(text, c.width / 2, c.height / 2 + 4)
+  return new THREE.Mesh(new THREE.PlaneGeometry(w, h), new THREE.MeshStandardMaterial({ map: toTexture(c), roughness: 0.8 }))
+}
+
 export function buildMine() {
   const scene = new THREE.Scene()
   scene.background = new THREE.Color(0x050403)
-  scene.fog = new THREE.FogExp2(0x070504, 0.032)
+  scene.fog = new THREE.FogExp2(0x070504, 0.03)
   scene.add(new THREE.HemisphereLight(0x6a5644, 0x1a140e, 0.6))
   lampGlow = glowTexture('rgba(255,236,190,0.9)', 'rgba(255,200,120,0)')
   const lanternGlow = glowTexture('rgba(255,190,110,0.8)', 'rgba(255,140,50,0)')
   const statics = new THREE.Group()
   scene.add(statics)
   const obstacles: Circle[] = []
+  let seed = 9
+  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
+  const updaters: ((t: number, dt: number) => void)[] = []
 
   const tex = rockTexture()
   const rock = (rx: number, ry: number) => {
@@ -244,19 +297,46 @@ export function buildMine() {
     return new THREE.MeshStandardMaterial({ map: t, roughness: 0.95, side: THREE.BackSide })
   }
   const floorTex = tex.clone()
-  floorTex.repeat.set(10, 10)
+  floorTex.repeat.set(24, 24)
   floorTex.needsUpdate = true
-  const floor = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.MeshStandardMaterial({ map: floorTex, color: 0x9a8a7a, roughness: 1 }))
+  const floor = new THREE.Mesh(new THREE.PlaneGeometry(140, 140), new THREE.MeshStandardMaterial({ map: floorTex, color: 0x9a8a7a, roughness: 1 }))
   floor.rotation.x = -Math.PI / 2
-  floor.position.set(0, 0, -20)
+  floor.position.set(0, 0, -35)
   statics.add(floor)
+  const wood = std(0x6a4a2e, 0.9)
+  const darkWood = std(0x4a3220, 0.95)
+  const iron = std(0x1a1a1e, 0.5, 0.6)
+  const railMat = std(0x5a5e66, 0.4, 0.7)
+  const lanternMat = new THREE.MeshBasicMaterial({ color: 0xffc070, toneMapped: false })
+  const coalMat = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.3, metalness: 0.35 })
+  const lumpGeo = new THREE.DodecahedronGeometry(0.16, 0)
+  const lumps: THREE.Matrix4[] = []
+  const q = new THREE.Quaternion()
 
+  /** A lantern: hanging (from the dome) or on a post; only some of them really light the place. */
+  const lantern = (x: number, y: number, z: number, light = 0, reach = 16, post = false) => {
+    statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.26, 0.2), lanternMat).translateX(x).translateY(y).translateZ(z))
+    statics.add(new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.12, 4), iron).translateX(x).translateY(y + 0.19).translateZ(z).rotateY(Math.PI / 4))
+    if (post) {
+      statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.16, y + 0.3, 0.16), darkWood).translateX(x).translateY((y + 0.3) / 2).translateZ(z + 0.25))
+      obstacles.push({ x, z: z + 0.25, r: 0.2 })
+    } else statics.add(new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 1.4, 4), iron).translateX(x).translateY(y + 0.9).translateZ(z))
+    const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: lanternGlow, blending: THREE.AdditiveBlending, depthWrite: false }))
+    g.position.set(x, y, z)
+    g.scale.setScalar(1.5)
+    statics.add(keepApart(g))
+    if (light) {
+      const l = new THREE.PointLight(0xffa860, light, reach, 1.5)
+      l.position.set(x, y - 0.1, z)
+      scene.add(l)
+    }
+  }
+
+  /* ---------- the rock: shaft, rooms and tunnels ---------- */
   // the shaft: a rough round hole going up to the stump, the ladder up its side
   const shaftWall = new THREE.Mesh(rough(new THREE.CylinderGeometry(SHAFT_R + 0.3, SHAFT_R + 0.5, 12, 24, 8, true), 0.6, (v) => new THREE.Vector3(v.x, 0, v.z).normalize()), rock(3, 4))
   shaftWall.position.y = 6
-  statics.add(cut(shaftWall, (c) => c.z < -1 && doorway(c)))
-  const wood = std(0x6a4a2e, 0.9)
-  const darkWood = std(0x4a3220, 0.95)
+  statics.add(cut(shaftWall, inTunnel))
   for (const x of [-0.3, 0.3]) statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 11.5, 0.07), wood).translateX(LADDER.x + x).translateY(5.75).translateZ(LADDER.z))
   for (let y = 0.3; y < 11.4; y += 0.32) {
     const r = new THREE.Mesh(new THREE.CylinderGeometry(0.025, 0.025, 0.6, 6), wood)
@@ -273,53 +353,55 @@ export function buildMine() {
   skyLight.position.set(0, 8, 0.5)
   scene.add(skyLight)
 
-  // the tunnel, timbered every couple of metres
-  const tunnelLen = TUNNEL.z1 - TUNNEL.z0 + 3
-  const tunnelGeo = rough(new THREE.CylinderGeometry(2.3, 2.3, tunnelLen, 16, 10, true, Math.PI / 2 - 1.2, Math.PI + 2.4), 0.45, (v) => new THREE.Vector3(v.x, 0, v.z).normalize())
-  const tunnel = new THREE.Mesh(tunnelGeo, rock(2, 4))
-  tunnel.rotation.x = Math.PI / 2
-  tunnel.position.set(0, 0.6, (TUNNEL.z0 + TUNNEL.z1) / 2)
-  statics.add(tunnel)
-  for (let z = TUNNEL.z1 - 1; z > TUNNEL.z0; z -= 2.6) {
-    for (const x of [-1.45, 1.45]) statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.9, 0.22), darkWood).translateX(x).translateY(1.45).translateZ(z))
-    statics.add(new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.24, 0.26), darkWood).translateY(2.95).translateZ(z))
+  // the rooms: rough domes with holes where the tunnels come in
+  for (const r of Object.values(ROOMS)) {
+    const dome = new THREE.Mesh(rough(new THREE.SphereGeometry(1, 40, 20, 0, Math.PI * 2, 0, Math.PI / 2), 0.09, (v) => v.clone().normalize()), rock(Math.max(3, r.rx * 0.6), 3))
+    dome.scale.set(r.rx + 1.2, r.h, r.rz + 1.2)
+    dome.position.set(r.x, 0, r.z)
+    statics.add(cut(dome, inTunnel))
+    // stalactites
+    const stoneMat = std(0x3a322c, 0.9)
+    for (let i = 0; i < Math.round(r.rx * r.rz * 0.35); i++) {
+      const a = rnd() * Math.PI * 2
+      const k = Math.sqrt(rnd()) * 0.85
+      const y = r.h * Math.sqrt(Math.max(0.05, 1 - k * k)) - 0.2
+      const h = Math.min(r.h * 0.3, 0.5 + rnd() * 1.6)
+      const s = new THREE.Mesh(new THREE.ConeGeometry(0.1 + rnd() * 0.22, h, 6), stoneMat)
+      s.rotation.x = Math.PI
+      s.position.set(r.x + Math.cos(a) * k * r.rx, y - h / 2, r.z + Math.sin(a) * k * r.rz)
+      statics.add(s)
+    }
   }
+  // the tunnels: rough half-pipes along their lines, timbered every couple of metres
+  TUNNELS.forEach(([ax, az, bx, bz], ti) => {
+    const len = Math.hypot(bx - ax, bz - az)
+    const yaw = Math.atan2(bx - ax, bz - az)
+    const geo = rough(new THREE.CylinderGeometry(TUNNEL_W + 0.6, TUNNEL_W + 0.6, len + 1.6, 16, Math.max(2, Math.round(len / 1.5)), true, Math.PI / 2 - 1.2, Math.PI + 2.4), 0.45, (v) => new THREE.Vector3(v.x, 0, v.z).normalize())
+    geo.rotateX(Math.PI / 2).translate(0, 0.6, 0).rotateY(yaw).translate((ax + bx) / 2, 0, (az + bz) / 2)
+    const others = TUNNELS.filter((_, j) => j !== ti)
+    statics.add(cut(new THREE.Mesh(geo, rock(2, Math.max(1, len / 4))), (c) => c.y < 3.2 && others.some(([cx, cz, dx, dz]) => toSegment(c.x, c.z, cx, cz, dx, dz).d < TUNNEL_W + 0.35)))
+    const g = new THREE.Group()
+    g.position.set((ax + bx) / 2, 0, (az + bz) / 2)
+    g.rotation.y = yaw
+    for (let d = -len / 2 + 1.3; d < len / 2 - 0.8; d += 2.6) {
+      for (const x of [-1.45, 1.45]) g.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 2.9, 0.22), darkWood).translateX(x).translateY(1.45).translateZ(d))
+      g.add(new THREE.Mesh(new THREE.BoxGeometry(3.3, 0.24, 0.26), darkWood).translateY(2.95).translateZ(d))
+    }
+    statics.add(g)
+    // lanterns along it (lighting only in the first, short one: the rest glow)
+    const n = Math.max(1, Math.floor(len / 6))
+    for (let i = 0; i < n; i++) {
+      const k = (i + 0.5) / n
+      const side = i % 2 ? 1 : -1
+      const px = ax + (bx - ax) * k + Math.cos(yaw) * side * 1.2
+      const pz = az + (bz - az) * k - Math.sin(yaw) * side * 1.2
+      lantern(px, 2.55, pz, ti === 0 && i === 0 ? 9 : 0, 13)
+    }
+  })
 
-  // the great cavern: a rough dome over an oval floor
-  const caveWall = new THREE.Mesh(
-    rough(new THREE.SphereGeometry(1, 48, 24, 0, Math.PI * 2, 0, Math.PI / 2), 0.09, (v) => v.clone().normalize()),
-    rock(8, 4),
-  )
-  caveWall.scale.set(CAVE.rx + 1.2, DOME, CAVE.rz + 1.2)
-  caveWall.position.set(CAVE.x, 0, CAVE.z)
-  statics.add(cut(caveWall, (c) => c.z > CAVE.z + 8 && doorway(c)))
-  // stalactites
-  let seed = 9
-  const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
-  const stoneMat = std(0x3a322c, 0.9)
-  for (let i = 0; i < 40; i++) {
-    const a = rnd() * Math.PI * 2
-    const r = Math.sqrt(rnd()) * 0.85
-    const x = CAVE.x + Math.cos(a) * r * CAVE.rx
-    const z = CAVE.z + Math.sin(a) * r * CAVE.rz
-    const y = DOME * Math.sqrt(Math.max(0.05, 1 - r * r)) - 0.2
-    const h = 0.5 + rnd() * 1.6
-    const s = new THREE.Mesh(new THREE.ConeGeometry(0.12 + rnd() * 0.25, h, 6), stoneMat)
-    s.rotation.x = Math.PI
-    s.position.set(x, y - h / 2, z)
-    statics.add(s)
-  }
-
-  // rails: from the tunnel mouth round the cavern, sleepers under them
-  const railMat = std(0x5a5e66, 0.4, 0.7)
-  const railPath = new THREE.CatmullRomCurve3(
-    [[0, -2], [0, -14], [1.5, -17], [6, -19], [8.3, -25], [6, -30], [0, -31.5], [-6, -30], [-8.3, -25], [-6, -19], [-1.5, -17], [0, -14]].map(([x, z]) => new THREE.Vector3(x, 0.06, z)),
-    false,
-    'catmullrom',
-    0.4,
-  )
-  const loop = new THREE.CatmullRomCurve3(railPath.points.slice(2), true, 'catmullrom', 0.4)
-  for (const curve of [new THREE.CatmullRomCurve3(railPath.points.slice(0, 3), false), loop]) {
+  /* ---------- rails ---------- */
+  const rails = (pts: [number, number][], closed = false) => {
+    const curve = new THREE.CatmullRomCurve3(pts.map(([x, z]) => new THREE.Vector3(x, 0.06, z)), closed, 'catmullrom', 0.4)
     const n = Math.round(curve.getLength() / 0.7)
     for (let i = 0; i <= n; i++) {
       const p = curve.getPointAt(Math.min(1, i / n))
@@ -336,14 +418,14 @@ export function buildMine() {
         statics.add(r)
       }
     }
+    return curve
   }
+  rails([[0, -2], [0, -14], [1.5, -17]])
+  const loop = rails([[1.5, -17], [6, -19], [8.3, -25], [6, -30], [0, -31.5], [-6, -30], [-8.3, -25], [-6, -19], [-1.5, -17], [0, -16.2]], true)
+  rails([[8.3, -25], [12, -24], [20, -22.2], [27, -21.8], [STATION.x + 2.5, STATION.z]])
 
-  // coal: glossy black lumps in heaps, and seams in the walls where they dig
-  const coalMat = new THREE.MeshStandardMaterial({ color: 0x141416, roughness: 0.3, metalness: 0.35 })
-  const lumpGeo = new THREE.DodecahedronGeometry(0.16, 0)
-  const lumps: THREE.Matrix4[] = []
-  const m4 = new THREE.Matrix4()
-  const q = new THREE.Quaternion()
+  /* ---------- Stora orten: where they dig, and sing ---------- */
+  const hall = ROOMS.hall
   const heap = (x: number, z: number, r: number, n: number) => {
     for (let i = 0; i < n; i++) {
       const a = rnd() * Math.PI * 2
@@ -356,18 +438,16 @@ export function buildMine() {
     obstacles.push({ x, z, r: r * 0.85 })
   }
   heap(3, -26.5, 1.3, 110)
-  heap(-8, -30.5, 0.8, 50)
-
-  /* the coal faces, where the nissar dig: a glinting seam in the wall behind each */
-  const faces = [160, 195, 228, 312, 345, 15, 48].map((deg) => {
+  heap(-3.5, -22, 0.9, 60)
+  // the coal faces round the walls (clear of the tunnel mouths), a miner at each
+  const faces = [122, 150, 212, 238, 302, 328, 32, 58].map((deg) => {
     const a = THREE.MathUtils.degToRad(deg)
-    const x = CAVE.x + Math.cos(a) * CAVE.rx * 0.95
-    const z = CAVE.z + Math.sin(a) * CAVE.rz * 0.95
+    const x = hall.x + Math.cos(a) * hall.rx * 0.95
+    const z = hall.z + Math.sin(a) * hall.rz * 0.95
     // (facing out, at the rock)
-    return { x, z, yaw: Math.atan2(x - CAVE.x, (z - CAVE.z) * (CAVE.rx / CAVE.rz)) }
+    return { x, z, yaw: Math.atan2(x - hall.x, (z - hall.z) * (hall.rx / hall.rz)) }
   })
   for (const f of faces) {
-    // the seam: lumps stuck in the wall a little beyond where he stands
     const bx = f.x + Math.sin(f.yaw) * 1.5
     const bz = f.z + Math.cos(f.yaw) * 1.5
     for (let i = 0; i < 44; i++) {
@@ -377,40 +457,12 @@ export function buildMine() {
       lumps.push(new THREE.Matrix4().compose(new THREE.Vector3(bx + Math.cos(f.yaw) * side, 0.3 + rnd() * 1.8, bz - Math.sin(f.yaw) * side), q, new THREE.Vector3(s, s, s)))
     }
   }
-  const coal = new THREE.InstancedMesh(lumpGeo, coalMat, lumps.length)
-  lumps.forEach((m, i) => coal.setMatrixAt(i, m))
-  coal.computeBoundingSphere()
-  scene.add(coal)
+  lantern(0, 4.2, -25, 70, 30)
+  lantern(-5, 3.8, -29.5, 0)
+  lantern(5, 3.8, -20.5, 0)
+  lantern(7.2, 2.4, -29, 32, 18, true)
 
-  /* lanterns on the timbers and round the cavern – a few real lights, the rest just glow */
-  const lanternMat = new THREE.MeshBasicMaterial({ color: 0xffc070, toneMapped: false })
-  const iron = std(0x1a1a1e, 0.5, 0.6)
-  const lantern = (x: number, y: number, z: number, light: boolean, power = 9, reach = 13) => {
-    statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.2, 0.26, 0.2), lanternMat).translateX(x).translateY(y).translateZ(z))
-    statics.add(new THREE.Mesh(new THREE.ConeGeometry(0.17, 0.12, 4), iron).translateX(x).translateY(y + 0.19).translateZ(z).rotateY(Math.PI / 4))
-    statics.add(new THREE.Mesh(new THREE.CylinderGeometry(0.01, 0.01, 0.5, 4), iron).translateX(x).translateY(y + 0.5).translateZ(z))
-    const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: lanternGlow, blending: THREE.AdditiveBlending, depthWrite: false }))
-    g.position.set(x, y, z)
-    g.scale.setScalar(1.5)
-    statics.add(keepApart(g))
-    if (light) {
-      const l = new THREE.PointLight(0xffa860, power, reach, 1.5)
-      l.position.set(x, y - 0.1, z)
-      scene.add(l)
-    }
-  }
-  for (let z = TUNNEL.z1 - 1, i = 0; z > TUNNEL.z0; z -= 5.2, i++) lantern(i % 2 ? 1.2 : -1.2, 2.55, z - 0.3, i % 2 === 0)
-  for (const [x, z, l] of [[-7.5, -19.5, true], [7.5, -20.5, false], [-9, -26.5, false], [7.5, -30.5, true], [0, -25, true], [2.5, -33.2, false]] as const) {
-    // (on a post, or hanging from the dome in the middle)
-    const y = x === 0 && z === -25 ? 4.2 : 2.4
-    if (y < 3) statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.16, 2.6, 0.16), darkWood).translateX(x).translateY(1.3).translateZ(z + 0.3))
-    if (y < 3) obstacles.push({ x, z: z + 0.3, r: 0.2 })
-    // (the cavern is big: its lanterns burn brighter, the one in the middle brightest)
-    lantern(x, y, z, l, y > 3 ? 70 : 32, y > 3 ? 30 : 18)
-  }
-
-  /* carts on the loop, trundling round, heaped with coal */
-  const carts: { g: THREE.Group; k: number }[] = []
+  // carts on the loop, trundling round, heaped with coal
   const cartBody = std(0x4a3a30, 0.6, 0.4)
   const makeCart = () => {
     const g = new THREE.Group()
@@ -433,9 +485,212 @@ export function buildMine() {
     scene.add(g)
     return g
   }
-  for (let i = 0; i < 3; i++) carts.push({ g: makeCart(), k: i / 3 })
+  const carts = [0, 1, 2].map((i) => ({ g: makeCart(), k: i / 3 }))
+  updaters.push((_t, dt) => {
+    for (const c of carts) {
+      c.k = (c.k + dt * 0.012) % 1
+      const p = loop.getPointAt(c.k)
+      const tn = loop.getTangentAt(c.k)
+      c.g.position.set(p.x, 0.02, p.z)
+      c.g.rotation.y = Math.atan2(tn.x, tn.z)
+    }
+  })
+  const miners = faces.map((f, i) => {
+    const { n, mouth } = miner(i)
+    n.group.position.set(f.x, 0, f.z)
+    // (half turned from the rock, so you see them sing as you come by)
+    n.setYaw(f.yaw + (i % 2 ? 0.95 : -0.95))
+    const spot = new THREE.Sprite(new THREE.SpriteMaterial({ map: lampGlow, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.35 }))
+    spot.position.set(f.x + Math.sin(f.yaw) * 1.3, 1.2, f.z + Math.cos(f.yaw) * 1.3)
+    spot.scale.setScalar(2.2)
+    scene.add(spot)
+    n.armR.add(pick())
+    n.armL.rotation.set(-1.0, 0, 0.3)
+    mergeRigid(n.group)
+    scene.add(n.group)
+    obstacles.push({ x: f.x, z: f.z, r: 0.45 })
+    return { n, mouth, phase: rnd() * 6, swing: 0, open: 0 }
+  })
 
-  /* the board with Stygga listan on it, and the foreman by it */
+  /* ---------- Svartsjön: a still black lake, glowing mushrooms, an old miner fishing ---------- */
+  const lake = ROOMS.lake
+  const water = new THREE.Mesh(new THREE.CircleGeometry(1, 48), new THREE.MeshStandardMaterial({ color: 0x0a1620, roughness: 0.05, metalness: 0.9 }))
+  water.rotation.x = -Math.PI / 2
+  water.scale.set(LAKE.rx, LAKE.rz, 1)
+  water.position.set(LAKE.x, 0.04, LAKE.z)
+  statics.add(water)
+  const shoreMat = std(0x3a322c, 0.9)
+  for (let i = 0; i < 46; i++) {
+    const a = (i / 46) * Math.PI * 2
+    const s = 0.25 + rnd() * 0.35
+    statics.add(new THREE.Mesh(new THREE.DodecahedronGeometry(s, 0), shoreMat).translateX(LAKE.x + Math.cos(a) * LAKE.rx * (1.02 + rnd() * 0.06)).translateY(s * 0.3).translateZ(LAKE.z + Math.sin(a) * LAKE.rz * (1.02 + rnd() * 0.06)))
+  }
+  // glowing mushrooms in clumps round the shore and the walls
+  const capMat = new THREE.MeshBasicMaterial({ color: 0x6ff0e0, toneMapped: false })
+  const stemMat = std(0xd8e8e0, 0.6)
+  const shroomGlow = glowTexture('rgba(120,255,230,0.7)', 'rgba(60,200,200,0)')
+  for (let c = 0; c < 14; c++) {
+    const a = rnd() * Math.PI * 2
+    const k = c % 2 ? 1.12 : 0.88
+    const cx = c % 2 ? LAKE.x + Math.cos(a) * LAKE.rx * k : lake.x + Math.cos(a) * lake.rx * 0.9
+    const cz = c % 2 ? LAKE.z + Math.sin(a) * LAKE.rz * k : lake.z + Math.sin(a) * lake.rz * 0.9
+    for (let i = 0; i < 5; i++) {
+      const x = cx + (rnd() - 0.5) * 0.6
+      const z = cz + (rnd() - 0.5) * 0.6
+      const h = 0.08 + rnd() * 0.2
+      statics.add(new THREE.Mesh(new THREE.CylinderGeometry(0.015, 0.02, h, 5), stemMat).translateX(x).translateY(h / 2).translateZ(z))
+      const cap = new THREE.Mesh(new THREE.SphereGeometry(0.05 + rnd() * 0.05, 8, 5, 0, Math.PI * 2, 0, Math.PI / 2), capMat)
+      cap.position.set(x, h, z)
+      statics.add(cap)
+    }
+    const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: shroomGlow, blending: THREE.AdditiveBlending, depthWrite: false }))
+    g.position.set(cx, 0.25, cz)
+    g.scale.setScalar(1.4)
+    statics.add(keepApart(g))
+  }
+  const lakeLight = new THREE.PointLight(0x60d8ff, 22, 22, 1.4)
+  lakeLight.position.set(lake.x, 3.5, lake.z)
+  scene.add(lakeLight)
+  // a rowing boat pulled up on the shore
+  const boat = new THREE.Group()
+  const hull = new THREE.Mesh(new THREE.SphereGeometry(1, 14, 8, 0, Math.PI * 2, Math.PI / 2, Math.PI / 2), new THREE.MeshStandardMaterial({ color: 0x5a3a24, roughness: 0.85, side: THREE.DoubleSide }))
+  hull.scale.set(0.6, 0.35, 1.5)
+  hull.position.y = 0.35
+  boat.add(hull)
+  boat.add(new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.05, 0.25), wood).translateY(0.3))
+  const oar = new THREE.Mesh(new THREE.BoxGeometry(0.05, 0.05, 1.8), wood)
+  oar.position.set(0.4, 0.45, 0.2)
+  oar.rotation.y = 0.3
+  boat.add(oar)
+  boat.position.set(LAKE.x + LAKE.rx * 0.95, 0, LAKE.z - 1.8)
+  boat.rotation.y = 0.4
+  statics.add(boat)
+  // the old miner, sat on a rock with his rod out over the water
+  const fisher = miner(4)
+  const seat = new THREE.Mesh(new THREE.DodecahedronGeometry(0.45, 0), shoreMat)
+  const fx = LAKE.x - 1.2
+  const fz = LAKE.z + LAKE.rz + 0.9
+  seat.position.set(fx, 0.2, fz)
+  statics.add(seat)
+  obstacles.push({ x: fx, z: fz, r: 0.6 })
+  fisher.n.group.position.set(fx, 0.42, fz)
+  fisher.n.setYaw(Math.PI)
+  fisher.n.sit(true)
+  fisher.n.armR.rotation.set(-1.4, 0, 0)
+  fisher.n.armL.rotation.set(-1.3, 0, 0.3)
+  const rod = new THREE.Mesh(new THREE.CylinderGeometry(0.012, 0.02, 2.4, 5), wood)
+  rod.position.set(0, -0.5, 1.0)
+  rod.rotation.x = Math.PI / 2 - 0.5
+  fisher.n.armR.add(rod)
+  mergeRigid(fisher.n.group)
+  scene.add(fisher.n.group)
+  const line = new THREE.Mesh(new THREE.CylinderGeometry(0.004, 0.004, 1.6, 3), std(0xd0d0d0, 0.5))
+  line.position.set(fx, 1.1, fz - 2.15)
+  statics.add(line)
+  const float = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), std(0xd8202c, 0.5))
+  scene.add(float)
+  updaters.push((t) => {
+    float.position.set(fx, 0.08 + Math.sin(t * 1.3) * 0.02, fz - 2.15)
+    fisher.n.head.rotation.x = 0.15 + Math.sin(t * 0.3) * 0.05
+  })
+
+  /* ---------- Sorteringen: the coal on a belt, sorted into sacks – and Gruvexpressen's platform ---------- */
+  const sort = ROOMS.sort
+  const belt = new THREE.Group()
+  belt.position.set(sort.x - 1, 0, sort.z + 2.6)
+  belt.add(new THREE.Mesh(new THREE.BoxGeometry(8, 0.12, 0.9), std(0x22201e, 0.7)).translateY(0.85))
+  for (const z of [-0.5, 0.5]) belt.add(new THREE.Mesh(new THREE.BoxGeometry(8, 0.22, 0.08), iron).translateY(0.8).translateZ(z))
+  for (let x = -3.6; x <= 3.6; x += 1.2) for (const z of [-0.45, 0.45]) belt.add(new THREE.Mesh(new THREE.BoxGeometry(0.08, 0.8, 0.08), iron).translateX(x).translateY(0.4).translateZ(z))
+  statics.add(belt)
+  obstacles.push(...[-3, -1, 1, 3].map((x) => ({ x: belt.position.x + x, z: belt.position.z, r: 0.75 })))
+  const riding = new THREE.InstancedMesh(lumpGeo, coalMat, 24)
+  riding.frustumCulled = false
+  scene.add(riding)
+  const m4 = new THREE.Matrix4()
+  updaters.push((t) => {
+    for (let i = 0; i < 24; i++) {
+      const k = (t * 0.06 + i / 24) % 1
+      q.setFromEuler(new THREE.Euler(i, i * 2, 0))
+      riding.setMatrixAt(i, m4.compose(new THREE.Vector3(belt.position.x - 4 + k * 8, 1.0, belt.position.z + Math.sin(i * 7) * 0.25), q, new THREE.Vector3(1, 1, 1)))
+    }
+    riding.instanceMatrix.needsUpdate = true
+  })
+  // two sorters at the belt
+  const sorters = [-1.5, 1.8].map((dx, i) => {
+    const { n } = miner(i + 2)
+    n.group.position.set(belt.position.x + dx, 0, belt.position.z - 1.0)
+    n.setYaw(0)
+    mergeRigid(n.group)
+    scene.add(n.group)
+    obstacles.push({ x: belt.position.x + dx, z: belt.position.z - 1.0, r: 0.45 })
+    return n
+  })
+  updaters.push((t) => sorters.forEach((n, i) => {
+    n.armR.rotation.x = -1.2 + Math.sin(t * 3 + i * 2) * 0.4
+    n.armL.rotation.x = -1.2 + Math.sin(t * 3 + i * 2 + 1.5) * 0.4
+  }))
+  // sacks of coal, tied up and labelled, ready to go up
+  const [sc, sctx] = makeCanvas(128, 64)
+  sctx.fillStyle = '#8a6a48'
+  sctx.fillRect(0, 0, 128, 64)
+  sctx.fillStyle = '#1a1010'
+  sctx.font = 'bold 34px Georgia, serif'
+  sctx.textAlign = 'center'
+  sctx.fillText('KOL', 64, 44)
+  const sackMat = std(0x8a6a48, 1)
+  const labelMat = new THREE.MeshStandardMaterial({ map: toTexture(sc), roughness: 1 })
+  for (let i = 0; i < 9; i++) {
+    const x = sort.x - 5.5 + (i % 3) * 0.85 + (rnd() - 0.5) * 0.2
+    const z = sort.z - 3.2 + Math.floor(i / 3) * 0.8
+    const a = (rnd() - 0.5) * 1.2
+    const s = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), sackMat)
+    s.scale.set(1, 1.35, 0.85)
+    s.position.set(x, 0.55, z)
+    s.rotation.y = a
+    statics.add(s)
+    statics.add(new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.03, 6, 12), std(0xb3202a, 0.6)).translateX(x).translateY(1.05).translateZ(z).rotateX(Math.PI / 2))
+    const label = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.17), labelMat)
+    label.position.set(x + Math.sin(a) * 0.37, 0.62, z + Math.cos(a) * 0.37)
+    label.rotation.y = a
+    statics.add(label)
+  }
+  obstacles.push({ x: sort.x - 4.6, z: sort.z - 2.4, r: 1.5 })
+  const sortSign = sign('SORTERINGEN', 2.6, 0.55, 64)
+  sortSign.position.set(sort.x - 1, 2.6, sort.z + 3.6)
+  sortSign.rotation.y = Math.PI
+  statics.add(sortSign)
+  lantern(sort.x - 1, 3.6, sort.z, 30, 18)
+  // the platform, with Gruvexpressen waiting at it and a black tunnel mouth beyond
+  const platform = new THREE.Mesh(new THREE.BoxGeometry(1.6, 0.25, 3.2), darkWood)
+  platform.position.set(STATION.x - 1.5, 0.12, STATION.z)
+  statics.add(platform)
+  const express = new THREE.Group()
+  express.add(new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.6, 1.35), std(0x8a2020, 0.5, 0.4)).translateY(0.58))
+  express.add(new THREE.Mesh(new THREE.BoxGeometry(1.06, 0.06, 1.41), std(0xc8962a, 0.35, 0.8)).translateY(0.89))
+  for (const x of [-0.45, 0.45]) for (const z of [-0.45, 0.45]) {
+    const w = new THREE.Mesh(new THREE.CylinderGeometry(0.17, 0.17, 0.09, 14), railMat)
+    w.rotation.z = Math.PI / 2
+    w.position.set(x, 0.2, z)
+    express.add(w)
+  }
+  express.position.set(STATION.x, 0, STATION.z)
+  express.rotation.y = Math.PI / 2
+  statics.add(express)
+  obstacles.push({ x: STATION.x, z: STATION.z, r: 0.75 })
+  const mouth = new THREE.Mesh(new THREE.CircleGeometry(1.5, 16, 0, Math.PI), new THREE.MeshBasicMaterial({ color: 0x000000 }))
+  mouth.position.set(sort.x + sort.rx + 0.9, 0, STATION.z)
+  mouth.rotation.y = -Math.PI / 2
+  statics.add(mouth)
+  const expressSign = sign('GRUVEXPRESSEN', 2.4, 0.5, 58)
+  // (over the end of the platform, facing you as you come in)
+  expressSign.position.set(STATION.x - 2.4, 2.3, STATION.z)
+  expressSign.rotation.y = -Math.PI / 2
+  statics.add(expressSign)
+  for (const dz of [-1.15, 1.15]) statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.1, 2.5, 0.1), darkWood).translateX(STATION.x - 2.45).translateY(1.25).translateZ(STATION.z + dz))
+  obstacles.push({ x: STATION.x - 2.45, z: STATION.z - 1.15, r: 0.15 }, { x: STATION.x - 2.45, z: STATION.z + 1.15, r: 0.15 })
+
+  /* ---------- the foreman's office, and Stygga listan ---------- */
+  const office = ROOMS.office
   const [lc, lctx] = makeCanvas(256, 384)
   lctx.fillStyle = '#e8d8b0'
   lctx.fillRect(0, 0, 256, 384)
@@ -455,76 +710,107 @@ export function buildMine() {
   lctx.fillStyle = '#5a1010'
   lctx.font = 'italic 18px Georgia, serif'
   lctx.fillText('…och så vidare', 128, 372)
+  const listTex = toTexture(lc)
   const board = new THREE.Group()
-  board.position.set(-1.6, 0, -33.9)
-  board.add(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.95), new THREE.MeshStandardMaterial({ map: toTexture(lc), roughness: 0.9 })).translateY(1.9))
-  for (const x of [-0.72, 0.72]) board.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 3, 0.12), darkWood).translateX(x).translateY(1.5).translateZ(-0.05))
+  board.position.set(office.x - 1.2, 0, office.z - office.rz + 0.5)
+  board.add(new THREE.Mesh(new THREE.PlaneGeometry(1.3, 1.95), new THREE.MeshStandardMaterial({ map: listTex, roughness: 0.9 })).translateY(1.6))
+  for (const x of [-0.72, 0.72]) board.add(new THREE.Mesh(new THREE.BoxGeometry(0.12, 2.7, 0.12), darkWood).translateX(x).translateY(1.35).translateZ(-0.05))
   statics.add(board)
-  obstacles.push({ x: -1.6, z: -34, r: 0.8 })
-  const crate = new THREE.Mesh(new THREE.BoxGeometry(0.9, 0.6, 0.9), darkWood)
-  crate.position.set(0.9, 0.3, -33.0)
-  statics.add(crate)
-  obstacles.push({ x: 0.9, z: -33.0, r: 0.6 })
-
-  // sacks of coal, tied up and labelled, ready to go up
-  const [sc, sctx] = makeCanvas(128, 64)
-  sctx.fillStyle = '#8a6a48'
-  sctx.fillRect(0, 0, 128, 64)
-  sctx.fillStyle = '#1a1010'
-  sctx.font = 'bold 34px Georgia, serif'
-  sctx.textAlign = 'center'
-  sctx.fillText('KOL', 64, 44)
-  const sackMat = std(0x8a6a48, 1)
-  const labelMat = new THREE.MeshStandardMaterial({ map: toTexture(sc), roughness: 1 })
-  for (const [x, z, a] of [[-2.2, -27.4, 0.3], [-3.1, -28.1, -0.2], [-2.4, -28.8, 0.8], [-3.4, -27.2, 1.5]] as const) {
-    const s = new THREE.Mesh(new THREE.SphereGeometry(0.42, 12, 10), sackMat)
-    s.scale.set(1, 1.35, 0.85)
-    s.position.set(x, 0.55, z)
-    s.rotation.y = a
-    statics.add(s)
-    // a label tied on the front
-    const label = new THREE.Mesh(new THREE.PlaneGeometry(0.34, 0.17), labelMat)
-    label.position.set(x + Math.sin(a) * 0.37, 0.62, z + Math.cos(a) * 0.37)
-    label.rotation.y = a
-    statics.add(label)
-    statics.add(new THREE.Mesh(new THREE.TorusGeometry(0.12, 0.03, 6, 12), std(0xb3202a, 0.6)).translateX(x).translateY(1.05).translateZ(z).rotateX(Math.PI / 2))
-  }
-  obstacles.push({ x: -2.8, z: -27.9, r: 1.2 })
-
-  /* the miners */
-  const miners = faces.map((f, i) => {
-    const { n, mouth } = miner(i)
-    n.group.position.set(f.x, 0, f.z)
-    // (half turned from the rock, so you see them sing as you come by)
-    n.setYaw(f.yaw + (i % 2 ? 0.95 : -0.95))
-    // where his headlamp shines on the seam
-    const spot = new THREE.Sprite(new THREE.SpriteMaterial({ map: lampGlow, blending: THREE.AdditiveBlending, depthWrite: false, opacity: 0.35 }))
-    spot.position.set(f.x + Math.sin(f.yaw) * 1.3, 1.2, f.z + Math.cos(f.yaw) * 1.3)
-    spot.scale.setScalar(2.2)
-    scene.add(spot)
-    const p = pick()
-    n.armR.add(p)
-    n.armL.rotation.set(-1.0, 0, 0.3)
-    mergeRigid(n.group)
-    scene.add(n.group)
-    obstacles.push({ x: f.x, z: f.z, r: 0.45 })
-    return { n, mouth, phase: rnd() * 6, swing: 0, open: 0 }
-  })
-  // the foreman: bigger, a red hat, holding up a lantern by the list
+  obstacles.push({ x: board.position.x, z: board.position.z, r: 0.8 })
+  // and the rest of the list, unrolled across the floor
+  const scroll = new THREE.Mesh(new THREE.PlaneGeometry(0.9, 3), new THREE.MeshStandardMaterial({ map: listTex, roughness: 0.9 }))
+  scroll.rotation.x = -Math.PI / 2
+  scroll.position.set(office.x - 1.2, 0.02, office.z - office.rz + 2.6)
+  statics.add(scroll)
+  statics.add(new THREE.Mesh(new THREE.CylinderGeometry(0.09, 0.09, 1, 10), std(0xe8d8b0, 0.9)).translateX(office.x - 1.2).translateY(0.09).translateZ(office.z - office.rz + 4.1).rotateZ(Math.PI / 2))
+  // the desk, a candle, the ledgers
+  const desk = new THREE.Group()
+  desk.position.set(office.x + 1.8, 0, office.z - 0.6)
+  desk.add(new THREE.Mesh(new THREE.BoxGeometry(1.5, 0.08, 0.8), wood).translateY(0.75))
+  for (const x of [-0.68, 0.68]) for (const z of [-0.33, 0.33]) desk.add(new THREE.Mesh(new THREE.BoxGeometry(0.07, 0.75, 0.07), darkWood).translateX(x).translateY(0.37).translateZ(z))
+  for (let i = 0; i < 5; i++) desk.add(new THREE.Mesh(new THREE.BoxGeometry(0.22, 0.06, 0.3), std([0x5a1010, 0x1e3a5a, 0x2a4a2a][i % 3], 0.8)).translateX(-0.45).translateY(0.82 + i * 0.06).rotateY(i * 0.2))
+  desk.add(new THREE.Mesh(new THREE.CylinderGeometry(0.03, 0.03, 0.18, 8), std(0xfbf8f2, 0.5)).translateX(0.45).translateY(0.88))
+  desk.add(new THREE.Mesh(new THREE.ConeGeometry(0.02, 0.05, 6), lanternMat).translateX(0.45).translateY(1.0))
+  statics.add(desk)
+  obstacles.push({ x: desk.position.x, z: desk.position.z, r: 0.85 })
+  const candle = new THREE.PointLight(0xffb060, 10, 9, 1.5)
+  candle.position.set(desk.position.x + 0.45, 1.2, desk.position.z)
+  scene.add(candle)
+  // the foreman: bigger, holding up a lantern by the list
   const foreman = miner(1)
   foreman.n.group.scale.setScalar(0.95)
-  foreman.n.group.position.set(0.9, 0.6, -33.0)
-  foreman.n.setYaw(0.2)
+  foreman.n.group.position.set(office.x + 0.3, 0, office.z - office.rz + 1.1)
+  foreman.n.setYaw(0.4)
   foreman.n.armL.rotation.set(-2.2, 0, 0.1)
   const held = new THREE.Mesh(new THREE.BoxGeometry(0.14, 0.18, 0.14), lanternMat)
   held.position.y = -0.48
   foreman.n.armL.add(held)
   mergeRigid(foreman.n.group)
   scene.add(foreman.n.group)
+  obstacles.push({ x: foreman.n.group.position.x, z: foreman.n.group.position.z, r: 0.45 })
+
+  /* ---------- Kristallgrottan: deepest of all, glittering ---------- */
+  const crystal = ROOMS.crystal
+  const crystalMats = [0xb070ff, 0x60b0ff, 0xff70d0].map((c) => new THREE.MeshStandardMaterial({ color: c, emissive: c, emissiveIntensity: 0.9, roughness: 0.15, metalness: 0.2, transparent: true, opacity: 0.88 }))
+  const crystalGlow = glowTexture('rgba(190,140,255,0.6)', 'rgba(120,90,255,0)')
+  const cluster = (x: number, z: number, size: number, n: number) => {
+    for (let i = 0; i < n; i++) {
+      const h = size * (0.5 + rnd())
+      const c = new THREE.Mesh(new THREE.OctahedronGeometry(1, 0), crystalMats[Math.floor(rnd() * 3)])
+      c.scale.set(h * 0.18, h, h * 0.18)
+      c.position.set(x + (rnd() - 0.5) * size * 0.8, h * 0.6, z + (rnd() - 0.5) * size * 0.8)
+      c.rotation.set((rnd() - 0.5) * 0.8, rnd() * 3, (rnd() - 0.5) * 0.8)
+      statics.add(c)
+    }
+    const g = new THREE.Sprite(new THREE.SpriteMaterial({ map: crystalGlow, blending: THREE.AdditiveBlending, depthWrite: false }))
+    g.position.set(x, size * 0.6, z)
+    g.scale.setScalar(size * 3)
+    statics.add(keepApart(g))
+    obstacles.push({ x, z, r: size * 0.5 })
+  }
+  for (let i = 0; i < 11; i++) {
+    const a = (i / 11) * Math.PI * 2 + 0.2
+    // (none across the way in, at the south)
+    if (Math.abs(a - Math.PI / 2) < 0.45) continue
+    cluster(crystal.x + Math.cos(a) * crystal.rx * 0.85, crystal.z + Math.sin(a) * crystal.rz * 0.85, 0.7 + rnd() * 0.6, 7)
+  }
+  cluster(crystal.x, crystal.z - 1, 1.6, 9)
+  const purple = new THREE.PointLight(0xb080ff, 26, 20, 1.4)
+  purple.position.set(crystal.x, 4, crystal.z)
+  scene.add(purple)
+  // a nisse polishing gems at a little bench, a chest of them beside him
+  const jeweller = miner(6)
+  jeweller.n.group.position.set(crystal.x + 3.2, 0, crystal.z + 3.4)
+  jeweller.n.setYaw(-2.2)
+  jeweller.n.armR.rotation.set(-1.3, 0, -0.2)
+  jeweller.n.armL.rotation.set(-1.3, 0, 0.2)
+  mergeRigid(jeweller.n.group)
+  scene.add(jeweller.n.group)
+  const bench = new THREE.Mesh(new THREE.BoxGeometry(1.0, 0.08, 0.6), wood)
+  bench.position.set(crystal.x + 2.6, 0.8, crystal.z + 2.7)
+  bench.rotation.y = -2.2 + Math.PI / 2
+  statics.add(bench)
+  const gem = new THREE.Mesh(new THREE.OctahedronGeometry(0.1), crystalMats[2])
+  gem.position.set(crystal.x + 2.6, 0.95, crystal.z + 2.7)
+  scene.add(gem)
+  const chest = new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.5), std(0x6a4422, 0.7))
+  chest.position.set(crystal.x + 4.2, 0.25, crystal.z + 1.8)
+  statics.add(chest)
+  for (let i = 0; i < 12; i++) statics.add(new THREE.Mesh(new THREE.OctahedronGeometry(0.06), crystalMats[i % 3]).translateX(chest.position.x + (rnd() - 0.5) * 0.6).translateY(0.52).translateZ(chest.position.z + (rnd() - 0.5) * 0.35))
+  obstacles.push({ x: crystal.x + 3.2, z: crystal.z + 3.0, r: 1.0 }, { x: chest.position.x, z: chest.position.z, r: 0.5 })
+  updaters.push((t) => {
+    gem.rotation.y = t * 1.5
+    jeweller.n.armR.rotation.x = -1.3 + Math.sin(t * 6) * 0.15
+  })
+
+  const coal = new THREE.InstancedMesh(lumpGeo, coalMat, lumps.length)
+  lumps.forEach((m, i) => coal.setMatrixAt(i, m))
+  coal.computeBoundingSphere()
+  scene.add(coal)
 
   bakeStatic(statics)
 
-  /* the song: the boatmen's song, sung by the miners as they work – heard all through the mine */
+  /* ---------- the song: the boatmen's song, sung as they work – heard all through the mine ---------- */
   const SONG = '/sounds/kor/pramdragarna.mp3'
   const song = new Playlist(4)
   let loud = 0
@@ -540,15 +826,16 @@ export function buildMine() {
     return !parts || parts.some(([a, b]) => p.at >= a && p.at <= b)
   }
 
-  /* walking about: the shaft, the tunnel and the cavern, round the things in them */
-  function inside(x: number, z: number, R: number) {
+  /* ---------- walking about: rooms and tunnels, round the lake and the things in them ---------- */
+  const R = 0.35
+  function inside(x: number, z: number) {
     if (Math.hypot(x, z) < SHAFT_R - R) return true
-    if (x > TUNNEL.x0 + R && x < TUNNEL.x1 - R && z > TUNNEL.z0 && z < TUNNEL.z1 + 0.5) return true
-    return ((x - CAVE.x) / (CAVE.rx - R)) ** 2 + ((z - CAVE.z) / (CAVE.rz - R)) ** 2 < 1
+    for (const [ax, az, bx, bz] of TUNNELS) if (toSegment(x, z, ax, az, bx, bz).d < TUNNEL_W - 0.35 - R) return true
+    for (const r of Object.values(ROOMS)) if (((x - r.x) / (r.rx - R)) ** 2 + ((z - r.z) / (r.rz - R)) ** 2 < 1) return true
+    return false
   }
   function collide(p: THREE.Vector3, _feet: number) {
-    const R = 0.35
-    for (const c of obstacles) {
+    for (const c of [...obstacles, { x: LADDER.x, z: LADDER.z, r: 0.5 }]) {
       const dx = p.x - c.x
       const dz = p.z - c.z
       const d = Math.hypot(dx, dz)
@@ -557,24 +844,31 @@ export function buildMine() {
         p.z = c.z + (dz / d) * (c.r + R)
       }
     }
-    // the ladder
-    if (Math.hypot(p.x - LADDER.x, p.z - LADDER.z) < 0.5 + R) {
-      const dx = p.x - LADDER.x
-      const dz = p.z - LADDER.z
-      const d = Math.hypot(dx, dz) || 1
-      p.x = LADDER.x + (dx / d) * (0.5 + R)
-      p.z = LADDER.z + (dz / d) * (0.5 + R)
+    // not into the lake
+    const lx = (p.x - LAKE.x) / (LAKE.rx + R)
+    const lz = (p.z - LAKE.z) / (LAKE.rz + R)
+    const l = Math.hypot(lx, lz)
+    if (l < 1 && l > 1e-5) {
+      p.x = LAKE.x + (lx / l) * (LAKE.rx + R)
+      p.z = LAKE.z + (lz / l) * (LAKE.rz + R)
     }
-    if (inside(p.x, p.z, R)) return
-    // back onto the floor, the shortest way: into the shaft, the tunnel or the cavern
+    if (inside(p.x, p.z)) return
+    // back onto the floor, the shortest way: into the shaft, a tunnel or a room
     const options: [number, number][] = []
     const r = Math.hypot(p.x, p.z) || 1
     options.push([(p.x / r) * (SHAFT_R - R - 0.01), (p.z / r) * (SHAFT_R - R - 0.01)])
-    options.push([THREE.MathUtils.clamp(p.x, TUNNEL.x0 + R + 0.01, TUNNEL.x1 - R - 0.01), THREE.MathUtils.clamp(p.z, TUNNEL.z0, TUNNEL.z1)])
-    const ex = (p.x - CAVE.x) / (CAVE.rx - R)
-    const ez = (p.z - CAVE.z) / (CAVE.rz - R)
-    const e = Math.hypot(ex, ez) || 1
-    options.push([CAVE.x + (ex / e) * (CAVE.rx - R) * 0.999, CAVE.z + (ez / e) * (CAVE.rz - R) * 0.999])
+    const w = TUNNEL_W - 0.35 - R - 0.01
+    for (const [ax, az, bx, bz] of TUNNELS) {
+      const s = toSegment(p.x, p.z, ax, az, bx, bz)
+      const k = s.d > 1e-5 ? w / s.d : 0
+      options.push([s.px + (p.x - s.px) * k, s.pz + (p.z - s.pz) * k])
+    }
+    for (const rm of Object.values(ROOMS)) {
+      const ex = (p.x - rm.x) / (rm.rx - R)
+      const ez = (p.z - rm.z) / (rm.rz - R)
+      const e = Math.hypot(ex, ez) || 1
+      options.push([rm.x + (ex / e) * (rm.rx - R) * 0.999, rm.z + (ez / e) * (rm.rz - R) * 0.999])
+    }
     let best = options[0]
     for (const o of options) if (Math.hypot(o[0] - p.x, o[1] - p.z) < Math.hypot(best[0] - p.x, best[1] - p.z)) best = o
     p.x = best[0]
@@ -582,19 +876,22 @@ export function buildMine() {
   }
   const ground = () => 0
 
-  /** By the ladder, facing it: climb back up. */
-  function nearLadder(pos: THREE.Vector3, fwd: THREE.Vector3) {
-    const dx = LADDER.x - pos.x
-    const dz = LADDER.z - pos.z
+  const facing = (pos: THREE.Vector3, fwd: THREE.Vector3, x: number, z: number, reach: number) => {
+    const dx = x - pos.x
+    const dz = z - pos.z
     const d = Math.hypot(dx, dz)
-    return d < 1.6 && (dx * fwd.x + dz * fwd.z) / d > 0.4
+    return d < reach && (dx * fwd.x + dz * fwd.z) / d > 0.4
   }
+  /** By the ladder, facing it: climb back up. */
+  const nearLadder = (pos: THREE.Vector3, fwd: THREE.Vector3) => facing(pos, fwd, LADDER.x, LADDER.z, 1.6)
+  /** By Gruvexpressen, facing it: get in. */
+  const nearCart = (pos: THREE.Vector3, fwd: THREE.Vector3) => facing(pos, fwd, STATION.x, STATION.z, 2.2)
 
-  const centre = new THREE.Vector3(CAVE.x, 0, CAVE.z + 2)
+  const centre = new THREE.Vector3(hall.x, 0, hall.z + 2)
   function update(t: number, dt: number, player: THREE.Vector3, enabled: boolean) {
-    // the song: loud in the cavern, a far-off echo up the tunnel
+    // the song: loud in Stora orten, a far-off echo down the tunnels
     const d = Math.hypot(player.x - centre.x, player.z - centre.z)
-    const vol = enabled ? 0.9 * THREE.MathUtils.clamp(1 - (d - 8) / 32, 0.12, 1) : 0
+    const vol = enabled ? 0.9 * THREE.MathUtils.clamp(1 - (d - 8) / 32, 0.1, 1) : 0
     if (vol > 0.003) {
       song.start([SONG])
       song.level(vol)
@@ -627,19 +924,14 @@ export function buildMine() {
       m.mouth.scale.y = 0.2 + m.open * 1.2
     }
     foreman.n.head.rotation.y = Math.sin(t * 0.4) * 0.5
-    foreman.mouth.scale.y = 0.2 + (singing ? level : 0)
-    // the carts trundle round the loop
-    for (const c of carts) {
-      c.k = (c.k + dt * 0.012) % 1
-      const p = loop.getPointAt(c.k)
-      const tn = loop.getTangentAt(c.k)
-      c.g.position.set(p.x, 0.02, p.z)
-      c.g.rotation.y = Math.atan2(tn.x, tn.z)
-    }
-    // water dripping somewhere
+    foreman.mouth.scale.y = 0.2 + (singing ? level * 0.6 : 0)
+    fisher.mouth.scale.y = 0.2 + (singing ? level * 0.4 : 0)
+    for (const u of updaters) u(t, dt)
+    // water dripping somewhere (more of it by the lake)
     if (enabled && (drip -= dt) <= 0) {
-      drip = 1.5 + Math.random() * 4
-      blip(2400 + Math.random() * 900, 0.05, 'sine', 0.018)
+      const byLake = Math.hypot(player.x - lake.x, player.z - lake.z) < 14
+      drip = (byLake ? 0.6 : 1.5) + Math.random() * (byLake ? 2 : 4)
+      blip(2400 + Math.random() * 900, 0.05, 'sine', byLake ? 0.03 : 0.018)
     }
   }
 
@@ -651,6 +943,6 @@ export function buildMine() {
     for (let i = 0; i < 6; i++) setTimeout(() => noise(0.12, 600, 300, 0.12, 1.2), i * 160)
   }
 
-  return { scene, collide, ground, update, nearLadder, leave, climb, arrive: ARRIVE }
+  return { scene, collide, ground, update, nearLadder, nearCart, leave, climb, arrive: ARRIVE, station: STATION }
 }
 export type Mine = ReturnType<typeof buildMine>

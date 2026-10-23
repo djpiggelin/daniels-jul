@@ -10,6 +10,7 @@ import type { Nisse } from './npc'
 import { Player } from './player'
 import { Slide } from './rutschkana'
 import { ARRIVE, STUMP, buildMine, buildStump, type Mine } from './kolgruvan'
+import { CartRun } from './gruvvagn'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -136,6 +137,7 @@ type Target =
   | { kind: 'slide' }
   | { kind: 'stump' }
   | { kind: 'ladder' }
+  | { kind: 'cart' }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
@@ -148,6 +150,8 @@ let choir: ReturnType<typeof buildChoir> | null = null
 let stump: ReturnType<typeof buildStump> | null = null
 let mine: Mine | null = null
 let inMine = false
+/** Gruvexpressen: the mine cart ride (made the first time you get in). */
+let cartRun: CartRun | null = null
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -463,7 +467,7 @@ let talking: Nisse | null = null
 
 function findTarget(): Target | null {
   // down in the mine: only the ladder back up (for now)
-  if (inMine) return mine?.nearLadder(player.pos, player.forward) ? { kind: 'ladder' } : null
+  if (inMine) return mine?.nearLadder(player.pos, player.forward) ? { kind: 'ladder' } : mine?.nearCart(player.pos, player.forward) ? { kind: 'cart' } : null
   ray.setFromCamera(new THREE.Vector2(0, 0), camera)
   const hit = ray.intersectObjects(rayRoots, true)[0]
   let aimed: Target | null = null
@@ -578,7 +582,9 @@ function setTarget(t: Target | null) {
                   ? 'Klättra ner i stubben'
                   : t.kind === 'ladder'
                     ? 'Klättra upp'
-                    : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
+                    : t.kind === 'cart'
+                      ? 'Åk Gruvexpressen'
+                      : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -766,6 +772,7 @@ function onEsc() {
   if (flight.active) return flight.leave()
   if (trip.active) return trip.leave()
   if (corrida.active) return corrida.leave()
+  if (cartRun?.active) return cartRun.leave()
   openMenu()
 }
 addEventListener('keydown', (e) => {
@@ -868,6 +875,7 @@ function interact() {
     slide.start()
   } else if (t.kind === 'stump') goDown()
   else if (t.kind === 'ladder') goUp()
+  else if (t.kind === 'cart') ride()
   else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
 }
@@ -889,6 +897,33 @@ function goDown() {
     $('fade').classList.remove('on')
     resume()
   }, 1100)
+}
+/** Into Gruvexpressen: off down the tunnels until you crash (or get out). */
+function ride() {
+  cursor.hide()
+  $('hud').classList.add('busy')
+  if (!cartRun) {
+    cartRun = new CartRun(camera)
+    cartRun.onDone = () => {
+      $('fade').classList.add('on')
+      setTimeout(() => {
+        // (out on the platform, beside the cart)
+        if (mine) player.pos.set(mine.station.x - 1.6, 0, mine.station.z + 0.9)
+        player.yaw = -Math.PI / 2
+        player.pitch = 0
+        $('fade').classList.remove('on')
+        resume()
+      }, 500)
+    }
+  }
+  const run = cartRun
+  mine?.leave()
+  $('fade').classList.add('on')
+  setTimeout(() => {
+    renderer.compile(run.scene, camera)
+    run.start()
+    $('fade').classList.remove('on')
+  }, 500)
 }
 /** …and back up, out of the stump into the snow. */
 function goUp() {
@@ -960,7 +995,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
@@ -1116,7 +1151,10 @@ function frame(now: number) {
   // the others in the village carry on (and still see you) while you're off on a trip
   mp?.update(t, dt)
   // off on the camper trip or in Madrid, the village stands still (it's only a painted backdrop, after all)
-  if (inMine && mine) {
+  if (cartRun?.active) {
+    cartRun.update(dt)
+    renderer.toneMappingExposure = EXPOSURE
+  } else if (inMine && mine) {
     // down in the mine: just you, the miners and their song (the village waits up above)
     player.update(dt, mine.collide, mine.ground)
     mine.update(t, dt, player.pos, player.enabled)
@@ -1174,7 +1212,8 @@ function frame(now: number) {
   if (!idle) adaptResolution(now)
   renderer.info.reset()
   renderer.clear()
-  if (inMine && mine) {
+  if (cartRun?.active) renderer.render(cartRun.scene, camera)
+  else if (inMine && mine) {
     renderer.render(mine.scene, camera)
     vm.render(renderer, camera)
   } else if (trip.inWorld) renderer.render(trip.world!.scene, camera)
@@ -1246,4 +1285,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, get mine() { return mine }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
