@@ -31,6 +31,8 @@ const IN_Z = D / 2 - 0.6
 /** The way in: an arched passage through the foot of the clock tower. */
 const DOOR_W = 7
 const DOOR_H = 9
+/** How far the front walls reach below the ground. */
+const SUNK = 0.4
 const TOWER = { x: 5, z0: D / 2, z1: D / 2 + 6 }
 /** The round towers' centres (±x, ±z) and radius. */
 const CORNER = { x: W / 2 + 1.6, z: D / 2 + 1.6, r: 3.2 }
@@ -512,12 +514,14 @@ function exterior(shop: Shop) {
   for (const s of [-1, 1]) add(g, tiledBox(0.6, H, D), brick, s * (W / 2 - 0.3), H / 2, 0)
   // the facade, with the arch cut out where the tower's passage comes through
   const facade = new THREE.Shape()
-  facade.moveTo(-W / 2, 0)
-  facade.lineTo(W / 2, 0)
+  // (the wall and the opening both reach a little way into the ground: an opening that started right at
+  // ground level would leave a sliver of brick lying in the snow, flickering with it)
+  facade.moveTo(-W / 2, -SUNK)
+  facade.lineTo(W / 2, -SUNK)
   facade.lineTo(W / 2, H)
   facade.lineTo(-W / 2, H)
   facade.closePath()
-  facade.holes.push(arch(DOOR_W, DOOR_H))
+  facade.holes.push(arch(DOOR_W, DOOR_H + SUNK / 2, new THREE.Path(), 0, -SUNK / 2))
   add(g, tiled(new THREE.ExtrudeGeometry(facade, { depth: 0.6, bevelEnabled: false, curveSegments: 20 })), brick, 0, 0, D / 2 - 0.6)
   for (const s of [-1, 1]) shop.block(s * (W / 4 + DOOR_W / 4), D / 2 - 0.3, W / 4 - DOOR_W / 4, 0.35)
   shop.block(0, -D / 2 + 0.3, W / 2, 0.35)
@@ -652,12 +656,12 @@ function exterior(shop: Shop) {
 
   // the clock tower over the entrance: an arched passage through its foot
   const base = new THREE.Shape()
-  base.moveTo(-TOWER.x, 0)
-  base.lineTo(TOWER.x, 0)
+  base.moveTo(-TOWER.x, -SUNK)
+  base.lineTo(TOWER.x, -SUNK)
   base.lineTo(TOWER.x, H)
   base.lineTo(-TOWER.x, H)
   base.closePath()
-  base.holes.push(arch(DOOR_W, DOOR_H))
+  base.holes.push(arch(DOOR_W, DOOR_H + SUNK / 2, new THREE.Path(), 0, -SUNK / 2))
   add(g, tiled(new THREE.ExtrudeGeometry(base, { depth: TOWER.z1 - TOWER.z0, bevelEnabled: false, curveSegments: 20 })), brick, 0, 0, TOWER.z0)
   for (const s of [-1, 1]) shop.block(s * (TOWER.x + DOOR_W / 2) / 2, (TOWER.z0 + TOWER.z1) / 2, (TOWER.x - DOOR_W / 2) / 2 + 0.1, (TOWER.z1 - TOWER.z0) / 2)
   // gold trim round the arch, a stone keystone and candy-cane columns either side
@@ -747,7 +751,8 @@ function exterior(shop: Shop) {
   // stone steps, a stone floor through the passage and a red carpet all the way in
   add(g, box(DOOR_W + 2, 0.12, 1.2), stone, 0, 0.06, TOWER.z1 + 0.6)
   add(g, box(DOOR_W + 3, 0.06, 1.2), stone, 0, 0.03, TOWER.z1 + 1.7)
-  add(g, box(DOOR_W, 0.04, TOWER.z1 - TOWER.z0), mat(0xb8ad98, 0.85), 0, 0.02, (TOWER.z0 + TOWER.z1) / 2).castShadow = false
+  // (from just inside the hall, over the threshold, to the steps – a little above the hall floor so they never fight)
+  add(g, box(DOOR_W, 0.06, TOWER.z1 - TOWER.z0 + 0.8), mat(0xb8ad98, 0.85), 0, 0.03, (TOWER.z0 + TOWER.z1) / 2 - 0.4).castShadow = false
   const carpetLen = TOWER.z1 + 2.3 - (D / 2 - 0.6)
   const carpet = add(g, new THREE.PlaneGeometry(3.2, carpetLen), mat(0xa0132a, 0.9), 0, 0.14, D / 2 - 0.6 + carpetLen / 2)
   carpet.rotation.x = -Math.PI / 2
