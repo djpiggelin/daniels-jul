@@ -10,6 +10,9 @@ import type { Nisse } from './npc'
 import { Player } from './player'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
+import { parade, stamping } from './verkstadslek'
+import { buildChoir, swedenNow } from './korsang'
+import { daylightAt } from './sol'
 import { loadFonts } from './tex'
 import { clockText, eventStatus, formatShortDate } from './time'
 import { Snowballs } from './snowballs'
@@ -24,7 +27,7 @@ import { bakeStatic, mergeRigid } from './batch'
 import { PARTICIPANTS } from './data'
 import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
-import { VILLAGE_RADIUS, buildWorld } from './world'
+import { buildWorld, keepInside } from './world'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 
 const $ = (id: string) => document.getElementById(id)!
@@ -47,7 +50,8 @@ renderer.setPixelRatio(SHARP)
 renderer.setSize(innerWidth, innerHeight)
 renderer.outputColorSpace = THREE.SRGBColorSpace
 renderer.toneMapping = THREE.ACESFilmicToneMapping
-renderer.toneMappingExposure = 1.15
+const EXPOSURE = 1.15
+renderer.toneMappingExposure = EXPOSURE
 renderer.shadowMap.enabled = QUALITY.shadows
 renderer.shadowMap.type = THREE.PCFSoftShadowMap
 // the world and then your own arms on top (see viewmodel.ts)
@@ -74,7 +78,7 @@ const cursor = new VirtualCursor(() => player.locked)
 const menu = new PauseMenu()
 
 const world = buildWorld(scene, { lowPower: QUALITY.lowPower })
-camera.position.set(0, 1.62, 25)
+camera.position.set(0, 1.62, 32)
 const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
 const sleigh = new Sleigh(scene)
@@ -90,18 +94,10 @@ const matadors = new Matadors(scene)
 const corrida = new Corrida(renderer, camera, player, vm, matadors)
 corrida.onDone = () => resume()
 corrida.say = (text) => toast(text)
-// in the ring the village music gives way to a paso doble (if the music is on at all)
-let musicWasOn = false
+// in the ring a band plays a paso doble
 corrida.onMusic = (arena) => {
-  if (arena) {
-    musicWasOn = !music.paused
-    if (!musicWasOn) return
-    music.pause()
-    corrida.band.start()
-  } else if (corrida.band.playing) {
-    corrida.band.stop()
-    if (musicWasOn) music.play().catch(() => {})
-  }
+  if (arena) corrida.band.start()
+  else if (corrida.band.playing) corrida.band.stop()
 }
 const matadorTalk: Talk = {
   name: 'Los Tres Matadores',
@@ -139,6 +135,8 @@ let shops: BuiltShop[] = []
 const talkers: { npc: Nisse; talk: Talk }[] = []
 const circles = [...world.colliders, ...sleigh.colliders(), ...camper.colliders()]
 let arcade: Arcade | null = null
+let choir: ReturnType<typeof buildChoir> | null = null
+let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
 const solids: THREE.Object3D[] = [...world.solids, sleigh.group, sleigh.santa.group, camper.car, camper.trailer, camper.musse.group, camper.kalle.group]
@@ -150,17 +148,29 @@ async function build() {
   for (const s of shops) {
     scene.add(s.shop.group)
     s.shop.group.updateMatrixWorld(true)
-    const p = s.shop.group.localToWorld(new THREE.Vector3(NPC_SPOT.x, 0, NPC_SPOT.z))
+    const spot = s.spot ?? NPC_SPOT
+    const p = s.shop.group.localToWorld(new THREE.Vector3(spot.x, 0, spot.z))
     s.npc.group.position.copy(p)
-    s.npc.setYaw(s.shop.group.rotation.y + NPC_SPOT.yaw)
+    s.npc.setYaw(s.shop.group.rotation.y + spot.yaw)
     scene.add(s.npc.group)
     const g = s.shop.group
-    world.roofs.push({ x: g.position.x, z: g.position.z, cos: Math.cos(g.rotation.y), sin: Math.sin(g.rotation.y), hw: 5.9, hd: 4.7, h: 6.2 })
-    rayRoots.push(s.shop.group)
+    world.roofs.push({ x: g.position.x, z: g.position.z, cos: Math.cos(g.rotation.y), sin: Math.sin(g.rotation.y), ...s.shop.roof })
+    // a big building is aimed at and hit through a few simple boxes instead of its every triangle
+    const hits = s.hitboxes ? [s.hitboxes, ...s.shop.exhibits.map((e) => e.target)] : [s.shop.group]
+    rayRoots.push(...hits)
     for (const ex of s.shop.exhibits) exhibitOf.set(ex.target, { kind: 'exhibit', ...ex })
     talkers.push({ npc: s.npc, talk: s.talk })
-    solids.push(s.shop.group, s.npc.group)
+    solids.push(...hits, s.npc.group)
     flinchOnHit(s.npc)
+    // more people to talk to in some shops (Lasse Långnisse in Leksaksfabriken)
+    for (const x of s.extras ?? []) {
+      x.npc.group.position.copy(s.shop.group.localToWorld(new THREE.Vector3(x.x, 0, x.z)))
+      x.npc.setYaw(s.shop.group.rotation.y + x.yaw)
+      scene.add(x.npc.group)
+      talkers.push({ npc: x.npc, talk: x.talk })
+      solids.push(x.npc.group)
+      flinchOnHit(x.npc)
+    }
   }
   // the matadors lean on the outside of the verkstad's left wall
   matadors.place(shops[0].shop.group)
@@ -169,6 +179,10 @@ async function build() {
     solids.push(m.group)
     m.group.userData.onSnowball = () => toast('🪙 ¡Oye! Inte på kostymen!')
   }
+  // the gang singing carols by the tree
+  choir = buildChoir(scene, shops[0].shop.group)
+  circles.push(...choir.colliders)
+  solids.push(choir.group)
   const square = await buildSquare(scene, shops)
   circles.push(...square.colliders)
   solids.push(...square.solids)
@@ -310,13 +324,13 @@ function collide(p: THREE.Vector3, RADIUS = 0.35) {
     p.x = g.position.x + lx * cos + lz * sin
     p.z = g.position.z - lx * sin + lz * cos
   }
-  const r = Math.hypot(p.x, p.z)
-  if (r > VILLAGE_RADIUS) p.multiplyScalar(VILLAGE_RADIUS / r)
+  keepInside(p)
 }
 /** You also bump into elves. */
 function collidePlayer(p: THREE.Vector3) {
   collide(p, RADIUS)
   for (const e of elves) {
+    if (!e.group.visible) continue
     const dx = p.x - e.pos.x
     const dz = p.z - e.pos.z
     const d = Math.hypot(dx, dz)
@@ -526,7 +540,7 @@ function pause(withCursor = true) {
 function resume(onLockFail?: () => void) {
   cursor.hide()
   player.enabled = true
-  $('hud').classList.remove('busy', 'arcade', 'flight', 'trip', 'corrida')
+  $('hud').classList.remove('busy', 'arcade', 'flight', 'trip', 'corrida', 'stampla')
   player.lock(onLockFail)
 }
 dialog.onClose = () => resume()
@@ -609,6 +623,21 @@ function openRitbordPanel() {
 }
 addEventListener('jul:ritbord', openRitbordPanel)
 
+/* ---------- Leksaksfabriken: stamping toys at Kvalitetskontrollen ---------- */
+// You stand at the belt (still, looking down at the stamp) and press to stamp; Esc or the button stops.
+addEventListener('jul:stampla', () => {
+  if (stamping.active || !started) return
+  pause(false)
+  cursor.hide()
+  $('hud').classList.add('stampla', 'busy')
+  const v = stamping.viewpoint()
+  player.pos.set(v.x, 0, v.z)
+  player.yaw = v.yaw
+  player.pitch = v.pitch
+  stamping.start()
+})
+stamping.onLeft = () => resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
+
 /* ---------- chat: speech bubbles over your nisse ---------- */
 // Typing lets go of the mouse and stands you still (like the other panels); Enter sends, Esc closes.
 const chatForm = $('chat') as HTMLFormElement
@@ -678,6 +707,7 @@ function onEsc() {
   if (knytis.open) return knytis.close()
   if (dialog.open) return dialog.close()
   if (viewer.open) return viewer.close()
+  if (stamping.active) return stamping.leave()
   if (arcade?.active) return arcade.leave()
   if (flight.active) return flight.leave()
   if (trip.active) return trip.leave()
@@ -720,10 +750,6 @@ sens.addEventListener('input', () => {
     /* fine */
   }
 })
-$('m-music').addEventListener('click', () => {
-  toggleMusic()
-  syncMenu()
-})
 // the 2D site lives next to the village – knytis, topplistor, ritningar
 $('m-knytis').addEventListener('click', openKnytisPanel)
 $('m-web').addEventListener('click', () => location.assign('/handelser'))
@@ -763,8 +789,6 @@ $('m-full').addEventListener('click', async () => {
 })
 document.addEventListener('fullscreenchange', syncMenu)
 function syncMenu() {
-  $('m-music').textContent = music.paused ? '♪ Musik: av' : '♪ Musik: på'
-  $('m-music').classList.toggle('on', !music.paused)
   $('m-full').textContent = document.fullscreenElement ? '⛶ Lämna helskärm' : '⛶ Helskärm'
 }
 
@@ -840,41 +864,14 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || arcade?.active || flight.active || trip.active || corrida.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
     e.preventDefault() // or the key ends up in the chat box
     openChat()
   } else if (e.code === 'KeyE' || e.code === 'Enter') interact()
-  if (e.code === 'KeyM') toggleMusic()
 })
-
-/* ---------- music ---------- */
-const music = new Audio('/sounds/game-background-music.mp3')
-music.loop = true
-music.volume = 0.25
-// Off until you turn it on – then remembered for next time.
-const MUSIC_KEY = 'jul3d.music'
-function toggleMusic(force?: boolean) {
-  const on = force ?? music.paused
-  if (on) music.play().catch(() => {})
-  else music.pause()
-  $('music').classList.toggle('on', on)
-  try {
-    localStorage.setItem(MUSIC_KEY, on ? 'på' : 'av')
-  } catch {
-    /* fine */
-  }
-}
-const musicWanted = () => {
-  try {
-    return localStorage.getItem(MUSIC_KEY) === 'på'
-  } catch {
-    return false
-  }
-}
-$('music').addEventListener('click', () => toggleMusic())
 
 /* ---------- HUD ---------- */
 function updateHud() {
@@ -1035,7 +1032,23 @@ function frame(now: number) {
     world.update(t, dt, flight.active ? flight.pos : player.pos)
     for (const s of shops) s.shop.update(t, dt)
     for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
-    for (const e of elves) e.update(dt, t)
+    // on Lucia morning the elves are all in the procession, and on the first Sunday of Advent at the concert
+    const elvesOut = choir?.mode !== 'lucia' && choir?.mode !== 'advent'
+    for (const e of elves) {
+      e.group.visible = elvesOut
+      if (elvesOut) e.update(dt, t)
+    }
+    // the tin soldiers' band plays as you come near (not from up in the sleigh)
+    parade.near(player.pos, !flight.active)
+    choir?.update(dt, player.pos, !flight.active)
+    // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
+    if ((skyTimer -= dt) <= 0) {
+      skyTimer = 5
+      const day = daylightAt(swedenNow())
+      world.daylight(day.k, day.dir)
+    }
+    // Lucia morning: the village goes dark round the procession's candles
+    renderer.toneMappingExposure = EXPOSURE * (choir?.exposure ?? 1)
     snowballs.update(dt, camera.position)
     if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
     world.showFar(flight.active)
@@ -1112,7 +1125,6 @@ go.addEventListener('click', () => {
   $('hud').hidden = false
   player.enabled = true
   player.lock()
-  if (musicWanted()) toggleMusic(true)
 })
 
 // handy for poking around from the console: jul.goto(0) walks you into the first shop
@@ -1124,4 +1136,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, get arcade() { return arcade }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })

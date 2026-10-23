@@ -1,4 +1,4 @@
-// Los tres matadores: three bullfighters hanging about by the side wall of Tomtens verkstad, leaning on it,
+// Los tres matadores: three bullfighters hanging about by the side wall of Tomtens bageri, leaning on it,
 // chewing straws and flipping coins. Walk up and they ask if you want a challenge – say yes and they blindfold
 // you and take you to Madrid (corrida.ts). Everything is in matador space: feet at the origin, facing +z.
 import * as THREE from 'three'

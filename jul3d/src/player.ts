@@ -5,7 +5,7 @@ import * as THREE from 'three'
 import { TOUCH } from './device'
 
 export class Player {
-  readonly pos = new THREE.Vector3(0, 0, 25)
+  readonly pos = new THREE.Vector3(0, 0, 32)
   yaw = 0
   pitch = -0.06
   enabled = false
