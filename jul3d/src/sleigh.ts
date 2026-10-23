@@ -11,7 +11,7 @@ import type { Circle } from './world'
 export const std = (color: number, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
 /** Where the sleigh waits: behind you as you arrive, side on so you see the whole team. */
-export const PARK = { x: -2.5, z: 29.6, yaw: -Math.PI / 2 }
+export const PARK = { x: -2.5, z: 38, yaw: -Math.PI / 2 }
 /** Your eyes when you sit in it. */
 export const EYE = new THREE.Vector3(0, 2.8, 0.8)
 /** Where the reins are held. */

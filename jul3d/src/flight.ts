@@ -488,7 +488,9 @@ export class Flight {
       this.pos.z -= Math.cos(this.yaw) * cp * this.speed * dt
       this.pos.y += Math.sin(this.pitch) * this.speed * dt
       // keep clear of the ground, the julgran and the roofs; and not up among the stars
-      const floor = groundHeight(this.pos.x, this.pos.z) + (Math.hypot(this.pos.x, this.pos.z) < 26 ? 10 : 3)
+      let floor = groundHeight(this.pos.x, this.pos.z) + (Math.hypot(this.pos.x, this.pos.z) < 34 ? 10 : 3)
+      // and well over Leksaksfabriken's tower up north
+      if (Math.abs(this.pos.x) < 26 && this.pos.z < -62 && this.pos.z > -106) floor = Math.max(floor, 46)
       if (s !== 'takeoff' && this.pos.y < floor) {
         this.pos.y = damp(this.pos.y, floor, 8, dt)
         this.pitch = Math.max(this.pitch, 0.12)

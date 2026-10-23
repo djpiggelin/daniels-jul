@@ -11,6 +11,7 @@ import { openRitbord } from './ritbord'
 import { setHouseSlot } from './teamhouse'
 import { keepApart } from './batch'
 import { julbakHouse } from './pepparkakshus'
+import { buildLeksaksfabriken } from './leksaksfabriken'
 import { furnishJulbord, knytisBoardItems, showClaimsOnBuffet } from './julbord'
 import type { Claims } from '../../src/lib/api'
 
@@ -20,8 +21,13 @@ const JULAFTON = EVENTS.find((e) => e.santa)!
 const VERKSTAD = JULBAK.competitions?.find((c) => c.art === 'verkstad')
 const DESTILLERI = JULBAK.competitions?.find((c) => c.art === 'destilleri')
 
+/** Someone else to talk to in a shop, standing at (x, z) in shop space facing `yaw`. */
+export type Extra = { npc: Nisse; talk: Talk; x: number; z: number; yaw: number }
+
 /** `event` drives the sign over the door; `emoji` (default: the event's) is used on the signpost. */
-export type BuiltShop = { shop: Shop; event: JulEvent; npc: Nisse; talk: Talk; emoji?: string }
+/** `spot`: where the shopkeeper stands, if not behind the usual counter (NPC_SPOT).
+ *  `hitboxes`: invisible stand-ins that rays and snowballs hit instead of the whole building. */
+export type BuiltShop = { shop: Shop; event: JulEvent; npc: Nisse; talk: Talk; emoji?: string; extras?: Extra[]; spot?: { x: number; z: number; yaw: number }; hitboxes?: THREE.Object3D }
 
 const cap = (s: string) => s.charAt(0).toUpperCase() + s.slice(1)
 const dataUrl = (c: HTMLCanvasElement) => {
@@ -305,13 +311,13 @@ function tv(shop: Shop, along: number) {
 async function buildVerkstad(): Promise<BuiltShop> {
   const e = JULBAK
   const c = VERKSTAD!
-  const shop = new Shop('Tomtens verkstad', { wall: '#9a5a2c', trim: 0xfff3dc, roof: 0x5c3216, inner: '#c99a6a' })
-  shop.place(-78, 17)
+  const shop = new Shop('Tomtens bageri', { wall: '#9a5a2c', trim: 0xfff3dc, roof: 0x5c3216, inner: '#c99a6a' })
+  shop.place(-78, 23)
   counter(shop, 0x2fa36b)
 
   const art = await loadSvg('/art/verkstad.svg', 3)
   const pic = shop.hang(framed(art, 5.2, { frame: 0xd4a64a }), 'back', 0, 1.95)
-  shop.exhibit(pic, { title: c.theme?.title ?? 'Tomtens verkstad', caption: c.theme?.intro.join(' '), image: dataUrl(art) })
+  shop.exhibit(pic, { title: c.theme?.title ?? 'Tomtens bageri', caption: c.theme?.intro.join(' '), image: dataUrl(art) })
 
   const rules = drawBoard({ style: 'parchment', title: 'Verkstadsordning', subtitle: c.name, items: c.rules, marker: 'check', footer: 'Underskrivet av Tomten själv', seed: 4 })
   const r = shop.hang(sheet(rules, 2.15), 'left', 2.1, 1.85)
@@ -362,7 +368,7 @@ async function buildVerkstad(): Promise<BuiltShop> {
     avatar: '🍪',
     avatarBg: '#2fa36b',
     greeting: () => [
-      html.p('Nämen hej! Välkommen in i Tomtens verkstad – här luktar det alltid ingefära och kanel.') +
+      html.p('Nämen hej! Välkommen in i Tomtens bageri – här luktar det alltid ingefära och kanel.') +
         html.p(`Jag håller koll på pepparkakstävlingen. Julbaket ${untilText(e)} – hög tid att börja skissa!`),
     ],
     topics: [
@@ -384,7 +390,7 @@ async function buildDestilleri(): Promise<BuiltShop> {
   const e = JULBAK
   const c = DESTILLERI!
   const shop = new Shop('Tomtens destilleri', { wall: '#5a2e22', trim: 0xc8803c, roof: 0x2a1d17, inner: '#8a5a3a' })
-  shop.place(-26, 17)
+  shop.place(-30, 23)
   counter(shop, 0xc8803c)
 
   const art = await loadSvg('/art/destilleri.svg', 3)
@@ -443,7 +449,7 @@ async function buildJulbord(): Promise<BuiltShop> {
   const e = JULBORD
   // white panelled walls inside, like the dining room in the photo
   const shop = new Shop('Julbordet', { wall: '#a8282c', trim: 0xfdfcf8, roof: 0x3a2a24, inner: '#ece3d3' })
-  shop.place(26, 17)
+  shop.place(30, 23)
   counter(shop, 0xe5383b)
 
   const photo = await loadImage(e.image)
@@ -512,7 +518,7 @@ async function buildJulbord(): Promise<BuiltShop> {
 async function buildJulafton(): Promise<BuiltShop> {
   const e = JULAFTON
   const shop = new Shop('Tomtens stuga', { wall: '#1d6e48', trim: 0xf6c453, roof: 0x7a1d1d, inner: '#c9a072' })
-  shop.place(78, 17)
+  shop.place(78, 23)
   counter(shop, 0xf6c453)
 
   fireplace(shop)
@@ -629,7 +635,7 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
   const e = JULBAK
   const c = VERKSTAD
   const shop = new Shop('Arkitektkontoret', { wall: '#c98a2b', trim: 0xfff3dc, roof: 0x3a2a24, inner: '#d9c3a0' })
-  shop.place(130, 17)
+  shop.place(130, 23)
   counter(shop, 0x1f4f8a)
 
   const print = drawBlueprint(3)
@@ -709,7 +715,7 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
 }
 
 export async function buildShops(): Promise<BuiltShop[]> {
-  return Promise.all([buildVerkstad(), buildDestilleri(), buildJulbord(), buildJulafton(), buildArkitektkontor()])
+  return Promise.all([buildVerkstad(), buildDestilleri(), buildJulbord(), buildJulafton(), buildArkitektkontor(), buildLeksaksfabriken()])
 }
 
 /** NPC spot in shop-local space: behind the counter, facing the room. */
@@ -725,7 +731,7 @@ export async function buildSquare(scene: THREE.Scene, shops: BuiltShop[]) {
 
   // advertising column with a poster per event
   const col = new THREE.Group()
-  col.position.set(-5.5, 0, 14)
+  col.position.set(-7, 0, 18.5)
   const green = std(0x1d4a35, 0.6)
   const shaft = new THREE.Mesh(new THREE.CylinderGeometry(0.95, 1.0, 3.4, 32), green)
   shaft.position.y = 1.7
@@ -770,7 +776,7 @@ export async function buildSquare(scene: THREE.Scene, shops: BuiltShop[]) {
 
   // signpost pointing at each shop
   const post = new THREE.Group()
-  post.position.set(4.5, 0, 15)
+  post.position.set(6, 0, 19.5)
   post.add(box(0.16, 3.4, 0.16, wood, 0, 1.7, 0))
   const topSnow = box(0.24, 0.1, 0.24, std(0xf4f8ff, 0.9), 0, 3.45, 0)
   post.add(topSnow)

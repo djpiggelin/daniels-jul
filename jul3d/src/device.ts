@@ -55,7 +55,7 @@ export type Quality = {
 }
 
 const TABLE: Record<Profile, Quality> = {
-  telefon: { pixelRatio: 1.25, minPixelRatio: 0.6, maxTexture: 512, anisotropy: 2, antialias: false, shadows: false, lowPower: true, elves: 4 },
+  telefon: { pixelRatio: 1.25, minPixelRatio: 0.85, maxTexture: 512, anisotropy: 2, antialias: true, shadows: false, lowPower: true, elves: 4 },
   surfplatta: { pixelRatio: 1.25, minPixelRatio: 0.75, maxTexture: 1024, anisotropy: 4, antialias: true, shadows: false, lowPower: true, elves: 5 },
   dator: { pixelRatio: 1.5, minPixelRatio: 1, maxTexture: Infinity, anisotropy: 8, antialias: true, shadows: true, lowPower: false, elves: 8 },
 }
