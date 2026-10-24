@@ -31,6 +31,23 @@ I `content.json` anges `image` och `photo` som sökvägar inuti mappen (`"photo"
 Utan `photo` visas gästens initial (och de är inte med i memory-spelet).
 `memories` är valfri: `[{ "image": "images/…", "label": "Luciamorgon" }]` hängs på väggen i Tomtens stuga.
 
+### Bara för inbjudna (julbordet)
+
+Alla är bjudna på julbaket, men inte alla på julbordet. Ett event med `"private": true` syns bara för
+den som har en personlig inbjudningslänk – för alla andra finns varken huset i byn, eventsidan,
+knytis eller bilden. Det filtreras bort på servern, så det går inte att hitta i `/api/content` heller.
+
+```json
+"invites": {
+  "k7f3q9xa": { "name": "Anna", "events": ["julbord"] }
+}
+```
+
+Länken är `https://<sajten>/?inbjudan=k7f3q9xa`. Första gången den öppnas sparas koden i en cookie
+(ett år), tas bort ur adressfältet och fyller i namnet – och därmed bilden, om `name` stämmer med en
+gäst. Gör koderna svåra att gissa (inte bara namnet). `upload-content` kontrollerar inbjudningarna
+och skriver ut alla länkar. En kod som spridits tar du bort ur listan och laddar upp igen.
+
 Ladda upp med:
 
 ```bash

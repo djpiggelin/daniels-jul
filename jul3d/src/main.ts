@@ -773,7 +773,8 @@ function openKnytisPanel(e?: Event) {
 addEventListener('jul:knytis', openKnytisPanel)
 // who brings what: on the chalkboard and the buffet cards – fetched now and then (others claim too)
 function refreshClaims() {
-  if (document.hidden) return
+  // (no julbord in the village unless you're invited – and then nothing to ask for)
+  if (document.hidden || !EVENTS.some((e) => e.potluck)) return
   getClaims()
     .then((claims) => dispatchEvent(new CustomEvent('jul:claims', { detail: claims })))
     .catch(() => {})

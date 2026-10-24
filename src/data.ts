@@ -29,6 +29,8 @@ export type JulEvent = {
   accent: 'red' | 'green' | 'gold'
   competitions?: Competition[]
   potluck?: boolean
+  /** Only for those invited (personal invite links, see `invites` in content.json) – left out for everyone else. */
+  private?: boolean
   /** Leds by Santa himself – shown as the sleigh instead of a reindeer on the front page. */
   santa?: boolean
 }
@@ -37,6 +39,7 @@ const content = await loadContent()
 
 export const YEAR = content.year
 
+// (without the private events you're not invited to – the julbord may well be missing)
 export const EVENTS: JulEvent[] = content.events
 
 // `photo` är valfritt – utan foto visas gästens initial istället (och de är inte med i memory-spelet).

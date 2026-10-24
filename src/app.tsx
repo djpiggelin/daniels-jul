@@ -5,6 +5,7 @@ import './index.css'
 import { Layout } from './components/Layout'
 import { EmbeddedLayout } from './components/EmbeddedLayout'
 import { EMBEDDED } from './lib/embed'
+import { JULBORD } from './lib/village'
 import Home from './pages/Home'
 import EventPage from './pages/EventPage'
 import Knytis from './pages/Knytis'
@@ -22,8 +23,9 @@ createRoot(document.getElementById('root')!).render(
           <Route index element={<Navigate to="/handelser" replace />} />
           <Route path="handelser" element={<Home />} />
           <Route path="event/:id" element={<EventPage />} />
-          <Route path="knytis" element={<Knytis />} />
-          <Route path="potluck" element={<Navigate to="/knytis" replace />} />
+          {/* (only for those invited to the julbord – everyone else gets the 404) */}
+          {JULBORD && <Route path="knytis" element={<Knytis />} />}
+          {JULBORD && <Route path="potluck" element={<Navigate to="/knytis" replace />} />}
           <Route path="spel" element={<Games />} />
           <Route path="spel/:game" element={<GamePage />} />
           <Route path="pepparkaksarkitekten" element={<Pepparkaksarkitekten />} />
