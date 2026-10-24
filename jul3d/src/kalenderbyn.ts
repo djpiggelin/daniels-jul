@@ -22,8 +22,9 @@ const BISCUITS = [
   new THREE.Vector3(-16.2, 5.675, -88),
   new THREE.Vector3(23.5, 0, -60.5),
 ]
-/** Door 5: sooty footprints from Leksaksfabriken off across the yard to the west – and then nothing. */
-const TRAIL = [new THREE.Vector3(-2.2, 0, -64.5), new THREE.Vector3(-6, 0, -62.5), new THREE.Vector3(-10, 0, -60.8), new THREE.Vector3(-14.5, 0, -58.2), new THREE.Vector3(-19, 0, -55.5), new THREE.Vector3(-23, 0, -53.6)]
+/** Door 5: sooty footprints from Leksaksfabriken's door, out of the yard and off to the west – and then nothing. */
+// (out of the yard by the gate, down the side of the path and off west along the edge of the village)
+const TRAIL = [new THREE.Vector3(-2.6, 0, -65.6), new THREE.Vector3(-3.0, 0, -60), new THREE.Vector3(-3.0, 0, -53), new THREE.Vector3(-3.0, 0, -46), new THREE.Vector3(-3.0, 0, -40.8), new THREE.Vector3(-6.5, 0, -39.2), new THREE.Vector3(-11, 0, -38.5), new THREE.Vector3(-16, 0, -37), new THREE.Vector3(-20, 0, -35.5)]
 
 export function buildCalendarVillage(scene: THREE.Scene) {
   const colliders: Circle[] = []
