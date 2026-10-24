@@ -259,7 +259,8 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   }
   scene.add(tree)
   solids.push(tree)
-  colliders.push({ x: 0, z: 0, r: 3.6 })
+  // (out past the toy train's track, see leksakstag.ts)
+  colliders.push({ x: 0, z: 0, r: 4.3 })
   updaters.push((t) => {
     for (let i = 0; i < BULBS; i++) {
       const k = 0.35 + 0.65 * Math.max(0, Math.sin(t * 1.7 + i * 1.37))

@@ -15,6 +15,7 @@ import { Hacking } from './kolhackning'
 import { buildCalendar, today } from './julkalender'
 import { MINE_TALK } from './gruvfolk'
 import { buildCalendarVillage, type Act } from './kalenderbyn'
+import { buildToyTrain } from './leksakstag'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -165,6 +166,8 @@ let hacking: Hacking | null = null
 let calendar: ReturnType<typeof buildCalendar> | null = null
 /** …and what its doors bring to the village. */
 let advent: ReturnType<typeof buildCalendarVillage> | null = null
+/** The toy train round the julgran. */
+let toyTrain: ReturnType<typeof buildToyTrain> | null = null
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -221,6 +224,7 @@ async function build() {
   circles.push(...advent.colliders)
   calendar.status = advent.status
   calendar.done = { has: advent.has, mark: advent.mark }
+  toyTrain = buildToyTrain(scene)
   // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
   const sixten = MINE_TALK.fisher.greeting
   MINE_TALK.fisher.greeting = () =>
@@ -300,6 +304,7 @@ async function build() {
     ...elves.map((e) => e.nisse.group),
     sleigh.group,
     sleigh.santa.group,
+    ...(toyTrain ? [toyTrain.train] : []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -1272,6 +1277,7 @@ function frame(now: number) {
     choir?.update(dt, player.pos, !flight.active)
     calendar?.update(t, dt)
     advent?.update(t, dt, player.pos, !flight.active, world.aurora)
+    toyTrain?.update(t, dt, player.pos)
     // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
     if ((skyTimer -= dt) <= 0) {
       skyTimer = 5

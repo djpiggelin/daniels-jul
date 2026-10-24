@@ -18,7 +18,8 @@ import { glowTexture, makeCanvas, toTexture } from './tex'
 import type { Circle } from './world'
 import type { HackSpot } from './kolhackning'
 import { MINE_TALK } from './gruvfolk'
-import type { Talk } from './ui'
+import { html, type Talk } from './ui'
+import { wallClock } from './korsang'
 
 const std = (color: number, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
@@ -888,7 +889,77 @@ export function buildMine() {
     n.armL.rotation.set(0, 0, 0.6)
     mergeRigid(n.group)
     scene.add(n.group)
-    people.push({ npc: n, talk: MINE_TALK.sleeper })
+    const stig = { npc: n, talk: MINE_TALK.sleeper }
+    people.push(stig)
+    // on julafton, wake him and it finally sinks in: up he gets and off he runs, up the ladder to wake Tomten
+    const julafton = () => {
+      const d = new Date(wallClock())
+      return d.getUTCMonth() === 11 && d.getUTCDate() === 24
+    }
+    const sleeper = MINE_TALK.sleeper
+    const dozing = sleeper.greeting
+    sleeper.greeting = () => (julafton() ? [html.p('Zzz … mmh … julgröt … tomtar … zzz …'), html.p('… vad är det för dag i dag … zzz …')] : dozing())
+    const nudge = sleeper.topics[0].pages
+    let woken = false
+    sleeper.topics[0].pages = () => {
+      if (!julafton()) return nudge()
+      woken = true
+      return [html.p('Mmh? … Är det julafton?'), html.p('… JULAFTON?! I DAG?! Jag skulle ju väcka Tomten! Han ska ut med släden i kväll!'), html.p('Ur vägen, ur vägen! Stora dit, små hit!')]
+    }
+    // the way out: down off the sacks, along the tunnel to Stora salen, round the young one's crate, up to the ladder
+    const way = [
+      new THREE.Vector3(sort.x - 4.4, 0, sort.z - 1.4),
+      new THREE.Vector3(19.8, 0, -22.4),
+      new THREE.Vector3(11, 0, -24),
+      new THREE.Vector3(4.5, 0, -19),
+      new THREE.Vector3(0.4, 0, -15.5),
+      new THREE.Vector3(0, 0, LADDER.z - 0.45),
+    ]
+    const lying = n.group.position.clone()
+    const lyingRot = n.group.rotation.clone()
+    let run = -1 // seconds since he jumped up (once the talk is over)
+    let leg = 0
+    const RUN = 3.4
+    updaters.push((_t, dt) => {
+      if (!woken) return
+      if (run < 0) {
+        if (!document.getElementById('dialog')?.hidden) return
+        run = 0
+        const i = people.indexOf(stig)
+        if (i >= 0) people.splice(i, 1)
+        zzz.visible = false
+        blip(660, 0.1, 'square', 0.04)
+      }
+      run += dt
+      const g = n.group
+      if (run < 0.7) {
+        // up off the sacks with a jolt
+        const k = run / 0.7
+        g.position.lerpVectors(lying, way[0], k)
+        g.position.y = THREE.MathUtils.lerp(lying.y, 0, k) + Math.sin(k * Math.PI) * 0.5
+        g.rotation.set(0, lyingRot.y, THREE.MathUtils.lerp(lyingRot.z, 0, Math.min(1, k * 1.6)), 'YXZ')
+        return
+      }
+      if (leg < way.length - 1) {
+        const to = way[leg + 1]
+        const dx = to.x - g.position.x
+        const dz = to.z - g.position.z
+        const d = Math.hypot(dx, dz)
+        const step = RUN * dt
+        if (d <= step) {
+          g.position.set(to.x, 0, to.z)
+          leg++
+        } else g.position.set(g.position.x + (dx / d) * step, 0, g.position.z + (dz / d) * step)
+        g.rotation.set(0, Math.atan2(dx, dz), 0, 'YXZ')
+        n.walkPose(run * 14, 1)
+        return
+      }
+      // and up the ladder he goes, out of sight
+      g.rotation.set(0, Math.PI, 0, 'YXZ')
+      n.walkPose(run * 10, 0.5)
+      g.position.y += 1.8 * dt
+      if (g.position.y > 11) g.visible = false
+    })
     // (and the Zzz over him)
     const [zc, zctx] = makeCanvas(128, 64)
     zctx.fillStyle = '#fbf3e0'

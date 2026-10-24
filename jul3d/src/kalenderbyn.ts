@@ -35,9 +35,9 @@ const TRAIL = [-2.6, -65.6, -3.0, -60, -3.0, -53, -3.0, -46, -3.0, -40.8, -6.5, 
 const HIDERS = [new THREE.Vector3(16.2, 0, -1.3), new THREE.Vector3(16.4, 5.675, -96), new THREE.Vector3(-24.6, 0, 24.6)]
 /** Door 21: lanterns to light from the stump's thicket to the square – the way the miners will come up. */
 const LANTERNS = [[-36, -11.8], [-31, -11.6], [-26, -11.6], [-21, -12.3], [-16, -12.5], [-11, -11.6]] as const
-/** Under the big tree on the square: where the dropped present goes, and where your own is on julafton. */
-const UNDER_TREE = new THREE.Vector3(2.8, 0, 3.0)
-const GIFT_AT = new THREE.Vector3(-2.9, 0, 3.4)
+/** Under the big tree on the square: where the dropped present goes, and where your own is on julafton (inside the toy train's track). */
+const UNDER_TREE = new THREE.Vector3(2.6, 0, 1.95)
+const GIFT_AT = new THREE.Vector3(-1.47, 0, 2.9)
 
 export function buildCalendarVillage(scene: THREE.Scene, myName: () => string) {
   const colliders: Circle[] = []
@@ -610,6 +610,8 @@ export function buildCalendarVillage(scene: THREE.Scene, myName: () => string) {
       for (let i = 0; i < 8; i++) setTimeout(() => blip(700 + Math.random() * 900, 0.08, 'triangle', 0.05), i * 70)
       return `🎁 God jul, ${myName() || 'du'}! I paketet ligger en liten bit guldkol 🪙 – gruvnissarnas allra första julklapp, och den ger de till dig.`
     }, 0.7)
+    // (reached from outside the train track)
+    spots[spots.length - 1].reach = 2.1
     // the miners, up out of the stump for once, dancing round the tree
     for (let i = 0; i < 6; i++) {
       const a = THREE.MathUtils.degToRad(235 + i * 16)
