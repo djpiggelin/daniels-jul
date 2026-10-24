@@ -389,7 +389,8 @@ function secondsOfDay() {
 }
 
 /** The first Sunday of Advent: four Sundays before Christmas Day. */
-function firstAdvent(year: number) {
+/** The first Sunday of Advent (midnight, as a wall-clock date). */
+export function firstAdvent(year: number) {
   const xmas = new Date(Date.UTC(year, 11, 25))
   const back = xmas.getUTCDay() === 0 ? 7 : xmas.getUTCDay()
   return new Date(Date.UTC(year, 11, 25 - back - 21))

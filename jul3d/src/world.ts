@@ -81,12 +81,15 @@ export function hillHeight(x: number, z: number) {
   return HILL.top * along * across
 }
 
+/** The clearing north-west of the village where the chapel stands, its bell tower beside it (kapell.ts). */
+export const CHAPEL: Rect = { x0: -54, x1: -33, z0: -46, z1: -27 }
+
 /** Snögubbsbacken, at the south-west of the square (snogubbar.ts): where you roll snowballs and build snowmen. (netlify/functions/snogubbar.mts has the same.) */
 export const SNOWFIELD: Rect = { x0: -14, x1: -3, z0: 25, z1: 37 }
 
 const rectDist = (r: Rect, x: number, z: number) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1))
 
-const GROUNDS = [NORTH.path, NORTH.yard, NORTH.garden, WEST.path, WEST.shore, HILL.base]
+const GROUNDS = [NORTH.path, NORTH.yard, NORTH.garden, WEST.path, WEST.shore, HILL.base, CHAPEL]
 /** How far (x, z) is from the ground you can walk on: the village circle, the path north and the yard, the lake and the foot of the hill. */
 export function outside(x: number, z: number) {
   return Math.min(Math.max(0, Math.hypot(x, z) - VILLAGE_RADIUS), ...GROUNDS.map((g) => rectDist(g, x, z)))

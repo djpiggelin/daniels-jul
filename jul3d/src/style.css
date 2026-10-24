@@ -694,3 +694,8 @@ body.touch #trip-quit kbd { display: none; }
 body.touch #pulka button { display: block; }
 #pulka .pk-l { left: 22px; }
 #pulka .pk-r { right: 22px; }
+
+/* Nyårsafton: the last ten seconds, and the new year */
+#nyar { position: absolute; top: 26%; left: 0; right: 0; text-align: center; pointer-events: none; font: 700 120px var(--serif); color: #fff3dc; text-shadow: 0 4px 30px rgba(0, 0, 0, 0.6), 0 0 40px rgba(246, 196, 83, 0.6); }
+#nyar.gott { font-size: 64px; color: var(--gold); animation: nyar-pop 0.4s ease-out; }
+@keyframes nyar-pop { from { transform: scale(0.6); opacity: 0; } }
