@@ -1,4 +1,5 @@
-// Tomtens släde, parked in the yard outside Leksaksfabriken: the sleigh, five reindeer (Rudolf in front) and
+// Tomtens släde – in Tomtegården's slädverkstad most of the time, out in Leksaksfabriken's yard on the
+// 23rd and julafton (see main.ts): the sleigh, five reindeer (Rudolf in front) and
 // Tomten himself in the seat. Walk up, press E, push him out into the snow and take the reins –
 // the flying is in flight.ts. Everything here is in sleigh space: -z forward, the sleigh's middle at the origin.
 import * as THREE from 'three'
@@ -12,6 +13,9 @@ export const std = (color: number, roughness = 0.7, metalness = 0) => new THREE.
 
 /** Where the sleigh waits: in Leksaksfabriken's yard by the sacks, side on to the path so you see the whole team. */
 export const PARK = { x: 10, z: -54.3, yaw: -Math.PI / 2 }
+/** Where it stands the rest of the time: inside Tomtegården's slädverkstad, facing out through its doors (see tomtegarden.ts). */
+export const WORKSHOP = { x: 32, z: -61.4, yaw: Math.PI }
+export type Home = { x: number; z: number; yaw: number }
 /** Your eyes when you sit in it. */
 export const EYE = new THREE.Vector3(0, 2.8, 0.8)
 /** Where the reins are held. */
@@ -35,7 +39,8 @@ export function rod(a: THREE.Vector3, b: THREE.Vector3, r: number, mat: THREE.Ma
   return m
 }
 
-class Reindeer {
+/** One of the team (Rudolf with the glowing nose if `rudolf`); also stands in Tomtegården's stable. */
+export class Reindeer {
   readonly group = new THREE.Group()
   readonly body = new THREE.Group()
   private legs: { hip: THREE.Group; front: boolean }[] = []
@@ -257,6 +262,13 @@ export class Sleigh {
   gallop = 0
   /** Out on his rounds (julafton, see julaftonsrunda.ts): no pushing him out, he has no time to talk. */
   busy = false
+  /** Where it's parked (and lands again after a flight). */
+  home: Home = PARK
+  /** Tomten in the seat – or away at home, the sleigh standing empty in the slädverkstad. */
+  private driverOn = true
+  /** The reindeer harnessed in front – or off in the stable. */
+  private teamOn = true
+  private traces: THREE.LineSegments | null = null
   /** Tomten speaks (shown as a toast). */
   say: (text: string) => void = () => {}
 
@@ -285,7 +297,8 @@ export class Sleigh {
     }
     const tg = new THREE.BufferGeometry()
     tg.setAttribute('position', new THREE.Float32BufferAttribute(traces, 3))
-    this.group.add(new THREE.LineSegments(tg, traceMat))
+    this.traces = new THREE.LineSegments(tg, traceMat)
+    this.group.add(this.traces)
     for (const d of this.deer)
       for (const side of d.group.position.x === 0 ? [-1, 1] : [Math.sign(d.group.position.x)]) {
         const line = new THREE.Line(new THREE.BufferGeometry().setFromPoints(new Array(10).fill(0).map(() => new THREE.Vector3())), traceMat)
@@ -306,8 +319,8 @@ export class Sleigh {
 
   /** Back in the parking spot, standing still. */
   park() {
-    this.group.position.set(PARK.x, 0, PARK.z)
-    this.group.rotation.set(0, PARK.yaw, 0, 'YXZ')
+    this.group.position.set(this.home.x, 0, this.home.z)
+    this.group.rotation.set(0, this.home.yaw, 0, 'YXZ')
     this.gallop = 0
     for (const d of this.deer) d.group.position.y = 0
     this.group.updateMatrixWorld(true)
@@ -326,14 +339,33 @@ export class Sleigh {
     s.body.rotation.set(0, 0, 0)
     s.head.rotation.set(0, 0, 0)
     this.santaState = 'seated'
+    s.group.visible = this.driverOn
     // no "ho ho ho" for whoever is standing right here already
     this.nearFor = 1
     this.hands.visible = false
   }
 
-  /** Can you push him out right now? */
+  /** Can you take it right now (pushing him out, if he's in it)? */
   get ready() {
     return this.santaState === 'seated' && !this.busy
+  }
+
+  get driver() {
+    return this.driverOn
+  }
+  set driver(on: boolean) {
+    this.driverOn = on
+    this.santa.group.visible = on || this.santaState !== 'seated'
+  }
+
+  get team() {
+    return this.teamOn
+  }
+  set team(on: boolean) {
+    this.teamOn = on
+    for (const d of this.deer) d.group.visible = on
+    for (const r of this.reins) r.line.visible = on
+    if (this.traces) this.traces.visible = on
   }
 
   /** Middle of the seat, in the world. */
@@ -413,6 +445,7 @@ export class Sleigh {
     const hop = this.hop < 0.5 ? Math.sin((this.hop / 0.5) * Math.PI) * 0.15 : 0
 
     if (this.santaState === 'seated') {
+      if (!this.driverOn) return
       // breathe, look at you, wave when you come close
       s.body.scale.set(1, 1 + Math.sin(t * 2) * 0.015, 1)
       s.body.position.y = hop

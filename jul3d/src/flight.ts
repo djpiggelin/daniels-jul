@@ -6,7 +6,7 @@ import { TOUCH, walkFov } from './device'
 import { keepApart } from './batch'
 import type { Player } from './player'
 import { blip, whoosh } from './sfx'
-import { EYE, PARK, type Sleigh } from './sleigh'
+import { EYE, type Sleigh } from './sleigh'
 import { glowTexture, makeCanvas, rng, toTexture } from './tex'
 import { groundHeight } from './world'
 
@@ -214,7 +214,7 @@ export class Flight {
     this.armedAt = performance.now() + 200
     this.from.pos.copy(this.camera.position)
     this.from.quat.copy(this.camera.quaternion)
-    this.yaw = PARK.yaw
+    this.yaw = this.sleigh.home.yaw
     this.pitch = this.roll = this.speed = 0
     this.pos.copy(this.sleigh.group.position)
     this.mstick.set(0, 0)
@@ -223,9 +223,9 @@ export class Flight {
     this.time = START_TIME
     for (const r of this.rings) this.freeRing(r)
     // the course starts out over the fields, the way the sleigh is facing
-    const out = new THREE.Vector3(-Math.sin(PARK.yaw - 0.35), 0, -Math.cos(PARK.yaw - 0.35))
+    const out = new THREE.Vector3(-Math.sin(this.sleigh.home.yaw - 0.35), 0, -Math.cos(this.sleigh.home.yaw - 0.35))
     this.cursor.pos.copy(this.pos).addScaledVector(out, 18).setY(12)
-    this.cursor.yaw = PARK.yaw - 0.35
+    this.cursor.yaw = this.sleigh.home.yaw - 0.35
     for (let i = 0; i < AHEAD; i++) this.addRing(i === 0 ? 0.15 : 1)
     this.target()!.halo.visible = true
     this.el.root.hidden = false
@@ -448,7 +448,7 @@ export class Flight {
       const k = this.stateT
       this.speed = Math.min(SPEED, 3 + k * 14)
       this.pitch = damp(this.pitch, k > 0.35 ? 0.42 : 0.05, 3, dt)
-      this.yaw = damp(this.yaw, PARK.yaw - 0.35, 1.2, dt)
+      this.yaw = damp(this.yaw, this.sleigh.home.yaw - 0.35, 1.2, dt)
       this.roll = damp(this.roll, k < 1.2 ? 0.25 : 0, 3, dt)
       if (k > 2.2) {
         this.state = 'fly'
@@ -584,7 +584,12 @@ export class Flight {
     this.sleigh.park()
     this.sleigh.reseat()
     this.sleigh.say(
-      this.score >= 10 ? '🎅 Hmpf… inte illa flugit, faktiskt. Men nästa gång frågar du först!' : '🎅 Nästa gång frågar du först! Och Rudolf behöver vila nu.',
+      // (taken from the slädverkstad, Tomten at home: no one to tell you off – this time)
+      !this.sleigh.driver
+        ? '🦌 Renarna travar tillbaka till stallet. Ingen märkte något … tror du.'
+        : this.score >= 10
+          ? '🎅 Hmpf… inte illa flugit, faktiskt. Men nästa gång frågar du först!'
+          : '🎅 Nästa gång frågar du först! Och Rudolf behöver vila nu.',
     )
     // stand on the village side of the sleigh, facing it
     const g = this.sleigh.group

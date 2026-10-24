@@ -14,7 +14,11 @@ import { CartRun } from './gruvvagn'
 import { Hacking } from './kolhackning'
 import { buildCalendar, julafton, today } from './julkalender'
 import { CentralPark } from './centralpark'
-import { PARK } from './sleigh'
+import { PARK, WORKSHOP } from './sleigh'
+import { buildTomtegarden, tomtegardenToast } from './tomtegarden'
+import { factoryDoors } from './leksaksfabriken'
+import type { Claus } from './tomtefolk'
+import type { Box, Floor } from './shop'
 import { MINE_TALK } from './gruvfolk'
 import { buildCalendarVillage, type Act } from './kalenderbyn'
 import { buildToyTrain } from './leksakstag'
@@ -143,6 +147,7 @@ type Target =
   | { kind: 'arcade'; cab: Cabinet }
   | { kind: 'sleigh' }
   | { kind: 'singer'; who: NonNullable<ReturnType<CentralPark['nearPerson']>> }
+  | { kind: 'claus'; who: Claus; talk: Talk }
   | { kind: 'camper' }
   | { kind: 'matadors' }
   | { kind: 'slide' }
@@ -169,8 +174,8 @@ let inMine = false
 /** Central Park, from the 23rd: off to New York with Tomten (see centralpark.ts). */
 let park: CentralPark | null = null
 let inPark = false
-/** From the 23rd (but not on julafton, when he's out on his rounds) Tomten asks if you're coming. */
-const newYorkOn = () => today().open >= 23 && !julafton()
+/** On the 23rd, by the sleigh at the factory, Tomten asks if you're coming (after Christmas, ask him at home). */
+const newYorkOn = () => sleigh.driver && today().open >= 23 && !julafton()
 const santaTalk: Talk = {
   name: 'Tomten',
   avatar: '🎅',
@@ -200,6 +205,10 @@ let choirHasSquare = false
 let choirCheckAt = 0
 /** The sacks and the nissar by the sleigh, and Tomten's rounds on julafton. */
 let sleighYard: ReturnType<typeof buildSleighYard> | null = null
+/** Tomtegården: Tomten and Tomtemor's house, the stable, the slädverkstad (see tomtegarden.ts). */
+let garden: ReturnType<typeof buildTomtegarden> | null = null
+/** Everything with walls to bump into and floors to stand on: the shops, and Tomtegården's buildings. */
+let blockers: { group: THREE.Object3D; boxes: Box[]; floors: Floor[] }[] = []
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -271,6 +280,14 @@ async function build() {
     s.userData.onSnowball = () => toast('🎸 Hörru! Inte på gitarren!')
   }
   sleighYard = buildSleighYard(scene, sleigh, sleighCircles)
+  garden = buildTomtegarden(scene, { onNewYork: () => startPark() })
+  garden.say = (text) => toast(text)
+  tomtegardenToast((text) => toast(text))
+  circles.push(...garden.colliders)
+  world.roofs.push(...garden.roofs)
+  solids.push(...garden.solids)
+  for (const k of garden.talkers) k.who.group.userData.onSnowball = () => (k.who.laugh(), toast(k.who.kind === 'tomten' ? '🎅 Ho ho ho! Inte inomhus, min vän!' : '🤶 Men snälla du, det smälter ju på mattan!'))
+  blockers = [...shops.map((s) => s.shop), ...garden.lots]
   circles.push(...sleighYard.colliders)
   // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
   const sixten = MINE_TALK.fisher.greeting
@@ -354,6 +371,7 @@ async function build() {
     ...(toyTrain ? [toyTrain.train] : []),
     ...(buskers ? [buskers.group] : []),
     ...(sleighYard?.moving ?? []),
+    ...(garden?.moving ?? []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -383,6 +401,7 @@ async function build() {
 /* ---------- collision ---------- */
 const RADIUS = 0.35
 function collide(p: THREE.Vector3, RADIUS = 0.35, feet = 0) {
+  const walled = blockers.length ? blockers : shops.map((s) => s.shop)
   for (const c of circles) {
     const dx = p.x - c.x
     const dz = p.z - c.z
@@ -393,8 +412,8 @@ function collide(p: THREE.Vector3, RADIUS = 0.35, feet = 0) {
       p.z = c.z + (dz / d) * min
     }
   }
-  for (const s of shops) {
-    const g = s.shop.group
+  for (const s of walled) {
+    const g = s.group
     const phi = g.rotation.y
     const cos = Math.cos(phi)
     const sin = Math.sin(phi)
@@ -402,7 +421,7 @@ function collide(p: THREE.Vector3, RADIUS = 0.35, feet = 0) {
     const dz = p.z - g.position.z
     let lx = dx * cos - dz * sin
     let lz = dx * sin + dz * cos
-    for (const b of s.shop.boxes) {
+    for (const b of s.boxes) {
       // (most things you only bump into down on the floor; walls and railings at their own heights)
       if (feet < (b.y0 ?? -Infinity) || feet >= (b.y1 ?? 2.5)) continue
       const cx = THREE.MathUtils.clamp(lx, b.x - b.hw, b.x + b.hw)
@@ -438,16 +457,16 @@ const STEP = 0.45
  */
 function groundAt(p: THREE.Vector3, feet: number) {
   let top = 0
-  for (const s of shops) {
-    if (!s.shop.floors.length) continue
-    const g = s.shop.group
+  for (const s of blockers.length ? blockers : shops.map((x) => x.shop)) {
+    if (!s.floors.length) continue
+    const g = s.group
     const cos = Math.cos(g.rotation.y)
     const sin = Math.sin(g.rotation.y)
     const dx = p.x - g.position.x
     const dz = p.z - g.position.z
     const lx = dx * cos - dz * sin
     const lz = dx * sin + dz * cos
-    for (const f of s.shop.floors) {
+    for (const f of s.floors) {
       if (Math.abs(lx - f.x) > f.hw || Math.abs(lz - f.z) > f.hd) continue
       if (f.top <= feet + STEP) top = Math.max(top, f.top)
       else if (f.solid) return null
@@ -590,6 +609,15 @@ function findTarget(): Target | null {
     }
   }
   if (best) return { kind: 'npc', ...best }
+  // Tomten and Tomtemor in their chairs by the fire
+  for (const k of garden?.talkers ?? []) {
+    if (!k.present()) continue
+    const e = k.who.eyes()
+    const dx = e.x - player.pos.x
+    const dz = e.z - player.pos.z
+    const d = Math.hypot(dx, dz)
+    if (d < 2.8 && (dx * fwd.x + dz * fwd.z) / d > 0.6) return { kind: 'claus', who: k.who, talk: k.talk }
+  }
   // walk up to Musse and Kalle by the camper door
   if (camper.kalle.out) {
     const cp = camper.crewWorld()
@@ -649,6 +677,7 @@ function targetAt(x: number, y: number): Target | null {
   }
   for (const s of talkers) consider(s.npc.group.position.clone().setY(1.1), { kind: 'npc', ...s })
   if (sleigh.ready) consider(sleigh.seatWorld().setY(1.2), { kind: 'sleigh' })
+  for (const k of garden?.talkers ?? []) if (k.present()) consider(k.who.eyes(), { kind: 'claus', who: k.who, talk: k.talk })
   if (camper.kalle.out) consider(camper.crewWorld(), { kind: 'camper' })
   if (matadors.out) consider(matadors.middle(), { kind: 'matadors' })
   return best ?? aimed
@@ -675,7 +704,11 @@ function setTarget(t: Target | null) {
         : t.kind === 'sleigh'
           ? newYorkOn()
             ? 'Prata med Tomten'
-            : 'Knuffa ut tomten och ta släden'
+            : sleigh.driver
+              ? 'Knuffa ut tomten och ta släden'
+              : 'Hoppa upp i släden'
+          : t.kind === 'claus'
+            ? `Prata med ${t.talk.name}`
           : t.kind === 'singer'
             ? 'Sjung för dem 🎶'
           : t.kind === 'camper'
@@ -980,6 +1013,9 @@ function interact() {
   if (t.kind === 'npc') {
     talking = t.npc
     dialog.start(t.talk)
+  } else if (t.kind === 'claus') {
+    t.who.laugh()
+    dialog.start(t.talk)
   } else if (t.kind === 'arcade') playArcade(t.cab)
   else if (t.kind === 'sleigh') {
     if (newYorkOn()) dialog.start(santaTalk)
@@ -1093,14 +1129,63 @@ function goUp() {
 function takeSleigh() {
   cursor.hide()
   $('hud').classList.add('flight')
-  sleigh.push(player.pos)
-  sleigh.say('🎅 Hallå!? Det där är MIN släde!')
+  if (sleigh.driver) {
+    sleigh.push(player.pos)
+    sleigh.say('🎅 Hallå!? Det där är MIN släde!')
+  } else {
+    // in the slädverkstad: up into the empty seat – the team comes running from the stable, the doors fly open
+    sleigh.team = true
+    refreshSleighCircles()
+    toast('🦌 Renarna kommer springande från stallet – och portarna flyger upp!')
+  }
   flight.start()
 }
+/** The sleigh's circles to bump into, where it stands now (the team's only if it's harnessed). */
+function refreshSleighCircles() {
+  const fresh = sleigh.colliders()
+  fresh.forEach((c, i) => {
+    const r = i < 2 || sleigh.team ? c.r : -c.r
+    Object.assign(sleighCircles[i], { x: c.x, z: c.z, r })
+  })
+}
+/**
+ * Where everyone is today (checked twice a second): the sleigh, the team and Tomten are out at
+ * Leksaksfabriken on the 23rd and julafton; the rest of the time Tomten is at home, the team in the
+ * stable and the sleigh in the slädverkstad, which is open from the 1st of December to tjugondag Knut.
+ */
+let seasonAt = 0
+function season(t: number) {
+  if (t < seasonAt) return
+  seasonAt = t + 0.5
+  const d = new Date(wallClock())
+  const m = d.getUTCMonth() + 1
+  const day = d.getUTCDate()
+  const out = m === 12 && (day === 23 || day === 24)
+  if (!flight.active) {
+    const home = out ? PARK : WORKSHOP
+    if (sleigh.home !== home) {
+      sleigh.home = home
+      sleigh.park()
+    }
+    sleigh.driver = out
+    sleigh.team = out
+    if (!julafton()) refreshSleighCircles()
+  }
+  garden?.setDay({
+    tomteHome: !out,
+    deerHome: !out,
+    open: m === 12 || (m === 1 && day <= 13),
+    sleighHome: !out && !flight.active,
+    flyingOut: flight.active && sleigh.home === WORKSHOP,
+  })
+}
 /** Off to New York with Tomten – and down in Central Park. */
+/** Where to come back to from New York: wherever you set off from. */
+let parkFrom = { at: new THREE.Vector3(), yaw: 0 }
 function startPark() {
   cursor.hide()
   $('hud').classList.add('busy')
+  parkFrom = { at: player.pos.clone(), yaw: player.yaw }
   if (!park) {
     const p = (park = new CentralPark())
     const place = (at: THREE.Vector3, yaw: number) => {
@@ -1121,9 +1206,9 @@ function startPark() {
       $('fade').classList.add('on')
       setTimeout(() => {
         inPark = false
-        // home again, by the sleigh in the yard
-        player.pos.set(PARK.x + 2, 0, PARK.z + 2)
-        player.yaw = Math.atan2(2, 2)
+        // home again, where you set off from (by the sleigh, or by the fire in Tomtens stuga)
+        player.pos.set(parkFrom.at.x, 0, parkFrom.at.z)
+        player.yaw = parkFrom.yaw
         player.pitch = 0
         player.floor = player.height = 0
         setTarget(null)
@@ -1405,7 +1490,9 @@ function frame(now: number) {
     thrower.update(dt, t)
     arcade?.update(dt, t)
     flight.update(dt, t)
+    season(t)
     sleighYard?.update(t, flight.active)
+    garden?.update(t, dt, player.pos)
     sleigh.update(t, dt, player.pos)
     camper.update(t, dt, player.pos)
     matadors.update(t, dt, player.pos)
@@ -1419,7 +1506,8 @@ function frame(now: number) {
       if (elvesOut) e.update(dt, t)
     }
     // the tin soldiers' band plays as you come near (not from up in the sleigh)
-    parade.near(player.pos, !flight.active)
+    // (the band in Leksaksfabriken only plays while its doors are open)
+    parade.near(player.pos, !flight.active && factoryDoors.open)
     choir?.update(dt, player.pos, !flight.active)
     calendar?.update(t, dt)
     advent?.update(t, dt, player.pos, !flight.active, world.aurora)
@@ -1538,4 +1626,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, startPark, goto, get shops() { return shops } } })
