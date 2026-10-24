@@ -11,7 +11,7 @@ import type { Circle } from './world'
 export const std = (color: number, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
 /** Where the sleigh waits: in Leksaksfabriken's yard by the sacks, side on to the path so you see the whole team. */
-export const PARK = { x: 10, z: -52.5, yaw: -Math.PI / 2 }
+export const PARK = { x: 10, z: -54.3, yaw: -Math.PI / 2 }
 /** Your eyes when you sit in it. */
 export const EYE = new THREE.Vector3(0, 2.8, 0.8)
 /** Where the reins are held. */

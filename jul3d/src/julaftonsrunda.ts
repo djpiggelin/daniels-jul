@@ -18,12 +18,12 @@ const STOP = 24
 const LAPS = 2
 /** Where he joins the loop after take-off and leaves it to come down (angles round the loop). */
 const JOIN = -0.6
-const LEAVE = -2.6 + Math.PI * 2 * (LAPS + 1)
+const LEAVE = -2.7 + Math.PI * 2 * (LAPS + 1)
 /** The sacks, on the far side of the sleigh from the path (world space). */
 const SACKS = [
-  [7.6, -55.1],
-  [9.5, -55.3],
-  [11.4, -55.0],
+  [7.6, -56.9],
+  [9.5, -57.1],
+  [11.4, -56.8],
 ] as const
 /** The arched door at the foot of the clock tower, where the nissar come out. */
 const DOOR = new THREE.Vector3(5.4, 0, -67)
@@ -40,7 +40,7 @@ export function buildSleighYard(scene: THREE.Scene, sleigh: Sleigh, sleighCircle
   const join = onLoop(JOIN)
   const up = new THREE.CubicBezierCurve3(park.clone(), park.clone().addScaledVector(ahead, 16).setY(0.8), join.clone().addScaledVector(along(JOIN), -30), join)
   const leave = onLoop(LEAVE)
-  const down = new THREE.CubicBezierCurve3(leave, leave.clone().addScaledVector(along(LEAVE), 30), park.clone().addScaledVector(ahead, -34).setY(6), park.clone())
+  const down = new THREE.CubicBezierCurve3(leave, leave.clone().addScaledVector(along(LEAVE), 30), park.clone().addScaledVector(ahead, -28).setY(8), park.clone())
   // accelerating off the ground (and slowing to land) at an even rate: up to speed by the end of the curve
   const T_UP = up.getLength() / (SPEED / 2)
   const T_LOOP = ((LEAVE - JOIN) * LOOP.r) / SPEED
@@ -84,7 +84,7 @@ export function buildSleighYard(scene: THREE.Scene, sleigh: Sleigh, sleighCircle
     const box = new THREE.Mesh(new THREE.BoxGeometry(0.34, 0.28, 0.3), std(giftCols[i], 0.6))
     const ribbon = new THREE.Mesh(new THREE.BoxGeometry(0.35, 0.29, 0.06), std(0xf6c453, 0.5))
     box.add(ribbon)
-    box.position.set(0, 0.62, -0.32)
+    box.position.set(0, 0.62, 0.32)
     n.body.add(box)
     scene.add(n.group)
     const [sx, sz] = SACKS[i]
@@ -122,19 +122,19 @@ export function buildSleighYard(scene: THREE.Scene, sleigh: Sleigh, sleighCircle
         g.position.lerpVectors(DOOR, c.to, k / leg)
         c.box.visible = true
         c.n.walkPose(t * 9, 1)
-        g.rotation.y = Math.atan2(DOOR.x - c.to.x, DOOR.z - c.to.z)
+        g.rotation.y = Math.atan2(c.to.x - DOOR.x, c.to.z - DOOR.z)
       } else if (k < leg + 1) {
         // up and in: arms high, the present gone at the top
         g.position.copy(c.to)
         c.n.walkPose(0, 0)
         c.box.visible = k < leg + 0.5
         c.n.armL.rotation.x = c.n.armR.rotation.x = -2.6
-        g.rotation.y = Math.atan2(c.to.x - SACKS[c.colour][0], c.to.z - SACKS[c.colour][1])
+        g.rotation.y = Math.atan2(SACKS[c.colour][0] - c.to.x, SACKS[c.colour][1] - c.to.z)
       } else if (k < leg * 2 + 1) {
         g.position.lerpVectors(c.to, DOOR, (k - leg - 1) / leg)
         c.box.visible = false
         c.n.walkPose(t * 9, 1)
-        g.rotation.y = Math.atan2(c.to.x - DOOR.x, c.to.z - DOOR.z)
+        g.rotation.y = Math.atan2(DOOR.x - c.to.x, DOOR.z - c.to.z)
       } else {
         // a moment inside for the next one
         g.position.copy(DOOR)

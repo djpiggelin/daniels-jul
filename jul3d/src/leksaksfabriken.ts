@@ -841,7 +841,7 @@ function yard(shop: Shop) {
   plaza.rotation.x = -Math.PI / 2
   plaza.castShadow = false
 
-  // the giant tree on the left of the yard and a mountain of presents waiting for the sleigh on the right
+  // the giant tree on the left of the yard and a mountain of presents on the right, waiting for the sleigh (julaftonsrunda.ts)
   const tree = bigTree(17, shop.updaters, 320)
   tree.position.set(-13.5, 0, TOWER.z1 + 9)
   g.add(tree)
@@ -876,16 +876,16 @@ function yard(shop: Shop) {
     for (let k = 0; k < n; k++, i++) {
       const a = (k / n) * Math.PI * 2 + y
       const p = present(cols[i % cols.length], cols[(i + 2) % cols.length], s * (0.8 + ((i * 7) % 5) * 0.08))
-      p.position.set(13.5 + Math.cos(a) * r, y, TOWER.z1 + 9 + Math.sin(a) * r)
+      p.position.set(13.5 + Math.cos(a) * r, y, TOWER.z1 + 5 + Math.sin(a) * r)
       p.rotation.y = a * 2.3
       g.add(p)
     }
   // a big red sack, bulging
-  add(g, ball(1.1, 18), mat(0xa0132a, 0.9), 16.6, 0.95, TOWER.z1 + 7.2).scale.set(1, 1.15, 0.9)
-  add(g, cyl(0.3, 0.45, 0.5, 12), mat(0xa0132a, 0.9), 16.6, 2.15, TOWER.z1 + 7.2)
-  add(g, new THREE.TorusGeometry(0.33, 0.07, 6, 16), mat(C.gold, 0.4, 0.6), 16.6, 2.0, TOWER.z1 + 7.2).rotation.x = Math.PI / 2
-  shop.block(13.5, TOWER.z1 + 9, 3.2, 3.2)
-  shop.block(16.6, TOWER.z1 + 7.2, 1.1, 1.1)
+  add(g, ball(1.1, 18), mat(0xa0132a, 0.9), 16.6, 0.95, TOWER.z1 + 3.2).scale.set(1, 1.15, 0.9)
+  add(g, cyl(0.3, 0.45, 0.5, 12), mat(0xa0132a, 0.9), 16.6, 2.15, TOWER.z1 + 3.2)
+  add(g, new THREE.TorusGeometry(0.33, 0.07, 6, 16), mat(C.gold, 0.4, 0.6), 16.6, 2.0, TOWER.z1 + 3.2).rotation.x = Math.PI / 2
+  shop.block(13.5, TOWER.z1 + 5, 3.2, 3.2)
+  shop.block(16.6, TOWER.z1 + 3.2, 1.1, 1.1)
 
   // lamp posts along the path and the yard
   const iron = mat(0x15151c, 0.5, 0.6)

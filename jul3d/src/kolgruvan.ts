@@ -946,12 +946,12 @@ export function buildMine() {
           g.position.set(to.x, 0, to.z)
           leg++
         } else g.position.set(g.position.x + (dx / d) * step, 0, g.position.z + (dz / d) * step)
-        g.rotation.set(0, Math.atan2(-dx, -dz), 0, 'YXZ')
+        g.rotation.set(0, Math.atan2(dx, dz), 0, 'YXZ')
         n.walkPose(run * 14, 1)
         return
       }
       // and up the ladder he goes, out of sight
-      g.rotation.set(0, Math.PI, 0, 'YXZ')
+      g.rotation.set(0, 0, 0, 'YXZ')
       n.walkPose(run * 10, 0.5)
       g.position.y += 1.8 * dt
       if (g.position.y > 11) g.visible = false

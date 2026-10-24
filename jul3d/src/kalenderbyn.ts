@@ -150,7 +150,8 @@ export function buildCalendarVillage(scene: THREE.Scene, myName: () => string) {
   /* ---------- door 2: Tomtens mitten, dropped in the snow by his sleigh ---------- */
   {
     const g = new THREE.Group()
-    g.position.set(1.4, 0, 40.2)
+    // (in the snow beside where the sleigh waits, outside Leksaksfabriken)
+    g.position.set(12.8, 0, -52.6)
     const red = std(0xb3202a, 0.85)
     const hand = new THREE.Mesh(new THREE.SphereGeometry(0.09, 12, 10), red)
     hand.scale.set(1, 0.45, 1.4)
