@@ -169,6 +169,9 @@ export class Snowballs {
       for (const h of this.ray.intersectObjects(solids, true)) {
         if ((h.object as THREE.Sprite).isSprite || (h.object as THREE.Points).isPoints) continue
         if (b.owner && isInside(h.object, b.owner)) continue
+        // (things put away for now – a calendar door not yet open – catch nothing; invisible
+        // hitboxes still do, it's only what they hang from that counts)
+        if (!shown(h.object.parent)) continue
         const normal = h.face ? h.face.normal.clone().transformDirection(h.object.matrixWorld) : step.clone().negate().normalize()
         if (normal.dot(step) > 0) normal.negate()
         hit = { point: h.point, normal, object: h.object }
@@ -305,6 +308,12 @@ export class Snowballs {
     this.scene.add(mesh)
     this.decals.push({ mesh, age: 0 })
   }
+}
+
+/** Visible, and everything above it too. */
+function shown(o: THREE.Object3D | null): boolean {
+  for (; o; o = o.parent) if (!o.visible) return false
+  return true
 }
 
 function isInside(o: THREE.Object3D, root: THREE.Object3D) {

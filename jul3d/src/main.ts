@@ -8,10 +8,22 @@ import { Flight } from './flight'
 import { Matadors } from './matadors'
 import type { Nisse } from './npc'
 import { Player } from './player'
+import { Slide } from './rutschkana'
+import { ARRIVE, STUMP, buildMine, buildStump, type Mine } from './kolgruvan'
+import { CartRun } from './gruvvagn'
+import { Hacking } from './kolhackning'
+import { buildCalendar, julafton, today } from './julkalender'
+import { CentralPark } from './centralpark'
+import { PARK } from './sleigh'
+import { MINE_TALK } from './gruvfolk'
+import { buildCalendarVillage, type Act } from './kalenderbyn'
+import { buildToyTrain } from './leksakstag'
+import { buildSleighYard } from './julaftonsrunda'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
-import { buildChoir, swedenNow } from './korsang'
+import { buildChoir, choirMode, swedenNow, wallClock } from './korsang'
+import { buildBuskers } from './gitarrister'
 import { daylightAt } from './sol'
 import { loadFonts } from './tex'
 import { clockText, eventStatus, formatShortDate } from './time'
@@ -29,6 +41,7 @@ import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { buildWorld, keepInside } from './world'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
+import { noise } from './sfx'
 
 const $ = (id: string) => document.getElementById(id)!
 const touch = TOUCH
@@ -83,6 +96,9 @@ const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
 const sleigh = new Sleigh(scene)
 const flight = new Flight(scene, camera, player, sleigh)
+// down the spiral chute in Leksaksfabriken, from the gallery to the basket of presents
+const slide = new Slide(player, camera)
+slide.onDone = () => resume()
 flight.onDone = () => resume()
 // Husvagnen, with Musse and Kalle waving beside it – a trip up the mountain (see trip.ts)
 const camper = new Camper(scene)
@@ -126,16 +142,64 @@ type Target =
   | { kind: 'exhibit'; title: string; caption?: string; image: () => string; open?: () => void; prompt?: string }
   | { kind: 'arcade'; cab: Cabinet }
   | { kind: 'sleigh' }
+  | { kind: 'singer'; who: NonNullable<ReturnType<CentralPark['nearPerson']>> }
   | { kind: 'camper' }
   | { kind: 'matadors' }
+  | { kind: 'slide' }
+  | { kind: 'stump' }
+  | { kind: 'ladder' }
+  | { kind: 'cart' }
+  | { kind: 'hack' }
+  | { kind: 'calendar' }
+  | { kind: 'pickup'; item: Act }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
 /** Everyone you can talk to: the shopkeepers and the arcade hosts. */
 const talkers: { npc: Nisse; talk: Talk }[] = []
-const circles = [...world.colliders, ...sleigh.colliders(), ...camper.colliders()]
+/** (switched off while Tomten is out on his rounds, see julaftonsrunda.ts) */
+const sleighCircles = sleigh.colliders()
+const circles = [...world.colliders, ...sleighCircles, ...camper.colliders()]
 let arcade: Arcade | null = null
 let choir: ReturnType<typeof buildChoir> | null = null
+/** The hollow stump at the edge of the village, and the coal mine under it (built the first time you climb down). */
+let stump: ReturnType<typeof buildStump> | null = null
+let mine: Mine | null = null
+let inMine = false
+/** Central Park, from the 23rd: off to New York with Tomten (see centralpark.ts). */
+let park: CentralPark | null = null
+let inPark = false
+/** From the 23rd (but not on julafton, when he's out on his rounds) Tomten asks if you're coming. */
+const newYorkOn = () => today().open >= 23 && !julafton()
+const santaTalk: Talk = {
+  name: 'Tomten',
+  avatar: '🎅',
+  greeting: () => [
+    html.p('Ho ho ho! I kväll smiter jag iväg till New York och delar ut lite klappar i smyg – en dag i förväg, så att ingen märker något.'),
+    html.p('Vill du följa med? Det kan bli lite skumpigt. Julandan där borta är inte vad den har varit.'),
+  ],
+  topics: [
+    { label: '🗽 Ja! Jag följer med till New York', pages: () => [], go: () => startPark() },
+    { label: '🛷 Kan jag få låna släden en sväng i stället?', pages: () => [], go: () => takeSleigh() },
+  ],
+  bye: 'Ho ho ho! Säg till om du ångrar dig.',
+}
+/** Gruvexpressen: the mine cart ride (made the first time you get in). */
+let cartRun: CartRun | null = null
+/** Your turn at the coal face (made the first time you take the pick). */
+let hacking: Hacking | null = null
+/** Julkalendern on the square. */
+let calendar: ReturnType<typeof buildCalendar> | null = null
+/** …and what its doors bring to the village. */
+let advent: ReturnType<typeof buildCalendarVillage> | null = null
+/** The toy train round the julgran. */
+let toyTrain: ReturnType<typeof buildToyTrain> | null = null
+/** The guitar and the banjo on the bench by the path to Leksaksfabriken. */
+let buskers: ReturnType<typeof buildBuskers> | null = null
+let choirHasSquare = false
+let choirCheckAt = 0
+/** The sacks and the nissar by the sleigh, and Tomten's rounds on julafton. */
+let sleighYard: ReturnType<typeof buildSleighYard> | null = null
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -182,6 +246,41 @@ async function build() {
   // the gang singing carols by the tree
   choir = buildChoir(scene, shops[0].shop.group)
   circles.push(...choir.colliders)
+  // the way down to Kolgruvan (hidden: see kolgruvan.ts)
+  stump = buildStump(scene)
+  circles.push(...stump.colliders)
+  // the calendar house, with a door a day from the first of December
+  calendar = buildCalendar(scene)
+  circles.push(...calendar.colliders)
+  advent = buildCalendarVillage(scene, () => ($('me-name') as HTMLInputElement).value.trim())
+  circles.push(...advent.colliders)
+  solids.push(...advent.solids)
+  advent.voice.say = (text) => toast(text)
+  advent.voice.glogg = () => {
+    vm.glogg()
+    $('sip').hidden = false
+    setTimeout(() => toast(TOUCH ? '☕ Tryck på glaset för en klunk' : '☕ Tryck F för en klunk'), 2600)
+  }
+  calendar.status = advent.status
+  calendar.done = { has: advent.has, mark: advent.mark }
+  toyTrain = buildToyTrain(scene)
+  buskers = buildBuskers(scene)
+  circles.push(...buskers.colliders)
+  for (const s of buskers.solids) {
+    solids.push(s)
+    s.userData.onSnowball = () => toast('🎸 Hörru! Inte på gitarren!')
+  }
+  sleighYard = buildSleighYard(scene, sleigh, sleighCircles)
+  circles.push(...sleighYard.colliders)
+  // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
+  const sixten = MINE_TALK.fisher.greeting
+  MINE_TALK.fisher.greeting = () =>
+    advent?.givePipe() ? [html.p('Min pipa! Där var den ju! Jag har letat efter den i tre år.'), html.p('Tack. Du är snällare än du ser ut. Men säg inte det till någon här nere.')] : sixten()
+  const kolbjorn = MINE_TALK.foreman.greeting
+  MINE_TALK.foreman.greeting = () => {
+    if (today().open >= 15) advent?.mark('forman')
+    return kolbjorn()
+  }
   solids.push(choir.group)
   const square = await buildSquare(scene, shops)
   circles.push(...square.colliders)
@@ -252,6 +351,9 @@ async function build() {
     ...elves.map((e) => e.nisse.group),
     sleigh.group,
     sleigh.santa.group,
+    ...(toyTrain ? [toyTrain.train] : []),
+    ...(buskers ? [buskers.group] : []),
+    ...(sleighYard?.moving ?? []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -280,7 +382,7 @@ async function build() {
 
 /* ---------- collision ---------- */
 const RADIUS = 0.35
-function collide(p: THREE.Vector3, RADIUS = 0.35) {
+function collide(p: THREE.Vector3, RADIUS = 0.35, feet = 0) {
   for (const c of circles) {
     const dx = p.x - c.x
     const dz = p.z - c.z
@@ -301,6 +403,8 @@ function collide(p: THREE.Vector3, RADIUS = 0.35) {
     let lx = dx * cos - dz * sin
     let lz = dx * sin + dz * cos
     for (const b of s.shop.boxes) {
+      // (most things you only bump into down on the floor; walls and railings at their own heights)
+      if (feet < (b.y0 ?? -Infinity) || feet >= (b.y1 ?? 2.5)) continue
       const cx = THREE.MathUtils.clamp(lx, b.x - b.hw, b.x + b.hw)
       const cz = THREE.MathUtils.clamp(lz, b.z - b.hd, b.z + b.hd)
       const ox = lx - cx
@@ -326,9 +430,34 @@ function collide(p: THREE.Vector3, RADIUS = 0.35) {
   }
   keepInside(p)
 }
+/** How high you can step up without jumping. */
+const STEP = 0.45
+/**
+ * What there is to stand on at `p` for feet at `feet`: the highest floor you can step onto (0, the
+ * ground, if none) – or null if something solid there is too high.
+ */
+function groundAt(p: THREE.Vector3, feet: number) {
+  let top = 0
+  for (const s of shops) {
+    if (!s.shop.floors.length) continue
+    const g = s.shop.group
+    const cos = Math.cos(g.rotation.y)
+    const sin = Math.sin(g.rotation.y)
+    const dx = p.x - g.position.x
+    const dz = p.z - g.position.z
+    const lx = dx * cos - dz * sin
+    const lz = dx * sin + dz * cos
+    for (const f of s.shop.floors) {
+      if (Math.abs(lx - f.x) > f.hw || Math.abs(lz - f.z) > f.hd) continue
+      if (f.top <= feet + STEP) top = Math.max(top, f.top)
+      else if (f.solid) return null
+    }
+  }
+  return top
+}
 /** You also bump into elves. */
-function collidePlayer(p: THREE.Vector3) {
-  collide(p, RADIUS)
+function collidePlayer(p: THREE.Vector3, feet = 0) {
+  collide(p, RADIUS, feet)
   for (const e of elves) {
     if (!e.group.visible) continue
     const dx = p.x - e.pos.x
@@ -420,6 +549,24 @@ let target: Target | null = null
 let talking: Nisse | null = null
 
 function findTarget(): Target | null {
+  // in Central Park: the people you could get singing
+  if (inPark && park) {
+    const who = park.nearPerson(player.pos, player.forward)
+    return who ? { kind: 'singer', who } : null
+  }
+  // down in the mine: only the ladder back up (for now)
+  if (inMine && mine) {
+    const f = player.forward
+    if (mine.nearLadder(player.pos, f)) return { kind: 'ladder' }
+    const thing = advent?.near(player.pos, 0, true)
+    if (thing) return { kind: 'pickup', item: thing }
+    // (the people down there first: you'll want to talk to the foreman standing by things)
+    const who = mine.nearPerson(player.pos, f)
+    if (who) return { kind: 'npc', ...who }
+    if (mine.nearCart(player.pos, f)) return { kind: 'cart' }
+    if (mine.nearHack(player.pos, f)) return { kind: 'hack' }
+    return null
+  }
   ray.setFromCamera(new THREE.Vector2(0, 0), camera)
   const hit = ray.intersectObjects(rayRoots, true)[0]
   let aimed: Target | null = null
@@ -467,6 +614,13 @@ function findTarget(): Target | null {
     const d = Math.hypot(dx, dz)
     if (d < 3.4 && (dx * fwd.x + dz * fwd.z) / d > 0.5) return { kind: 'sleigh' }
   }
+  // up on the gallery at the top of Leksaksfabriken's chute
+  if (slide.near(player.pos, player.floor, fwd)) return { kind: 'slide' }
+  if (calendar?.near(player.pos, fwd)) return { kind: 'calendar' }
+  const item = advent?.near(player.pos, player.floor + player.height)
+  if (item) return { kind: 'pickup', item }
+  // right at the old stump, looking down into it
+  if (stump?.near(player.pos, player.pitch)) return { kind: 'stump' }
   return aimed
 }
 
@@ -519,12 +673,30 @@ function setTarget(t: Target | null) {
       : t.kind === 'arcade'
         ? `Spela ${t.cab.def.name}`
         : t.kind === 'sleigh'
-          ? 'Knuffa ut tomten och ta släden'
+          ? newYorkOn()
+            ? 'Prata med Tomten'
+            : 'Knuffa ut tomten och ta släden'
+          : t.kind === 'singer'
+            ? 'Sjung för dem 🎶'
           : t.kind === 'camper'
             ? 'Hoppa in i husvagnen'
             : t.kind === 'matadors'
               ? 'Prata med matadorerna'
-              : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
+              : t.kind === 'slide'
+                ? 'Åk ner för rutschkanan'
+                : t.kind === 'stump'
+                  ? 'Klättra ner i stubben'
+                  : t.kind === 'ladder'
+                    ? 'Klättra upp'
+                    : t.kind === 'cart'
+                      ? 'Åk Gruvexpressen'
+                      : t.kind === 'hack'
+                        ? 'Ta hackan och hacka kol'
+                        : t.kind === 'calendar'
+                          ? calendar!.prompt()
+                          : t.kind === 'pickup'
+                            ? t.item.prompt
+                            : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -601,7 +773,8 @@ function openKnytisPanel(e?: Event) {
 addEventListener('jul:knytis', openKnytisPanel)
 // who brings what: on the chalkboard and the buffet cards – fetched now and then (others claim too)
 function refreshClaims() {
-  if (document.hidden) return
+  // (no julbord in the village unless you're invited – and then nothing to ask for)
+  if (document.hidden || !EVENTS.some((e) => e.potluck)) return
   getClaims()
     .then((claims) => dispatchEvent(new CustomEvent('jul:claims', { detail: claims })))
     .catch(() => {})
@@ -712,6 +885,9 @@ function onEsc() {
   if (flight.active) return flight.leave()
   if (trip.active) return trip.leave()
   if (corrida.active) return corrida.leave()
+  if (cartRun?.active) return cartRun.leave()
+  if (hacking?.active) return hacking.leave()
+  if (calendar?.open) return calendar.close()
   openMenu()
 }
 addEventListener('keydown', (e) => {
@@ -795,22 +971,179 @@ function syncMenu() {
 function interact() {
   if (!target || !player.enabled) return
   const t = target
+  if (t.kind === 'singer') {
+    park?.convert(t.who, player.pos)
+    setTarget(null)
+    return
+  }
   pause()
   if (t.kind === 'npc') {
     talking = t.npc
     dialog.start(t.talk)
   } else if (t.kind === 'arcade') playArcade(t.cab)
   else if (t.kind === 'sleigh') {
-    // shove Tomten out and jump in
-    cursor.hide()
-    $('hud').classList.add('flight')
-    sleigh.push(player.pos)
-    sleigh.say('🎅 Hallå!? Det där är MIN släde!')
-    flight.start()
+    if (newYorkOn()) dialog.start(santaTalk)
+    else takeSleigh()
   } else if (t.kind === 'camper') startTrip()
   else if (t.kind === 'matadors') dialog.start(matadorTalk)
+  else if (t.kind === 'slide') {
+    cursor.hide()
+    slide.start()
+  } else if (t.kind === 'stump') goDown()
+  else if (t.kind === 'ladder') goUp()
+  else if (t.kind === 'cart') ride()
+  else if (t.kind === 'hack') hack()
+  else if (t.kind === 'calendar') calendar?.show(() => resume())
+  else if (t.kind === 'pickup') {
+    const said = t.item.act()
+    if (said) toast(said)
+    setTarget(null)
+    resume()
+  }
   else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
+}
+/** Down the ladder in the stump into Kolgruvan: black for a moment, the creak of the rungs, then the mine. */
+function goDown() {
+  cursor.hide()
+  if (!mine) {
+    mine = buildMine()
+    advent?.attachMine(mine.scene)
+  }
+  const m = mine
+  $('fade').classList.add('on')
+  m.climb()
+  setTimeout(() => {
+    inMine = true
+    player.pos.set(ARRIVE.x, 0, ARRIVE.z)
+    player.yaw = ARRIVE.yaw
+    player.pitch = 0
+    player.floor = player.height = 0
+    setTarget(null)
+    renderer.compile(m.scene, camera)
+    $('fade').classList.remove('on')
+    resume()
+  }, 1100)
+}
+/** Take up the pick at the free seam in Stora orten. */
+function hack() {
+  if (!mine) return
+  cursor.hide()
+  $('hud').classList.add('busy')
+  if (!hacking) {
+    hacking = new Hacking(mine.scene, camera)
+    hacking.onLeft = () => {
+      const s = mine!.hack
+      // (stepping back from the seam)
+      player.pos.set(s.x - Math.sin(s.yaw) * 0.8, 0, s.z - Math.cos(s.yaw) * 0.8)
+      player.yaw = s.yaw + Math.PI
+      player.pitch = 0
+      resume()
+    }
+  }
+  setTarget(null)
+  hacking.start(mine.hack, mine.heave)
+}
+/** Into Gruvexpressen: off down the tunnels until you crash (or get out). */
+function ride() {
+  cursor.hide()
+  $('hud').classList.add('busy')
+  if (!cartRun) {
+    cartRun = new CartRun(camera)
+    cartRun.onDone = () => {
+      $('fade').classList.add('on')
+      setTimeout(() => {
+        // (out on the platform, beside the cart)
+        if (mine) player.pos.set(mine.station.x - 1.6, 0, mine.station.z + 0.9)
+        player.yaw = -Math.PI / 2
+        player.pitch = 0
+        $('fade').classList.remove('on')
+        resume()
+      }, 500)
+    }
+  }
+  const run = cartRun
+  mine?.leave()
+  $('fade').classList.add('on')
+  setTimeout(() => {
+    renderer.compile(run.scene, camera)
+    run.start()
+    $('fade').classList.remove('on')
+  }, 500)
+}
+/** …and back up, out of the stump into the snow. */
+function goUp() {
+  cursor.hide()
+  $('fade').classList.add('on')
+  mine?.climb()
+  setTimeout(() => {
+    inMine = false
+    mine?.leave()
+    // (stepping out on the village side of it, facing the square)
+    player.pos.set(STUMP.x + 1.1, 0, STUMP.z + 0.3)
+    player.yaw = -Math.PI / 2
+    player.pitch = 0
+    player.floor = player.height = 0
+    setTarget(null)
+    $('fade').classList.remove('on')
+    resume()
+  }, 1100)
+}
+/** Shove Tomten out and jump in. */
+function takeSleigh() {
+  cursor.hide()
+  $('hud').classList.add('flight')
+  sleigh.push(player.pos)
+  sleigh.say('🎅 Hallå!? Det där är MIN släde!')
+  flight.start()
+}
+/** Off to New York with Tomten – and down in Central Park. */
+function startPark() {
+  cursor.hide()
+  $('hud').classList.add('busy')
+  if (!park) {
+    const p = (park = new CentralPark())
+    const place = (at: THREE.Vector3, yaw: number) => {
+      player.pos.set(at.x, 0, at.z)
+      player.yaw = yaw
+      player.pitch = -0.05
+      player.vel.set(0, 0, 0)
+      player.floor = player.height = 0
+    }
+    p.say = (text) => toast(text)
+    p.onPlay = (at, yaw) => {
+      place(at, yaw)
+      resume()
+    }
+    p.onCaught = place
+    p.onDone = (r) => {
+      pause(false)
+      $('fade').classList.add('on')
+      setTimeout(() => {
+        inPark = false
+        // home again, by the sleigh in the yard
+        player.pos.set(PARK.x + 2, 0, PARK.z + 2)
+        player.yaw = Math.atan2(2, 2)
+        player.pitch = 0
+        player.floor = player.height = 0
+        setTarget(null)
+        $('fade').classList.remove('on')
+        resume()
+        const time = `${Math.floor(r.seconds / 60)}:${String(Math.floor(r.seconds % 60)).padStart(2, '0')}`
+        // (after Tomten's hello by the sleigh, so it isn't lost under it)
+        setTimeout(() => toast(r.won ? `🎉 Julandan räddad på ${time}!${r.best ? ' Nytt rekord!' : ''}` : '🎅 Ho ho ho … vi försöker igen en annan kväll!'), 1800)
+      }, 700)
+    }
+  }
+  const p = park
+  $('fade').classList.add('on')
+  setTimeout(() => {
+    inPark = true
+    setTarget(null)
+    renderer.compile(p.scene, camera)
+    p.start()
+    $('fade').classList.remove('on')
+  }, 700)
 }
 function startTrip() {
   cursor.hide()
@@ -841,6 +1174,24 @@ addEventListener('keyup', (e) => {
   if (e.code === 'KeyZ') zoomHeld = false
 })
 addEventListener('blur', () => (zoomHeld = false))
+/** A sip of glögg (F, or the glass button on a phone). */
+function sip() {
+  if (!player.enabled) return
+  const left = vm.sip()
+  if (left < 0) return
+  setTimeout(() => noise(0.45, 700, 250, 0.05, 2), 350)
+  if (left === 0) {
+    $('sip').hidden = true
+    setTimeout(() => toast('☕ Slut på glöggen! Ståndet på torget har mer.'), 1300)
+  }
+}
+addEventListener('keydown', (e) => {
+  if (e.code === 'KeyF' && !e.repeat && !(e.target as HTMLElement | null)?.closest?.('input, textarea')) sip()
+})
+$('sip').addEventListener('pointerdown', (e) => {
+  e.preventDefault()
+  sip()
+})
 $('zoom').addEventListener('pointerdown', (e) => {
   e.preventDefault()
   zoomToggled = !zoomToggled
@@ -864,7 +1215,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || hacking?.active || calendar?.open || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
@@ -1020,12 +1371,41 @@ function frame(now: number) {
   // the others in the village carry on (and still see you) while you're off on a trip
   mp?.update(t, dt)
   // off on the camper trip or in Madrid, the village stands still (it's only a painted backdrop, after all)
-  if (!trip.inWorld && !corrida.inWorld) {
-    player.update(dt, collidePlayer)
-    mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.height)
+  if (cartRun?.active) {
+    advent?.hush()
+    buskers?.hush()
+    cartRun.update(dt)
+    renderer.toneMappingExposure = EXPOSURE
+  } else if (inPark && park) {
+    // New York: the park is its own world (and it waits while you're in the menu)
+    advent?.hush()
+    buskers?.hush()
+    if (park.cinematic) park.camera(camera)
+    else player.update(dt, park.collide, park.ground)
+    if (park.cinematic || player.enabled) park.update(t, dt, player.pos)
+    renderer.toneMappingExposure = EXPOSURE
+    if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
+  } else if (inMine && mine) {
+    // down in the mine: just you, the miners and their song (the village waits up above)
+    advent?.hush()
+    buskers?.hush()
+    if (hacking?.active) hacking.update(dt)
+    else player.update(dt, mine.collide, mine.ground)
+    mine.update(t, dt, player.pos, player.enabled)
+    choir?.update(dt, player.pos, false)
+    parade.near(player.pos, false)
+    renderer.toneMappingExposure = EXPOSURE
+    if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
+  } else if (!trip.inWorld && !corrida.inWorld) {
+    // (down the chute, the chute steers)
+    if (slide.active) slide.update(dt)
+    else player.update(dt, collidePlayer, groundAt)
+    // (how high you are, the others see: up on a gallery or in mid-jump)
+    mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.floor + player.height)
     thrower.update(dt, t)
     arcade?.update(dt, t)
     flight.update(dt, t)
+    sleighYard?.update(t, flight.active)
     sleigh.update(t, dt, player.pos)
     camper.update(t, dt, player.pos)
     matadors.update(t, dt, player.pos)
@@ -1041,6 +1421,18 @@ function frame(now: number) {
     // the tin soldiers' band plays as you come near (not from up in the sleigh)
     parade.near(player.pos, !flight.active)
     choir?.update(dt, player.pos, !flight.active)
+    calendar?.update(t, dt)
+    advent?.update(t, dt, player.pos, !flight.active, world.aurora)
+    toyTrain?.update(t, dt, player.pos)
+    {
+      const d = new Date(wallClock())
+      // (they stop for the Lucia procession and the advent concert: checked now and then, not every frame)
+      if (t >= choirCheckAt) {
+        choirCheckAt = t + 0.5
+        choirHasSquare = ['lucia', 'advent'].includes(choirMode())
+      }
+      buskers?.update(t, dt, player.pos, !flight.active, d.getTime(), choirHasSquare)
+    }
     // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
     if ((skyTimer -= dt) <= 0) {
       skyTimer = 5
@@ -1063,11 +1455,19 @@ function frame(now: number) {
   corrida.update(dt, t)
   if (frameNo % 2 === 0) renderer.shadowMap.needsUpdate = true
   updateZoom(dt)
+  vm.cupPose(dt, t)
   // before drawing: a new resolution resizes (and clears) the canvas, which would otherwise show as a black flash
   if (!idle) adaptResolution(now)
   renderer.info.reset()
   renderer.clear()
-  if (trip.inWorld) renderer.render(trip.world!.scene, camera)
+  if (cartRun?.active) renderer.render(cartRun.scene, camera)
+  else if (inPark && park) {
+    renderer.render(park.scene, camera)
+    vm.render(renderer, camera)
+  } else if (inMine && mine) {
+    renderer.render(mine.scene, camera)
+    vm.render(renderer, camera)
+  } else if (trip.inWorld) renderer.render(trip.world!.scene, camera)
   else if (corrida.inWorld) {
     renderer.render(corrida.world!.scene, camera)
     vm.render(renderer, camera)
@@ -1121,6 +1521,8 @@ go.addEventListener('click', () => {
   fillScreen()
   joinOthers()
   started = true
+  // a door waiting in the calendar today?
+  if (calendar?.waiting()) setTimeout(() => toast('🎄 Dagens lucka väntar i julkalendern på torget!'), 2500)
   $('start').hidden = true
   $('hud').hidden = false
   player.enabled = true
@@ -1136,4 +1538,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, startPark, goto, get shops() { return shops } } })

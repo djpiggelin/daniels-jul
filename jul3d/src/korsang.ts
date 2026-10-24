@@ -329,7 +329,7 @@ class Chipmunk extends Toon {
 // (Swedish time, so everybody in the village sees the same choir at the same moment)
 //
 //   första advent       all day and evening – an advent concert
-//   13 december         06:30–10:00 – the Lucia procession, walking round the big tree
+//   13 december         from 06:30 all day – the Lucia procession, round the big tree, again and again
 //   13–23 december      now and then (the same moments for everyone) – carols
 //   julafton            all day, in red
 //   otherwise           away (the nook and its little tree wait for them)
@@ -364,7 +364,7 @@ const loadedAt = Date.now()
 const stockholm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
 
 /** Stockholm's wall clock right now, as ms whose getUTC* parts are Stockholm's date and time. */
-function wallClock() {
+export function wallClock() {
   if (pretend !== null) return pretend + (Date.now() - loadedAt)
   // (the date and the milliseconds from the same moment, or it could slip back a second as one ticks over)
   const now = new Date()
@@ -411,7 +411,7 @@ export function choirMode(now = wallClock()): ChoirMode {
   const minutes = d.getUTCHours() * 60 + d.getUTCMinutes()
   const advent = firstAdvent(y)
   if (m === advent.getUTCMonth() + 1 && day === advent.getUTCDate() && minutes >= 8 * 60) return 'advent'
-  if (m === 12 && day === 13 && minutes >= 6 * 60 + 30 && minutes < 10 * 60) return 'lucia'
+  if (m === 12 && day === 13 && minutes >= 6 * 60 + 30) return 'lucia'
   if (m === 12 && day === 24) return 'julafton'
   if (m === 12 && day >= 13 && day <= 23 && minutes >= 9 * 60 && minutes < 22 * 60) {
     // twenty-minute slots, about a third of them with the choir in

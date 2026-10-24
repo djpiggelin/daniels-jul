@@ -16,6 +16,11 @@ import { drawBoard, glowTexture, makeCanvas, planksTexture, toTexture } from './
 import { html, type Talk } from './ui'
 import type { BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
+import { chute as slideway } from './rutschkana'
+import { wallClock } from './korsang'
+
+/** The star on the big tree in the yard (the calendar's door 14 takes it away, until you bring it back). */
+export const yardTree = { star: null as THREE.Object3D | null }
 
 const JULAFTON = EVENTS.find((e) => e.santa) ?? EVENTS[EVENTS.length - 1]
 
@@ -312,8 +317,8 @@ function nutcracker() {
 
 /* ---------- moving parts ---------- */
 
-/** A clock face with hands that go round; `speed` 1 is the workshop's own (very fast) time. */
-function clockFace(r: number, updaters: Shop['updaters'], speed = 1) {
+/** A clock face with hands that go round: `speed` 1 is the workshop's own (very fast) time, null the village's real time. */
+function clockFace(r: number, updaters: Shop['updaters'], speed: number | null = 1) {
   const [c, ctx] = makeCanvas(256, 256)
   ctx.fillStyle = '#fbf3e4'
   ctx.beginPath()
@@ -344,6 +349,14 @@ function clockFace(r: number, updaters: Shop['updaters'], speed = 1) {
   const hour = hand(r * 0.52, r * 0.08)
   const minute = hand(r * 0.78, r * 0.05)
   updaters.push((t) => {
+    if (speed === null) {
+      // what the village clock says (the pretend ?tid= one too), the minute hand creeping on second by second
+      const d = new Date(wallClock())
+      const min = d.getUTCMinutes() + d.getUTCSeconds() / 60
+      minute.rotation.z = -(min / 60) * Math.PI * 2
+      hour.rotation.z = -(((d.getUTCHours() % 12) + min / 60) / 12) * Math.PI * 2
+      return
+    }
     minute.rotation.z = -t * 0.6 * speed
     hour.rotation.z = -t * 0.05 * speed
   })
@@ -424,6 +437,7 @@ function bigTree(height: number, updaters: Shop['updaters'], bulbsN = 240) {
   star.geometry.center()
   star.position.y = 9.25 * k
   g.add(star)
+  g.userData.star = star
   glow(g, 0, 9.25 * k, 0, 5 * k, 'rgba(255,220,120,0.9)')
   const tmp = new THREE.Color()
   updaters.push((t) => {
@@ -525,9 +539,10 @@ function exterior(shop: Shop) {
   facade.closePath()
   facade.holes.push(arch(DOOR_W, DOOR_H + SUNK / 2, new THREE.Path(), 0, -SUNK / 2))
   add(g, tiled(new THREE.ExtrudeGeometry(facade, { depth: 0.6, bevelEnabled: false, curveSegments: 20 })), brick, 0, 0, D / 2 - 0.6)
-  for (const s of [-1, 1]) shop.block(s * (W / 4 + DOOR_W / 4), D / 2 - 0.3, W / 4 - DOOR_W / 4, 0.35)
-  shop.block(0, -D / 2 + 0.3, W / 2, 0.35)
-  for (const s of [-1, 1]) shop.block(s * (W / 2 - 0.3), 0, 0.35, D / 2)
+  // (at every height – up on the galleries too)
+  for (const s of [-1, 1]) shop.block(s * (W / 4 + DOOR_W / 4), D / 2 - 0.3, W / 4 - DOOR_W / 4, 0.35, -Infinity, Infinity)
+  shop.block(0, -D / 2 + 0.3, W / 2, 0.35, -Infinity, Infinity)
+  for (const s of [-1, 1]) shop.block(s * (W / 2 - 0.3), 0, 0.35, D / 2, -Infinity, Infinity)
 
   // stone plinth and cornices round the whole hall
   for (const [y, h, out] of [[0.5, 1, 0.12], [6.4, 0.4, 0.2], [H - 0.2, 0.5, 0.35]] as const) {
@@ -695,7 +710,8 @@ function exterior(shop: Shop) {
   add(upper, tiledBox(uw, 13, ud), brick, 0, 6.5, 0)
   for (const y of [0, 13]) add(upper, box(uw + 0.6, 0.45, ud + 0.6), stone, 0, y, 0)
   for (const [x, z, ry] of [[0, ud / 2 + 0.07, 0], [uw / 2 + 0.07, 0, Math.PI / 2], [-uw / 2 - 0.07, 0, -Math.PI / 2]] as const) {
-    const f = clockFace(2.5, shop.updaters, 0.25)
+    // (the tower tells the real time, for everyone in the village)
+    const f = clockFace(2.5, shop.updaters, null)
     f.position.set(x, 7.4, z)
     f.rotation.y = ry
     upper.add(f)
@@ -835,10 +851,11 @@ function yard(shop: Shop) {
   plaza.rotation.x = -Math.PI / 2
   plaza.castShadow = false
 
-  // the giant tree on the left of the yard and a mountain of presents waiting for the sleigh on the right
+  // the giant tree on the left of the yard and a mountain of presents on the right, waiting for the sleigh (julaftonsrunda.ts)
   const tree = bigTree(17, shop.updaters, 320)
   tree.position.set(-13.5, 0, TOWER.z1 + 9)
   g.add(tree)
+  yardTree.star = tree.userData.star
   // and heaps and heaps of presents under it, in rings and piles all the way round
   {
     const cols = [C.red, C.green, C.gold, C.blue, C.white, 0x8e3fb0, 0xd4782a, 0x2fa3a3]
@@ -869,16 +886,16 @@ function yard(shop: Shop) {
     for (let k = 0; k < n; k++, i++) {
       const a = (k / n) * Math.PI * 2 + y
       const p = present(cols[i % cols.length], cols[(i + 2) % cols.length], s * (0.8 + ((i * 7) % 5) * 0.08))
-      p.position.set(13.5 + Math.cos(a) * r, y, TOWER.z1 + 9 + Math.sin(a) * r)
+      p.position.set(13.5 + Math.cos(a) * r, y, TOWER.z1 + 5 + Math.sin(a) * r)
       p.rotation.y = a * 2.3
       g.add(p)
     }
   // a big red sack, bulging
-  add(g, ball(1.1, 18), mat(0xa0132a, 0.9), 16.6, 0.95, TOWER.z1 + 7.2).scale.set(1, 1.15, 0.9)
-  add(g, cyl(0.3, 0.45, 0.5, 12), mat(0xa0132a, 0.9), 16.6, 2.15, TOWER.z1 + 7.2)
-  add(g, new THREE.TorusGeometry(0.33, 0.07, 6, 16), mat(C.gold, 0.4, 0.6), 16.6, 2.0, TOWER.z1 + 7.2).rotation.x = Math.PI / 2
-  shop.block(13.5, TOWER.z1 + 9, 3.2, 3.2)
-  shop.block(16.6, TOWER.z1 + 7.2, 1.1, 1.1)
+  add(g, ball(1.1, 18), mat(0xa0132a, 0.9), 16.6, 0.95, TOWER.z1 + 3.2).scale.set(1, 1.15, 0.9)
+  add(g, cyl(0.3, 0.45, 0.5, 12), mat(0xa0132a, 0.9), 16.6, 2.15, TOWER.z1 + 3.2)
+  add(g, new THREE.TorusGeometry(0.33, 0.07, 6, 16), mat(C.gold, 0.4, 0.6), 16.6, 2.0, TOWER.z1 + 3.2).rotation.x = Math.PI / 2
+  shop.block(13.5, TOWER.z1 + 5, 3.2, 3.2)
+  shop.block(16.6, TOWER.z1 + 3.2, 1.1, 1.1)
 
   // lamp posts along the path and the yard
   const iron = mat(0x15151c, 0.5, 0.6)
@@ -1006,6 +1023,10 @@ function hallInside(shop: Shop) {
   const gd = GALLERY_D
   add(g, box(IN_X * 2, 0.35, gd), deck, 0, gy, -IN_Z + gd / 2)
   for (const s of [-1, 1]) add(g, box(gd, 0.35, IN_Z * 2 - gd), deck, s * (IN_X - gd / 2), gy, gd / 2)
+  // you can walk up there: the decks to stand on, and railings to stop you stepping off
+  const deckTop = gy + 0.175
+  shop.floor(0, -IN_Z + gd / 2, IN_X, gd / 2, deckTop, false)
+  for (const s of [-1, 1]) shop.floor(s * (IN_X - gd / 2), gd / 2, gd / 2, IN_Z - gd / 2, deckTop, false)
   const rail = (a: THREE.Vector3, b: THREE.Vector3) => {
     const len = a.distanceTo(b)
     const mid = a.clone().add(b).multiplyScalar(0.5)
@@ -1022,6 +1043,10 @@ function hallInside(shop: Shop) {
   const iz = -IN_Z + gd
   rail(v(-ix, 0, iz), v(ix, 0, iz))
   for (const s of [-1, 1]) rail(v(s * ix, 0, iz), v(s * ix, 0, IN_Z - 1.4))
+  // (the railings only stop you up there: down on the floor you walk under the galleries)
+  const UP = gy - 1
+  shop.block(0, iz, ix, 0.08, UP, Infinity)
+  for (const s of [-1, 1]) shop.block(s * ix, (iz + IN_Z - 1.4) / 2, 0.08, (IN_Z - 1.4 - iz) / 2, UP, Infinity)
   // columns holding the galleries up, with gold capitals
   const column = (x: number, z: number) => {
     add(g, cyl(0.24, 0.28, gy - 0.2, 14), timber, x, (gy - 0.2) / 2, z)
@@ -1036,13 +1061,17 @@ function hallInside(shop: Shop) {
     for (let i = 0; i < steps; i++) {
       const x = s * (DOOR_W / 2 + 2.6 + (i * (ix - DOOR_W / 2 - 2.6)) / steps)
       add(g, box((ix - DOOR_W / 2 - 2.6) / steps + 0.02, ((i + 1) * gy) / steps, 1.3), deck, x, ((i + 1) * gy) / steps / 2, IN_Z - 0.65)
+      shop.floor(x, IN_Z - 0.65, (ix - DOOR_W / 2 - 2.6) / steps / 2 + 0.01, 0.65, ((i + 1) * gy) / steps, true)
     }
     const sx = s * ((DOOR_W / 2 + 2.6 + ix) / 2)
     const sl = add(g, box(Math.hypot(ix - DOOR_W / 2 - 2.6, gy), 0.1, 0.1), gold, sx, gy / 2 + 1, IN_Z - 1.35)
     sl.rotation.z = s * Math.atan2(gy, ix - DOOR_W / 2 - 2.6)
-    shop.block(sx, IN_Z - 0.65, (ix - DOOR_W / 2 - 2.6) / 2, 0.7)
+    // a handrail on the open side stops you, once you are a few steps up
+    shop.block(sx, IN_Z - 1.38, (ix - DOOR_W / 2 - 2.6) / 2, 0.08, 1.2, Infinity)
     // a landing joining the stairs to the side gallery
-    add(g, box(gd, 0.35, 1.4), deck, s * (IN_X - gd / 2), gy, IN_Z - 0.7)
+    add(g, box(gd + 0.25, 0.35, 1.4), deck, s * (IN_X - gd / 2 - 0.12), gy, IN_Z - 0.7)
+    // (reaching back over the top step, so there is no gap to fall through)
+    shop.floor(s * (IN_X - gd / 2 - 0.12), IN_Z - 0.7, gd / 2 + 0.13, 0.7, deckTop, false)
   }
 
   // chandeliers
@@ -1265,6 +1294,10 @@ function chute(shop: Shop) {
   }
   shop.block(cx, cz, r + 0.5, r + 0.5)
   shop.block(bx, bz, 0.9, 0.9)
+  // (and you can go down it too: rutschkana.ts)
+  slideway.curve = curve
+  slideway.room = g
+  slideway.basket.set(bx, 0, bz)
   const sliders = Array.from({ length: 6 }, (_, i) => {
     const p = moving(present([C.blue, C.red, C.green, C.gold, 0x8e3fb0, C.white][i], C.gold, 0.38))
     g.add(p)
@@ -1670,7 +1703,7 @@ function hitboxes() {
     [-8.2, 2.6, TOWER.z1 + 2.4, 1.8, 5.2, 1.8],
     [8.2, 2.6, TOWER.z1 + 2.4, 1.8, 5.2, 1.8],
     [-13.5, 8, TOWER.z1 + 9, 6, 16, 6],
-    [13.5, 1.4, TOWER.z1 + 9, 6, 2.8, 6],
+    [13.5, 1.4, TOWER.z1 + 5, 6, 2.8, 6],
     [0, 5.5, -2, 5, 11, 5],
   ]
   for (const [x, y, z, w, h, d] of boxes) {
@@ -1732,6 +1765,7 @@ export async function buildLeksaksfabriken(): Promise<BuiltShop> {
 
   // what the room needs from its house: walls to bump into, things to animate, things to look at
   shop.boxes.push(...room.boxes)
+  shop.floors.push(...room.floors)
   shop.updaters.push(...room.updaters)
   shop.exhibits.push(...room.exhibits)
   // its lights stay on all the time (lights coming and going would rebuild every shader)

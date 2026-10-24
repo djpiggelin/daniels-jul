@@ -1,6 +1,6 @@
 // Tiny WebAudio effects, so we don't have to ship sound files.
 let ctx: AudioContext | null = null
-const audio = () => (ctx ??= new AudioContext())
+export const audio = () => (ctx ??= new AudioContext())
 
 export function blip(freq = 880, dur = 0.08, type: OscillatorType = 'square', vol = 0.06) {
   try {
@@ -22,7 +22,7 @@ export function blip(freq = 880, dur = 0.08, type: OscillatorType = 'square', vo
 
 let noiseBuf: AudioBuffer | null = null
 /** Filtered noise: a soft "puff" (low) or a "whoosh" (sweeping). */
-function noise(dur: number, from: number, to: number, vol: number, q = 0.8) {
+export function noise(dur: number, from: number, to: number, vol: number, q = 0.8) {
   try {
     const a = audio()
     if (!noiseBuf) {
@@ -886,5 +886,241 @@ export class Playlist {
       an?.disconnect()
       g.disconnect()
     }, 500)
+  }
+}
+
+/* ---------- the mine cart ride ---------- */
+/** "I Bergakungens sal" (Grieg): low plucked strings creeping up, a deep bassoon under them, a drum on the beat. */
+const MOUNTAIN = {
+  melody: [
+    'B2:2 C#3:2 D3:2 E3:2 F#3:2 D3:2 F#3:4', 'F3:2 C#3:2 F3:4 E3:2 C3:2 E3:4',
+    'B2:2 C#3:2 D3:2 E3:2 F#3:2 D3:2 F#3:2 B3:2', 'A3:2 F#3:2 D3:2 F#3:2 A3:8',
+    'F#3:2 G#3:2 A#3:2 B3:2 C#4:2 A#3:2 C#4:4', 'D4:2 A#3:2 D4:4 C#4:2 A#3:2 C#4:4',
+    'F#3:2 G#3:2 A#3:2 B3:2 C#4:2 A#3:2 C#4:2 D4:2', 'C#4:2 A#3:2 F#3:2 A#3:2 C#4:8',
+  ],
+  bass: ['B1', 'B1', 'B1', 'F#1', 'F#1', 'F#1', 'F#1', 'C#2'],
+}
+
+/**
+ * The mine cart's music: Grieg's troll king's hall, faster and faster as the cart picks up speed
+ * (`rate` 1 is a creep; it is played step by step, so the tempo can change as it goes).
+ */
+export class MountainKing {
+  private gain: GainNode | null = null
+  private timer = 0
+  private steps = new Map<number, ((t: number, out: AudioNode) => void)[]>()
+  private length = 0
+  private step = 0
+  private stepAt = 0
+  rate = 1
+  playing = false
+
+  constructor() {
+    const on = (s: number, fn: (t: number, out: AudioNode) => void) => {
+      if (!this.steps.has(s)) this.steps.set(s, [])
+      this.steps.get(s)!.push(fn)
+    }
+    let s = 0
+    MOUNTAIN.melody.forEach((line, i) => {
+      const start = s
+      for (const [m, beats] of bar(line)) {
+        const len = beats * 4
+        if (m) on(s, (t, out) => this.pluck(t, hz(m), out))
+        s += len
+      }
+      // the bassoon on every beat, the drum on one and three
+      const b = hz(midi(MOUNTAIN.bass[i]))
+      for (let k = 0; k < 16; k += 4) {
+        on(start + k, (t, out) => this.bassoon(t, k % 8 === 0 ? b : b * 1.5, out))
+        if (k % 8 === 0) on(start + k, (t, out) => this.drum(t, out))
+      }
+    })
+    this.length = s
+  }
+
+  start(vol = 0.2) {
+    if (this.playing) return
+    try {
+      const a = audio()
+      void a.resume()
+      this.playing = true
+      this.gain = a.createGain()
+      this.gain.gain.setValueAtTime(0.0001, a.currentTime)
+      this.gain.gain.exponentialRampToValueAtTime(vol, a.currentTime + 0.2)
+      // (warm and low: the top taken off everything)
+      const warm = a.createBiquadFilter()
+      warm.type = 'lowpass'
+      warm.frequency.value = 1800
+      this.gain.connect(warm).connect(a.destination)
+      this.step = 0
+      this.stepAt = a.currentTime + 0.1
+      this.timer = window.setInterval(() => this.schedule(), 50)
+      this.schedule()
+    } catch {
+      /* audio not available */
+    }
+  }
+
+  stop() {
+    if (!this.playing) return
+    this.playing = false
+    clearInterval(this.timer)
+    const g = this.gain
+    this.gain = null
+    if (!g) return
+    const a = audio()
+    g.gain.cancelScheduledValues(a.currentTime)
+    g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), a.currentTime)
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.3)
+    setTimeout(() => g.disconnect(), 500)
+  }
+
+  private schedule() {
+    const a = audio()
+    const out = this.gain
+    if (!out) return
+    // (a sixteenth at the tempo right now: from 96 beats a minute up to about four times that)
+    const sixteenth = 60 / (96 * this.rate) / 4
+    if (this.stepAt < a.currentTime - 0.1) this.stepAt = a.currentTime + 0.02
+    while (this.stepAt < a.currentTime + 0.25) {
+      for (const fn of this.steps.get(this.step) ?? []) fn(this.stepAt, out)
+      this.step = (this.step + 1) % this.length
+      this.stepAt += sixteenth
+    }
+  }
+
+  /** Plucked strings: a bright attack dying away. */
+  private pluck(t: number, f: number, out: AudioNode) {
+    const a = audio()
+    const o = a.createOscillator()
+    const filter = a.createBiquadFilter()
+    const g = a.createGain()
+    o.type = 'sawtooth'
+    o.frequency.setValueAtTime(f, t)
+    filter.type = 'lowpass'
+    filter.frequency.setValueAtTime(1400, t)
+    filter.frequency.exponentialRampToValueAtTime(300, t + 0.2)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.16, t + 0.006)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.25)
+    o.connect(filter).connect(g).connect(out)
+    o.start(t)
+    o.stop(t + 0.25)
+  }
+
+  private bassoon(t: number, f: number, out: AudioNode) {
+    const a = audio()
+    const o = a.createOscillator()
+    const filter = a.createBiquadFilter()
+    const g = a.createGain()
+    o.type = 'sawtooth'
+    o.frequency.setValueAtTime(f, t)
+    filter.type = 'lowpass'
+    filter.frequency.setValueAtTime(260, t)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.55, t + 0.02)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.28)
+    o.connect(filter).connect(g).connect(out)
+    o.start(t)
+    o.stop(t + 0.22)
+  }
+
+  /** A timpani-ish thump. */
+  private drum(t: number, out: AudioNode) {
+    const a = audio()
+    const o = a.createOscillator()
+    const g = a.createGain()
+    o.type = 'sine'
+    o.frequency.setValueAtTime(90, t)
+    o.frequency.exponentialRampToValueAtTime(40, t + 0.22)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(0.8, t + 0.005)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.38)
+    o.connect(g).connect(out)
+    o.start(t)
+    o.stop(t + 0.32)
+  }
+}
+
+/**
+ * A real recording of people singing that grows with the crowd (Central Park, centralpark.ts): with
+ * only a few singing it's quiet and muffled, as if from far off; as `singers` climbs towards `of` it
+ * opens up and gets louder, until the whole park is singing at full voice. It loops.
+ */
+export class SingAlong {
+  private buffer: Promise<AudioBuffer | null> | null = null
+  private src: AudioBufferSourceNode | null = null
+  private gain: GainNode | null = null
+  private filter: BiquadFilterNode | null = null
+  private n = 0
+  playing = false
+
+  constructor(
+    private url: string,
+    private of: number,
+  ) {}
+
+  /** Fetch and decode it ahead of time, so it starts the moment it's wanted. */
+  preload() {
+    this.buffer ??= fetch(this.url)
+      .then((r) => r.arrayBuffer())
+      .then((b) => audio().decodeAudioData(b))
+      .catch(() => null)
+    return this.buffer
+  }
+
+  set singers(n: number) {
+    if (n === this.n) return
+    this.n = n
+    this.apply(0.8)
+  }
+
+  private apply(over: number) {
+    const a = audio()
+    const k = Math.min(1, this.n / this.of)
+    const now = a.currentTime
+    // (nobody singing yet: silence)
+    this.gain?.gain.setTargetAtTime(this.n ? 0.15 + 0.85 * k ** 0.8 : 0.0001, now, over / 3)
+    this.filter?.frequency.setTargetAtTime(500 + 15000 * k ** 1.6, now, over / 3)
+  }
+
+  async start() {
+    if (this.playing) return
+    this.playing = true
+    try {
+      const a = audio()
+      void a.resume()
+      const buf = await this.preload()
+      if (!buf || !this.playing) return
+      this.gain = a.createGain()
+      this.gain.gain.value = 0.0001
+      this.filter = a.createBiquadFilter()
+      this.filter.type = 'lowpass'
+      this.filter.frequency.value = 500
+      this.src = a.createBufferSource()
+      this.src.buffer = buf
+      this.src.loop = true
+      this.src.connect(this.filter).connect(this.gain).connect(a.destination)
+      this.src.start()
+      this.apply(1.5)
+    } catch {
+      /* audio not available */
+    }
+  }
+
+  stop() {
+    if (!this.playing) return
+    this.playing = false
+    const g = this.gain
+    const src = this.src
+    this.gain = this.filter = this.src = null
+    if (!g || !src) return
+    const a = audio()
+    g.gain.cancelScheduledValues(a.currentTime)
+    g.gain.setTargetAtTime(0.0001, a.currentTime, 0.4)
+    setTimeout(() => {
+      src.stop()
+      g.disconnect()
+    }, 2000)
   }
 }

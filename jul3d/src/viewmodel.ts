@@ -42,6 +42,13 @@ export class Viewmodel {
   private freeArm = arm(new THREE.Vector3(-0.3, -0.8, 0.5))
   private cloth: THREE.Mesh
   private clothRest: Float32Array
+  // a glass of glögg from the market in the left hand: a few sips and it's gone
+  private cupArm = arm(new THREE.Vector3(-0.3, -0.8, 0.5))
+  private liquid: THREE.Mesh
+  private bits = new THREE.Group()
+  private sips = 0
+  private sipT = 9
+  static readonly SIPS = 5
 
   constructor() {
     this.scene.add(this.root)
@@ -78,6 +85,81 @@ export class Viewmodel {
     this.ring.add(this.capeArm.g, this.freeArm.g)
     this.ring.visible = false
     this.root.add(this.ring)
+
+    // the glögg glass: a little glass with a handle, dark red glögg, almonds and raisins on top
+    const cup = new THREE.Group()
+    const glass = new THREE.Mesh(
+      new THREE.CylinderGeometry(0.042, 0.034, 0.09, 18, 1, true),
+      new THREE.MeshStandardMaterial({ color: 0xe8f0ff, roughness: 0.1, transparent: true, opacity: 0.35, side: THREE.DoubleSide }),
+    )
+    const foot = new THREE.Mesh(new THREE.CylinderGeometry(0.036, 0.036, 0.008, 18), new THREE.MeshStandardMaterial({ color: 0xe8f0ff, roughness: 0.1, transparent: true, opacity: 0.5 }))
+    foot.position.y = -0.045
+    const handle = new THREE.Mesh(new THREE.TorusGeometry(0.022, 0.006, 6, 14, Math.PI), glass.material)
+    handle.rotation.z = -Math.PI / 2
+    handle.position.x = 0.042
+    // (the glögg is drawn from the bottom up, so scaling y lowers its surface)
+    const lg = new THREE.CylinderGeometry(0.039, 0.032, 0.08, 18)
+    lg.translate(0, 0.04, 0)
+    this.liquid = new THREE.Mesh(lg, new THREE.MeshStandardMaterial({ color: 0x6e0c18, roughness: 0.25 }))
+    this.liquid.position.y = -0.042
+    for (let i = 0; i < 4; i++) {
+      const b = new THREE.Mesh(new THREE.SphereGeometry(i % 2 ? 0.007 : 0.009, 8, 6), std(i % 2 ? 0x3a1a12 : 0xf2e6c8, 0.6))
+      b.scale.y = 0.6
+      b.position.set(Math.cos(i * 1.7) * 0.02, 0, Math.sin(i * 1.7) * 0.02)
+      this.bits.add(b)
+    }
+    cup.add(glass, foot, handle, this.liquid, this.bits)
+    cup.position.set(0.0, 0.07, -0.03)
+    cup.rotation.y = -0.4
+    this.cupArm.mitt.add(cup)
+    this.cupArm.g.visible = false
+    this.root.add(this.cupArm.g)
+  }
+
+  /** A fresh glass of glögg in your left hand. */
+  glogg() {
+    this.sips = Viewmodel.SIPS
+    this.sipT = 9
+    this.cupArm.g.visible = true
+    this.cupArm.g.position.set(-0.3, -0.8, -0.55)
+  }
+
+  /** Take a sip, if there's a glass in your hand and you're not mid-sip. Returns the sips left (or -1). */
+  sip() {
+    if (!this.cupArm.g.visible || this.sips <= 0 || this.sipT < 1.3) return -1
+    this.sipT = 0
+    this.sips--
+    return this.sips
+  }
+
+  get holdingGlogg() {
+    return this.cupArm.g.visible && this.sips > 0
+  }
+
+  /** The glass: held low on the left, up to your mouth for a sip, and away once it's empty. */
+  cupPose(dt: number, t: number) {
+    const g = this.cupArm.g
+    if (!g.visible) return
+    this.sipT += dt
+    const rest = new THREE.Vector3(-0.2, -0.27 + Math.sin(t * 1.6) * 0.004, -0.52)
+    const mouth = new THREE.Vector3(-0.03, -0.13, -0.27)
+    const k = this.sipT < 1.3 ? Math.sin((this.sipT / 1.3) * Math.PI) : 0
+    const up = THREE.MathUtils.smoothstep(k, 0, 0.6)
+    const want = rest.clone().lerp(mouth, up)
+    if (this.sips <= 0 && this.sipT >= 1.3) {
+      // all gone: down and out of sight
+      want.set(-0.3, -0.9, -0.55)
+      if (g.position.y < -0.85) g.visible = false
+    }
+    g.position.lerp(want, 1 - Math.exp(-12 * dt))
+    g.rotation.set(up * 1.25, 0.2, 0.15 + up * 0.2)
+    // the level drops while you drink (and what floats on it goes with it)
+    const left = this.sips + (this.sipT < 1.3 ? 1 - THREE.MathUtils.smoothstep(this.sipT, 0.4, 0.9) : 0)
+    const level = Math.max(0.02, left / Viewmodel.SIPS)
+    this.liquid.scale.y = level
+    this.liquid.visible = left > 0.05
+    this.bits.position.y = -0.042 + 0.08 * level
+    this.bits.visible = this.liquid.visible
   }
 
   /**
@@ -161,7 +243,7 @@ export class Viewmodel {
   }
 
   render(renderer: THREE.WebGLRenderer, camera: THREE.Camera) {
-    if (!this.throwArm.g.visible && !this.hands.visible && !this.ring.visible) return
+    if (!this.throwArm.g.visible && !this.hands.visible && !this.ring.visible && !this.cupArm.g.visible) return
     this.root.position.copy(camera.position)
     this.root.quaternion.copy(camera.quaternion)
     renderer.clearDepth()
