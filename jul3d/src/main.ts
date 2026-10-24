@@ -16,6 +16,7 @@ import { buildCalendar, julafton, today } from './julkalender'
 import { CentralPark } from './centralpark'
 import { PARK, WORKSHOP } from './sleigh'
 import { buildTomtegarden, tomtegardenToast } from './tomtegarden'
+import { buildWildlife, type Wildlife } from './djur'
 import { factoryDoors } from './leksaksfabriken'
 import type { Claus } from './tomtefolk'
 import type { Box, Floor } from './shop'
@@ -44,6 +45,7 @@ import { PARTICIPANTS } from './data'
 import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { buildWorld, keepInside } from './world'
+import { watchWeather } from './vader'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 import { noise } from './sfx'
 
@@ -95,6 +97,8 @@ const cursor = new VirtualCursor(() => player.locked)
 const menu = new PauseMenu()
 
 const world = buildWorld(scene, { lowPower: QUALITY.lowPower })
+// Stockholm's weather, right now, over the village
+watchWeather((w) => world.weather(w))
 camera.position.set(0, 1.62, 32)
 const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
@@ -207,6 +211,10 @@ let choirCheckAt = 0
 let sleighYard: ReturnType<typeof buildSleighYard> | null = null
 /** Tomtegården: Tomten and Tomtemor's house, the stable, the slädverkstad (see tomtegarden.ts). */
 let garden: ReturnType<typeof buildTomtegarden> | null = null
+/** The birds at the feeder, the deer, the fox, the hare and the moose (djur.ts). */
+let wild: Wildlife | null = null
+/** How light it is (0 night … 1 day), as last worked out. */
+let dayK = 0
 /** Everything with walls to bump into and floors to stand on: the shops, and Tomtegården's buildings. */
 let blockers: { group: THREE.Object3D; boxes: Box[]; floors: Floor[] }[] = []
 let skyTimer = 0
@@ -289,6 +297,9 @@ async function build() {
   for (const k of garden.talkers) k.who.group.userData.onSnowball = () => (k.who.laugh(), toast(k.who.kind === 'tomten' ? '🎅 Ho ho ho! Inte inomhus, min vän!' : '🤶 Men snälla du, det smälter ju på mattan!'))
   blockers = [...shops.map((s) => s.shop), ...garden.lots]
   circles.push(...sleighYard.colliders)
+  wild = buildWildlife(scene, (text) => toast(text))
+  circles.push(...wild.colliders)
+  solids.push(...wild.solids)
   // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
   const sixten = MINE_TALK.fisher.greeting
   MINE_TALK.fisher.greeting = () =>
@@ -372,6 +383,7 @@ async function build() {
     ...(buskers ? [buskers.group] : []),
     ...(sleighYard?.moving ?? []),
     ...(garden?.moving ?? []),
+    ...(wild ? [wild.group] : []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -1493,10 +1505,11 @@ function frame(now: number) {
     season(t)
     sleighYard?.update(t, flight.active)
     garden?.update(t, dt, player.pos)
+    wild?.update(t, dt, flight.active ? null : player.pos, wallClock(), dayK)
     sleigh.update(t, dt, player.pos)
     camper.update(t, dt, player.pos)
     matadors.update(t, dt, player.pos)
-    world.update(t, dt, flight.active ? flight.pos : player.pos)
+    world.update(t, dt, flight.active ? flight.pos : player.pos, !flight.active)
     for (const s of shops) s.shop.update(t, dt)
     for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
     // on Lucia morning the elves are all in the procession, and on the first Sunday of Advent at the concert
@@ -1526,6 +1539,7 @@ function frame(now: number) {
       skyTimer = 5
       const day = daylightAt(swedenNow())
       world.daylight(day.k, day.dir)
+      dayK = day.k
     }
     // Lucia morning: the village goes dark round the procession's candles
     renderer.toneMappingExposure = EXPOSURE * (choir?.exposure ?? 1)
@@ -1626,4 +1640,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, startPark, goto, get shops() { return shops } } })
