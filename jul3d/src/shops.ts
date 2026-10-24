@@ -517,7 +517,7 @@ async function buildJulbord(e: JulEvent): Promise<BuiltShop> {
 
 async function buildJulafton(): Promise<BuiltShop> {
   const e = JULAFTON
-  const shop = new Shop('Tomtens stuga', { wall: '#1d6e48', trim: 0xf6c453, roof: 0x7a1d1d, inner: '#c9a072' })
+  const shop = new Shop('Julstugan', { wall: '#1d6e48', trim: 0xf6c453, roof: 0x7a1d1d, inner: '#c9a072' })
   shop.place(78, 23)
   counter(shop, 0xf6c453)
 

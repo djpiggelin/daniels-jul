@@ -11,16 +11,20 @@ export const VILLAGE_RADIUS = 44
 export type Roof = { x: number; z: number; cos: number; sin: number; hw: number; hd: number; h: number }
 
 type Rect = { x0: number; x1: number; z0: number; z1: number }
-/** North of the village, through the forest: the path, and the yard Leksaksfabriken stands in (the hall included). */
-export const NORTH: { path: Rect; yard: Rect } = {
+/**
+ * North of the village, through the forest: the path, the yard Leksaksfabriken stands in (the hall included),
+ * and the clearing east of the path where Tomten and Tomtemor live (Tomtegården, see tomtegarden.ts).
+ */
+export const NORTH: { path: Rect; yard: Rect; garden: Rect } = {
   path: { x0: -3.5, x1: 3.5, z0: -54, z1: -40 },
   yard: { x0: -26, x1: 26, z0: -100, z1: -52 },
+  garden: { x0: 3.5, x1: 60, z0: -67, z1: -26 },
 }
 const rectDist = (r: Rect, x: number, z: number) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1))
 
 /** How far (x, z) is from the ground you can walk on: the village circle, the path north and the yard. */
 export function outside(x: number, z: number) {
-  return Math.min(Math.max(0, Math.hypot(x, z) - VILLAGE_RADIUS), rectDist(NORTH.path, x, z), rectDist(NORTH.yard, x, z))
+  return Math.min(Math.max(0, Math.hypot(x, z) - VILLAGE_RADIUS), rectDist(NORTH.path, x, z), rectDist(NORTH.yard, x, z), rectDist(NORTH.garden, x, z))
 }
 
 /** Back onto that ground, the shortest way. */
@@ -28,7 +32,7 @@ export function keepInside(p: THREE.Vector3) {
   if (outside(p.x, p.z) === 0) return
   const r = Math.hypot(p.x, p.z)
   const options = [{ x: (p.x / r) * VILLAGE_RADIUS, z: (p.z / r) * VILLAGE_RADIUS }]
-  for (const b of [NORTH.path, NORTH.yard]) options.push({ x: THREE.MathUtils.clamp(p.x, b.x0, b.x1), z: THREE.MathUtils.clamp(p.z, b.z0, b.z1) })
+  for (const b of [NORTH.path, NORTH.yard, NORTH.garden]) options.push({ x: THREE.MathUtils.clamp(p.x, b.x0, b.x1), z: THREE.MathUtils.clamp(p.z, b.z0, b.z1) })
   let best = options[0]
   for (const o of options) if (Math.hypot(o.x - p.x, o.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z)) best = o
   p.x = best.x
