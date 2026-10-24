@@ -31,9 +31,6 @@ export type Weather = {
   fog: number
   /** how bright the northern lights are, before the clouds hide them (1 as before) */
   aurora: number
-  temp: number | null
-  emoji: string
-  label: string
 }
 
 /** If Stockholm can't be reached: the village as it always was, gently snowing. */
@@ -57,7 +54,7 @@ const trying = (() => {
 
 const clamp = (x: number, a = 0, b = 1) => Math.min(b, Math.max(a, x))
 
-/** WMO weather codes: what falls, how hard, and what to call it. */
+/** WMO weather codes: what falls, and how hard. */
 function kind(code: number): { what: 'none' | 'fog' | 'drizzle' | 'rain' | 'snow' | 'showers' | 'snowshowers' | 'thunder'; k: number } {
   if (code === 45 || code === 48) return { what: 'fog', k: 0 }
   if (code >= 51 && code <= 57) return { what: 'drizzle', k: [0.2, 0.3, 0.45][Math.min(2, Math.floor((code - 51) / 2))] }
@@ -91,35 +88,6 @@ export function interpret(r: RawWeather): Weather {
   const fog = clamp(1 + Math.log10(10000 / Math.max(vis, 50)) * 1.5, 1, 4) * (what === 'fog' ? 1.3 : 1)
   const aurora = r.kp == null ? 1 : 0.4 + 0.6 * clamp((r.kp - 1) / 3, 0, 2)
 
-  const sleet = falls && snowy > 0 && snowy < 1
-  const label =
-    what === 'fog' ? 'dimma'
-    : what === 'thunder' ? 'åska'
-    : sleet ? 'snöblandat regn'
-    : what === 'snow' || (falls && snowy === 1 && what !== 'snowshowers') ? (k < 0.4 ? 'lätt snöfall' : k < 0.8 ? 'snöfall' : 'ymnigt snöfall')
-    : what === 'snowshowers' ? 'snöbyar'
-    : what === 'drizzle' ? 'duggregn'
-    : what === 'showers' ? 'regnskurar'
-    : what === 'rain' ? (k < 0.8 ? 'regn' : 'kraftigt regn')
-    : snow > 0 ? 'iskristaller i luften'
-    : r.cloud < 20 ? 'klart'
-    : r.cloud < 50 ? 'mest klart'
-    : r.cloud < 85 ? 'halvklart'
-    : 'mulet'
-  const emoji =
-    what === 'fog' ? '🌫️'
-    : what === 'thunder' ? '⛈️'
-    : sleet ? '🌨️'
-    : snow > 0.05 ? '❄️'
-    : rain > 0 ? '🌧️'
-    : snow > 0 ? '✨'
-    : r.cloud < 20 ? '✨'
-    : r.cloud < 85 ? '⛅'
-    : '☁️'
-  const windy = r.wind >= 14 ? ', storm' : r.wind >= 9 ? ', blåsigt' : ''
-  // (a high Kp and a clear sky: worth looking up)
-  const lights = r.kp != null && r.kp >= 4 && r.cloud < 50 ? ' · norrsken!' : ''
-
   return {
     snow,
     rain,
@@ -129,16 +97,7 @@ export function interpret(r: RawWeather): Weather {
     windZ: Math.cos(a),
     fog,
     aurora,
-    temp: r.temp,
-    emoji,
-    label: label + windy + lights,
   }
-}
-
-/** One line for the HUD: "❄️ −3 °C i Stockholm · lätt snöfall". */
-export function weatherLine(w: Weather) {
-  const temp = w.temp == null ? '' : ` ${Math.round(w.temp).toString().replace('-', '−')} °C`
-  return `${w.emoji}${temp} i Stockholm · ${w.label}`
 }
 
 /** Fetches Stockholm's weather now and every ten minutes, and hands it on as it changes. */

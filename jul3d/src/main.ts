@@ -44,7 +44,7 @@ import { PARTICIPANTS } from './data'
 import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { buildWorld, keepInside } from './world'
-import { watchWeather, weatherLine, type Weather } from './vader'
+import { watchWeather } from './vader'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 import { noise } from './sfx'
 
@@ -97,11 +97,7 @@ const menu = new PauseMenu()
 
 const world = buildWorld(scene, { lowPower: QUALITY.lowPower })
 // Stockholm's weather, right now, over the village
-let weatherNow: Weather | null = null
-watchWeather((w) => {
-  weatherNow = w
-  world.weather(w)
-})
+watchWeather((w) => world.weather(w))
 camera.position.set(0, 1.62, 32)
 const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
@@ -1323,7 +1319,6 @@ function updateHud() {
   $('next-event').innerHTML = next
     ? `Nästa: <b>${next.emoji} ${next.name}</b> · ${formatShortDate(next.start)}<br><span class="clock">${clockText(next, now)}</span>`
     : 'God jul! Vi ses nästa år 🎄'
-  if (weatherNow) $('next-event').innerHTML += `<br><span class="weather">${weatherLine(weatherNow)}</span>`
   for (const s of shops) s.shop.setSignLine(`${formatShortDate(s.event.start)} · ${clockText(s.event, now)}`)
 }
 

@@ -47,7 +47,6 @@ body.touch #crosshair { display: none; }
 }
 #next-event b { color: var(--gold); font-weight: 700; }
 #next-event .clock { font-variant-numeric: tabular-nums; opacity: 0.85; }
-#next-event .weather { font-size: 13px; opacity: 0.8; }
 
 #prompt {
   pointer-events: auto; position: absolute; left: 50%; bottom: 22%; transform: translateX(-50%);
