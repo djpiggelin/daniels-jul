@@ -9,6 +9,7 @@
     "build": "tsc -p . && tsc -p jul3d && tsc -p multiplayer && vite build && vite build jul3d",
     "preview": "vite preview",
     "upload-content": "node --env-file-if-exists=.env scripts/upload-content.mjs",
+    "invite": "node --env-file-if-exists=.env scripts/invite.mjs",
     "dev:mp": "wrangler dev --config multiplayer/wrangler.jsonc",
     "deploy:mp": "wrangler deploy --config multiplayer/wrangler.jsonc"
   },
