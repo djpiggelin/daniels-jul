@@ -23,8 +23,8 @@ const START_CHEER = 12
 const PEOPLE = 24
 const LIVES = 3
 const BEST_KEY = 'jul3d.best.centralpark'
-/** What they sing: a cappella (see public/sounds/README.md). */
-const SONG = '/sounds/park/wassailing.mp3'
+/** What they sing: Jingle Bells, just the voices of a 1949 choir (see public/sounds/README.md). */
+const SONG = '/sounds/park/jingle-bells.mp3'
 
 type Circle = { x: number; z: number; r: number }
 
