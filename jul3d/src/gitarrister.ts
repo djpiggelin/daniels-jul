@@ -1,11 +1,13 @@
 // Two nissar on a bench by the path up to Leksaksfabriken, playing Christmas songs on a guitar and a
 // banjo all through December (the guitar tracks from the U.S. Air Force Band of Mid-America's 2020
 // Christmas album, public domain – see public/sounds/README.md). You hear them as you come along the path.
+// A little fire beside them keeps their fingers warm.
 import * as THREE from 'three'
 import { mergeRigid } from './batch'
 import { Nisse } from './npc'
-import { Playlist } from './sfx'
+import { Playlist, noise } from './sfx'
 import { std } from './sleigh'
+import { glowTexture } from './tex'
 import type { Circle } from './world'
 
 /** Where the bench stands: on the east side of the path, between two of its lanterns, facing across it. */
@@ -97,6 +99,46 @@ export function buildBuskers(scene: THREE.Scene) {
   caseG.rotation.y = 0.15
   g.add(caseG)
 
+  /* a little fire beside the bench, to keep their fingers warm: a ring of stones, crossed logs, flames and sparks */
+  const fire = new THREE.Group()
+  fire.position.set(-1.6, 0, 0.6)
+  for (let i = 0; i < 8; i++) {
+    const a = (i / 8) * Math.PI * 2
+    fire.add(new THREE.Mesh(new THREE.DodecahedronGeometry(0.13, 0), std(0x6a625a, 0.9)).translateX(Math.cos(a) * 0.42).translateY(0.08).translateZ(Math.sin(a) * 0.42))
+  }
+  for (let i = 0; i < 4; i++) {
+    const log = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.06, 0.62, 7), std(0x4a3020, 0.9))
+    log.rotation.set(Math.PI / 2 - 0.5, (i / 4) * Math.PI * 2 + 0.4, 0, 'YXZ')
+    log.position.y = 0.18
+    fire.add(log)
+  }
+  // glowing embers in the middle
+  fire.add(new THREE.Mesh(new THREE.SphereGeometry(0.16, 10, 6, 0, Math.PI * 2, 0, Math.PI / 2), new THREE.MeshBasicMaterial({ color: 0xff5a1a, toneMapped: false })).translateY(0.03))
+  const flameMat = new THREE.MeshBasicMaterial({ color: 0xffa040, toneMapped: false, transparent: true, opacity: 0.9, blending: THREE.AdditiveBlending, depthWrite: false })
+  const tongues = Array.from({ length: 5 }, (_, i) => {
+    const f = new THREE.Mesh(new THREE.ConeGeometry(0.14 - i * 0.015, 0.55, 8), flameMat)
+    f.position.set(Math.cos(i * 2.4) * 0.09, 0.3, Math.sin(i * 2.4) * 0.09)
+    fire.add(f)
+    return f
+  })
+  const fireGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: glowTexture('rgba(255,170,70,0.9)', 'rgba(255,110,30,0)'), blending: THREE.AdditiveBlending, depthWrite: false }))
+  fireGlow.position.y = 0.55
+  fireGlow.scale.setScalar(2.2)
+  fire.add(fireGlow)
+  const fireLight = new THREE.PointLight(0xff9040, 5, 8, 1.6)
+  fireLight.position.y = 0.9
+  fire.add(fireLight)
+  // sparks drifting up out of it
+  const SPARKS = 14
+  const sparkPos = new Float32Array(SPARKS * 3)
+  const sparkLife = Array.from({ length: SPARKS }, (_, i) => i / SPARKS)
+  const sparkGeo = new THREE.BufferGeometry()
+  sparkGeo.setAttribute('position', new THREE.BufferAttribute(sparkPos, 3))
+  const sparks = new THREE.Points(sparkGeo, new THREE.PointsMaterial({ color: 0xffb060, size: 0.05, transparent: true, blending: THREE.AdditiveBlending, depthWrite: false }))
+  sparks.frustumCulled = false
+  fire.add(sparks)
+  g.add(fire)
+
   /* the two of them: a guitar on the left, a banjo on the right */
   const players = ([[-0.45, false, 0x2b5fa8, 0xc8102e], [0.45, true, 0x2fa36b, 0x2b5fa8]] as const).map(([x, banjo, coat, hat]) => {
     const n = new Nisse({ coat, hat, scale: 1.05, longBeard: banjo })
@@ -116,6 +158,10 @@ export function buildBuskers(scene: THREE.Scene) {
     return n
   })
   scene.add(g)
+  g.updateMatrixWorld(true)
+  const fireAt = fire.getWorldPosition(new THREE.Vector3())
+  colliders.push({ x: fireAt.x, z: fireAt.z, r: 0.6 })
+  let crackle = 0
 
   const song = new Playlist(3)
   const solids = players.map((n) => n.group)
@@ -148,6 +194,27 @@ export function buildBuskers(scene: THREE.Scene) {
     } else if (song.playing) {
       song.level(0.0001)
       if (d > HEAR + 4 || !enabled || !season || quiet) song.stop()
+    }
+
+    // the fire flickers (and crackles, close by), sparks rising and winking out
+    tongues.forEach((f, i) => {
+      const k = 0.75 + Math.sin(t * (9 + i) + i * 1.7) * 0.18 + Math.sin(t * 23 + i) * 0.07
+      f.scale.set(1, k, 1)
+      f.position.y = 0.26 * k
+    })
+    fireLight.intensity = 4.5 + Math.sin(t * 13) * 0.7 + Math.sin(t * 29) * 0.4
+    for (let i = 0; i < SPARKS; i++) {
+      sparkLife[i] = (sparkLife[i] + dt * 0.5) % 1
+      const k = sparkLife[i]
+      sparkPos[i * 3] = Math.sin(i * 12.9 + k * 3) * 0.15 * (1 + k)
+      sparkPos[i * 3 + 1] = 0.3 + k * 1.8
+      sparkPos[i * 3 + 2] = Math.cos(i * 7.3 + k * 2) * 0.15 * (1 + k)
+    }
+    sparkGeo.attributes.position.needsUpdate = true
+    const fd = Math.hypot(player.x - fireAt.x, player.z - fireAt.z)
+    if (season && enabled && fd < 6 && (crackle -= dt) <= 0) {
+      crackle = 0.15 + Math.random() * 0.6
+      noise(0.05, 2500 + Math.random() * 2000, 900, 0.05 * (1 - fd / 6), 2.5)
     }
 
     // a strum when the music jumps (out of earshot, a steady one as it would be)
