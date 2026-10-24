@@ -11,7 +11,7 @@ import type { Circle } from './world'
 /** Where each one is, and the hint for it. */
 const SPOTS: { x: number; y: number; z: number; hint: string }[] = [
   { x: 0, y: 1.5, z: 2.6, hint: 'Den hänger bland kulorna på granen på torget – fast den hör inte dit.' },
-  { x: 7.3, y: 0.25, z: 11.4, hint: 'Vid foten av julstämningsmätaren.' },
+  { x: 7.3, y: 0.25, z: 11.4, hint: 'Ute på torget, sydost om granen.' },
   { x: -6.4, y: 0.25, z: 19.7, hint: 'Bakom affischpelaren.' },
   { x: -23.0, y: 0.3, z: 20.3, hint: 'Vid husbilen – Kalle tappar saker hela tiden.' },
   { x: -3.2, y: 0.25, z: 24.6, hint: 'Vid skylten till Snögubbsbacken.' },
@@ -50,7 +50,7 @@ function bauble(color: number, r = 0.11) {
   return g
 }
 
-type Ctx = { say: (text: string) => void; found: () => void }
+type Ctx = { say: (text: string) => void }
 
 export type Baubles = ReturnType<typeof buildBaubles>
 
@@ -169,7 +169,6 @@ export function buildBaubles(scene: THREE.Scene, ctx: Ctx) {
       found.add(i)
       save()
       balls[i].b.visible = false
-      ctx.found()
       const n = found.size
       if (n >= SPOTS.length) {
         gold.visible = true

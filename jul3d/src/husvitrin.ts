@@ -201,7 +201,7 @@ function card(by: string, votes: number) {
   return toTexture(c)
 }
 
-type Ctx = { ask: (talk: Talk) => void; done: () => void; say: (text: string) => void; name: () => string; built: () => void; voted: () => void }
+type Ctx = { ask: (talk: Talk) => void; done: () => void; say: (text: string) => void; name: () => string }
 
 export type Bakery = ReturnType<typeof buildHouseWindow>
 
@@ -375,7 +375,6 @@ export function buildHouseWindow(scene: THREE.Scene, ctx: Ctx) {
     if (!list) return ctx.say('🧁 Huset kunde inte ställas in just nu – försök igen om en stund.')
     local.set(`husvitrin-${today()}`, n + 1)
     show(list)
-    ctx.built()
     ctx.say('🏠 Ditt pepparkakshus står nu i vitrinen vid bageriet – för alla att se!')
   }
 
@@ -398,7 +397,6 @@ export function buildHouseWindow(scene: THREE.Scene, ctx: Ctx) {
           local.set('husvitrin-roster', [...mine, h.id])
           const list = await post({ vote: h.id })
           if (list) show(list)
-          ctx.voted()
           ctx.say(`❤️ Ett hjärta till ${h.by}s pepparkakshus!`)
         },
       })),

@@ -77,8 +77,6 @@ export class Snowballs {
   private points: THREE.Points
   /** Called when someone else's snowball reaches you – an elf's, or another player's nisse. */
   onPlayerHit: (owner: THREE.Object3D | null) => void = () => {}
-  /** Called when one of your own snowballs hits someone (or something that answers back). */
-  onHitSomeone: () => void = () => {}
 
   constructor(
     private scene: THREE.Scene,
@@ -260,7 +258,6 @@ export class Snowballs {
       const cb = o.userData.onSnowball as SnowballHit | undefined
       if (cb) {
         cb(point.clone().sub(b.vel.clone().setY(0).normalize()), point)
-        if (!b.owner) this.onHitSomeone()
         return
       }
     }

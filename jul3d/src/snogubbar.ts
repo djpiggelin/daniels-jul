@@ -234,8 +234,6 @@ type Village = {
   done: () => void
   say: (text: string) => void
   name: () => string
-  /** When a snowman you've built goes up (for the julstämning). */
-  built: () => void
 }
 
 export type Snowmen = ReturnType<typeof buildSnowmen>
@@ -462,7 +460,6 @@ export function buildSnowmen(scene: THREE.Scene, v: Village) {
       }
       dropPile()
       show(list)
-      v.built()
       v.say('⛄ Där står den nu – i Snögubbsbacken, för alla som kommer hit i jul!')
     }
     preview()

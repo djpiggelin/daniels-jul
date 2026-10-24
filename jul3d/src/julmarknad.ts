@@ -191,7 +191,7 @@ function wheel() {
   return { group: g, disk }
 }
 
-type Ctx = { resume: () => void; say: (text: string) => void; cheer: () => void }
+type Ctx = { resume: () => void; say: (text: string) => void }
 
 export type Market = ReturnType<typeof buildMarket>
 
@@ -233,7 +233,6 @@ export function buildMarket(scene: THREE.Scene, ctx: Ctx) {
   const spinFor = (n: number) => {
     spin = { v: 9 + rand() * 5, angle: spin.angle, mine: n, told: false }
     ctx.resume()
-    ctx.cheer()
   }
   const numbers = (() => {
     const pick = new Set<number>()
@@ -272,7 +271,6 @@ export function buildMarket(scene: THREE.Scene, ctx: Ctx) {
         pages: () => [],
         go: () => {
           ctx.resume()
-          ctx.cheer()
           let r = Math.random()
           const prize = PRIZES.find((x) => (r -= x.p) < 0) ?? PRIZES[0]
           blip(880, 0.08, 'triangle', 0.05)
@@ -294,7 +292,6 @@ export function buildMarket(scene: THREE.Scene, ctx: Ctx) {
     topics: [
       {
         label: '🍪 En pepparkaka, tack',
-        action: () => ctx.cheer(),
         pages: () => [
           html.p('Varsågod! Lägg den i handflatan och tryck mitt på med ett finger. Går den i tre bitar får du önska dig något.') +
             html.p(Math.random() < 0.4 ? 'Krack! Tre bitar! Blunda och önska – men säg inte vad, då går det inte i uppfyllelse.' : 'Krack… två bitar. Ät upp dem och ta en till, det är så man gör.'),
@@ -302,7 +299,6 @@ export function buildMarket(scene: THREE.Scene, ctx: Ctx) {
       },
       {
         label: '🍬 En polkagris',
-        action: () => ctx.cheer(),
         pages: () => [html.p('Röd och vit och pepparmint. Polkagrisen uppfanns av en änka i Gränna för länge sedan – hon bakade dem för att försörja sig, och nu äter hela Sverige dem.')],
       },
     ],
@@ -320,7 +316,6 @@ export function buildMarket(scene: THREE.Scene, ctx: Ctx) {
     topics: [
       {
         label: '🐐 Klarar halmbocken sig hela julen?',
-        action: () => ctx.cheer(),
         pages: () => [html.p('Den här? Garanterat hela julen. Nästan garanterat. Så länge ingen ställer den i Gävle.')],
       },
       {
