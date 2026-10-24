@@ -96,11 +96,12 @@ export function buildBuskers(scene: THREE.Scene) {
   const song = new Playlist(3)
   const solids = players.map((n) => n.group)
 
-  function update(t: number, player: THREE.Vector3, enabled: boolean, month: number, day: number) {
+  /** `quiet`: the choir has the square (the Lucia procession, the advent concert), so they rest and listen. */
+  function update(t: number, player: THREE.Vector3, enabled: boolean, month: number, day: number, quiet: boolean) {
     const d = Math.hypot(player.x - BENCH.x, player.z - BENCH.z)
     // all December, and on into January until it all comes down
     const season = month === 12 || (month === 1 && day <= 13)
-    const vol = enabled && season && d < HEAR ? 0.55 * (1 - d / HEAR) ** 1.4 : 0
+    const vol = enabled && season && !quiet && d < HEAR ? 0.55 * (1 - d / HEAR) ** 1.4 : 0
     if (vol > 0.003) {
       const list = SONGS.map((s) => `${DIR}${s}.mp3`)
       if (month === 1 || day >= 26) list.push(`${DIR}${NEW_YEAR}.mp3`)
@@ -108,7 +109,7 @@ export function buildBuskers(scene: THREE.Scene) {
       song.level(vol)
     } else if (song.playing) {
       song.level(0.0001)
-      if (d > HEAR + 4 || !enabled || !season) song.stop()
+      if (d > HEAR + 4 || !enabled || !season || quiet) song.stop()
     }
     g.visible = season
     // strumming along (and resting between songs), heads nodding to the beat

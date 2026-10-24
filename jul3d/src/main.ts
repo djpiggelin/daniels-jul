@@ -22,7 +22,7 @@ import { buildSleighYard } from './julaftonsrunda'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
-import { buildChoir, swedenNow, wallClock } from './korsang'
+import { buildChoir, choirMode, swedenNow, wallClock } from './korsang'
 import { buildBuskers } from './gitarrister'
 import { daylightAt } from './sol'
 import { loadFonts } from './tex'
@@ -196,6 +196,8 @@ let advent: ReturnType<typeof buildCalendarVillage> | null = null
 let toyTrain: ReturnType<typeof buildToyTrain> | null = null
 /** The guitar and the banjo on the bench by the path to Leksaksfabriken. */
 let buskers: ReturnType<typeof buildBuskers> | null = null
+let choirHasSquare = false
+let choirCheckAt = 0
 /** The sacks and the nissar by the sleigh, and Tomten's rounds on julafton. */
 let sleighYard: ReturnType<typeof buildSleighYard> | null = null
 let skyTimer = 0
@@ -1423,7 +1425,12 @@ function frame(now: number) {
     toyTrain?.update(t, dt, player.pos)
     {
       const d = new Date(wallClock())
-      buskers?.update(t, player.pos, !flight.active, d.getUTCMonth() + 1, d.getUTCDate())
+      // (they stop for the Lucia procession and the advent concert: checked now and then, not every frame)
+      if (t >= choirCheckAt) {
+        choirCheckAt = t + 0.5
+        choirHasSquare = ['lucia', 'advent'].includes(choirMode())
+      }
+      buskers?.update(t, player.pos, !flight.active, d.getUTCMonth() + 1, d.getUTCDate(), choirHasSquare)
     }
     // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
     if ((skyTimer -= dt) <= 0) {
