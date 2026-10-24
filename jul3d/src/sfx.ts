@@ -1,6 +1,6 @@
 // Tiny WebAudio effects, so we don't have to ship sound files.
 let ctx: AudioContext | null = null
-const audio = () => (ctx ??= new AudioContext())
+export const audio = () => (ctx ??= new AudioContext())
 
 export function blip(freq = 880, dur = 0.08, type: OscillatorType = 'square', vol = 0.06) {
   try {
@@ -1039,5 +1039,174 @@ export class MountainKing {
     o.connect(g).connect(out)
     o.start(t)
     o.stop(t + 0.32)
+  }
+}
+
+/** "Jingle Bells" (Pierpont, 1857), the chorus, in C: sixteenths, like the march above. */
+const JINGLE = {
+  melody: [
+    'E4:4 E4:4 E4:8', 'E4:4 E4:4 E4:8', 'E4:4 G4:4 C4:6 D4:2', 'E4:16',
+    'F4:4 F4:4 F4:6 F4:2', 'F4:4 E4:4 E4:4 E4:2 E4:2', 'E4:4 D4:4 D4:4 E4:4', 'D4:8 G4:8',
+    'E4:4 E4:4 E4:8', 'E4:4 E4:4 E4:8', 'E4:4 G4:4 C4:6 D4:2', 'E4:16',
+    'F4:4 F4:4 F4:4 F4:4', 'F4:4 E4:4 E4:4 E4:2 E4:2', 'G4:4 G4:4 F4:4 D4:4', 'C4:16',
+  ],
+  bass: ['C3', 'C3', 'C3', 'C3', 'F2', 'C3', 'D3', 'G2', 'C3', 'C3', 'C3', 'C3', 'F2', 'C3', 'G2', 'C3'],
+}
+/** A third under each note of the tune (in C). */
+const THIRD_UNDER: Record<number, number> = { 0: 3, 2: 3, 4: 4, 5: 3, 7: 3, 9: 4, 11: 4 }
+
+/**
+ * A park full of people singing "Jingle Bells" (Central Park, centralpark.ts): one thin voice to start
+ * with, and as `singers` goes up, more voices, a harmony under the tune, a bass and sleigh bells.
+ */
+export class JingleChoir {
+  private gain: GainNode | null = null
+  private timer = 0
+  private steps = new Map<number, ((t: number, out: AudioNode) => void)[]>()
+  private length = 0
+  private step = 0
+  private stepAt = 0
+  /** How many are singing (0 = just you, humming). */
+  singers = 0
+  playing = false
+
+  constructor() {
+    const on = (s: number, fn: (t: number, out: AudioNode) => void) => {
+      if (!this.steps.has(s)) this.steps.set(s, [])
+      this.steps.get(s)!.push(fn)
+    }
+    let s = 0
+    JINGLE.melody.forEach((line, i) => {
+      const start = s
+      for (const [m, beats] of bar(line)) {
+        const len = beats * 4
+        const d = len * this.sixteenth()
+        on(s, (t, out) => this.voice(t, m, d, out))
+        s += len
+      }
+      const b = midi(JINGLE.bass[i])
+      for (let k = 0; k < 16; k += 4) on(start + k, (t, out) => this.bass(t, k % 8 === 0 ? b : b + 7, out))
+      for (let k = 0; k < 16; k += 2) on(start + k, (t, out) => this.bells(t, k % 4 === 0, out))
+    })
+    this.length = s
+  }
+
+  private sixteenth() {
+    return 60 / 132 / 4
+  }
+
+  start() {
+    if (this.playing) return
+    try {
+      const a = audio()
+      void a.resume()
+      this.playing = true
+      this.gain = a.createGain()
+      this.gain.gain.setValueAtTime(0.0001, a.currentTime)
+      this.gain.gain.exponentialRampToValueAtTime(0.5, a.currentTime + 0.5)
+      this.gain.connect(a.destination)
+      this.step = 0
+      this.stepAt = a.currentTime + 0.1
+      this.timer = window.setInterval(() => this.schedule(), 50)
+      this.schedule()
+    } catch {
+      /* audio not available */
+    }
+  }
+
+  stop() {
+    if (!this.playing) return
+    this.playing = false
+    clearInterval(this.timer)
+    const g = this.gain
+    this.gain = null
+    if (!g) return
+    const a = audio()
+    g.gain.cancelScheduledValues(a.currentTime)
+    g.gain.setValueAtTime(Math.max(0.0001, g.gain.value), a.currentTime)
+    g.gain.exponentialRampToValueAtTime(0.0001, a.currentTime + 0.6)
+    setTimeout(() => g.disconnect(), 800)
+  }
+
+  private schedule() {
+    const a = audio()
+    const out = this.gain
+    if (!out) return
+    if (this.stepAt < a.currentTime - 0.1) this.stepAt = a.currentTime + 0.02
+    while (this.stepAt < a.currentTime + 0.25) {
+      for (const fn of this.steps.get(this.step) ?? []) fn(this.stepAt, out)
+      this.step = (this.step + 1) % this.length
+      this.stepAt += this.sixteenth()
+    }
+  }
+
+  /** Sung "aah"s: a few slightly different voices on the tune, and a third under it once there are enough. */
+  private voice(t: number, m: number, d: number, out: AudioNode) {
+    const n = this.singers
+    const tune = Math.min(5, 1 + Math.floor(n / 3))
+    const vol = 0.05 + Math.min(0.11, n * 0.006)
+    for (let i = 0; i < tune; i++) this.aah(t, hz(m + (i === 3 ? -12 : 0)) * (1 + (i - 1.5) * 0.004), d, vol / Math.sqrt(tune), out)
+    if (n >= 6) this.aah(t, hz(m - THIRD_UNDER[m % 12]), d, vol * 0.5, out)
+  }
+
+  private aah(t: number, f: number, d: number, vol: number, out: AudioNode) {
+    const a = audio()
+    const o = a.createOscillator()
+    const vib = a.createOscillator()
+    const vibAmt = a.createGain()
+    const formant = a.createBiquadFilter()
+    const g = a.createGain()
+    o.type = 'sawtooth'
+    o.frequency.setValueAtTime(f, t)
+    vib.frequency.value = 5 + Math.random()
+    vibAmt.gain.value = f * 0.008
+    vib.connect(vibAmt).connect(o.frequency)
+    formant.type = 'bandpass'
+    formant.frequency.value = 900
+    formant.Q.value = 1.2
+    const end = t + Math.max(0.12, d * 0.95)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.04)
+    g.gain.setValueAtTime(vol, end - 0.06)
+    g.gain.exponentialRampToValueAtTime(0.0001, end)
+    o.connect(formant).connect(g).connect(out)
+    o.start(t)
+    vib.start(t)
+    o.stop(end + 0.02)
+    vib.stop(end + 0.02)
+  }
+
+  private bass(t: number, m: number, out: AudioNode) {
+    if (this.singers < 4) return
+    const a = audio()
+    const o = a.createOscillator()
+    const g = a.createGain()
+    o.type = 'triangle'
+    o.frequency.setValueAtTime(hz(m), t)
+    const vol = Math.min(0.16, 0.04 + this.singers * 0.006)
+    g.gain.setValueAtTime(0.0001, t)
+    g.gain.exponentialRampToValueAtTime(vol, t + 0.02)
+    g.gain.exponentialRampToValueAtTime(0.0001, t + 0.4)
+    o.connect(g).connect(out)
+    o.start(t)
+    o.stop(t + 0.42)
+  }
+
+  /** Sleigh bells on the beat (and off it, once the whole park is at it). */
+  private bells(t: number, onBeat: boolean, out: AudioNode) {
+    if (this.singers < (onBeat ? 2 : 10)) return
+    const a = audio()
+    for (const f of [2600, 3300, 4100]) {
+      const o = a.createOscillator()
+      const g = a.createGain()
+      o.type = 'triangle'
+      o.frequency.setValueAtTime(f * (1 + Math.random() * 0.02), t)
+      g.gain.setValueAtTime(0.0001, t)
+      g.gain.exponentialRampToValueAtTime(0.012, t + 0.003)
+      g.gain.exponentialRampToValueAtTime(0.0001, t + 0.12)
+      o.connect(g).connect(out)
+      o.start(t)
+      o.stop(t + 0.14)
+    }
   }
 }

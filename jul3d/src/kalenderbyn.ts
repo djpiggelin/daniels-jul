@@ -36,6 +36,14 @@ const HIDERS = [new THREE.Vector3(16.2, 0, -1.3), new THREE.Vector3(16.4, 5.675,
 /** Door 21: lanterns to light from the stump's thicket to the square – the way the miners will come up. */
 const LANTERNS = [[-36, -11.8], [-31, -11.6], [-26, -11.6], [-21, -12.3], [-16, -12.5], [-11, -11.6]] as const
 /** Under the big tree on the square: where the dropped present goes, and where your own is on julafton (inside the toy train's track). */
+/** What the miners up on the square say when a snowball hits them on julafton. */
+const MINER_GRUMBLES = [
+  '⛏️ Hörru! En gång om året får vi komma upp – och då blir det snöboll!',
+  '⛏️ Vi kastar kol tillbaka, ska du veta. Hårt.',
+  '⛏️ Grrr … det här skriver jag upp på listan. Den stygga listan.',
+  '⛏️ Snö i skägget! Nu får du dansa själv!',
+  '⛏️ Hehe – det där var faktiskt ett bra kast.',
+]
 const UNDER_TREE = new THREE.Vector3(2.6, 0, 1.95)
 const GIFT_AT = new THREE.Vector3(-1.47, 0, 2.9)
 
@@ -55,6 +63,10 @@ export function buildCalendarVillage(scene: THREE.Scene, myName: () => string) {
     return o
   }
   const updaters: ((t: number, dt: number, player: THREE.Vector3) => void)[] = []
+  /** Things you can hit with a snowball (main.ts adds them to its list). */
+  const solids: THREE.Object3D[] = []
+  /** Something said out loud (a toast; main.ts sets it). */
+  const voice = { say: (_text: string) => {}, glogg: () => {} }
   let seed = 3
   const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647)
 
@@ -468,7 +480,7 @@ export function buildCalendarVillage(scene: THREE.Scene, myName: () => string) {
       collide(16, { x, z, r: 1.15 })
       if (name === 'GLÖGG') {
         g.updateMatrixWorld(true)
-        spots.push({ id: 'glogg', day: 16, at: g.localToWorld(new THREE.Vector3(0, 0, 1.1)), reach: 1.8, prompt: 'Köp en kopp glögg', act: () => (noise(0.25, 400, 300, 0.1, 1), '☕ Mmm, varm glögg med russin och mandel!') })
+        spots.push({ id: 'glogg', day: 16, at: g.localToWorld(new THREE.Vector3(0, 0, 1.1)), reach: 1.8, prompt: 'Köp en kopp glögg', act: () => (noise(0.25, 400, 300, 0.1, 1), voice.glogg(), '☕ Varsågod – varm glögg med russin och mandel!') })
       }
     }
   }
@@ -624,11 +636,30 @@ export function buildCalendarVillage(scene: THREE.Scene, myName: () => string) {
       mergeRigid(n.group)
       keepApart(n.armR)
       keepApart(n.armL)
+      keepApart(n.head)
       add(24, n.group)
       collide(24, { x, z, r: 0.4 })
       const phase = i * 1.3
+      // a snowball stops the dance for a moment: a grumpy shake of the fist, then on they go
+      let hitAt = -9
+      let now = 0
+      n.group.userData.onSnowball = () => {
+        if (now - hitAt > 1.5) voice.say(MINER_GRUMBLES[Math.floor(Math.random() * MINER_GRUMBLES.length)])
+        hitAt = now
+      }
+      solids.push(n.group)
       updaters.push((t) => {
+        now = t
         if (!n.group.visible) return
+        const hit = t - hitAt
+        if (hit < 1.4) {
+          n.armR.rotation.z = -2.7 + Math.sin(t * 16) * 0.3
+          n.armL.rotation.z = 0.2
+          n.body.position.y = hit < 0.5 ? Math.sin((hit / 0.5) * Math.PI) * 0.15 : 0
+          n.head.rotation.z = Math.sin(t * 9) * 0.2
+          return
+        }
+        n.head.rotation.z = 0
         n.armR.rotation.z = -2.4 + Math.sin(t * 4 + phase) * 0.4
         n.armL.rotation.z = 2.4 - Math.sin(t * 4 + phase + 1) * 0.4
         n.body.position.y = Math.abs(Math.sin(t * 4 + phase)) * 0.12
@@ -725,5 +756,5 @@ export function buildCalendarVillage(scene: THREE.Scene, myName: () => string) {
     if (voices.playing) voices.stop()
   }
 
-  return { colliders, update, near, status, has, mark, attachMine, givePipe, hush }
+  return { colliders, solids, voice, update, near, status, has, mark, attachMine, givePipe, hush }
 }

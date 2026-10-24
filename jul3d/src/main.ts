@@ -12,7 +12,9 @@ import { Slide } from './rutschkana'
 import { ARRIVE, STUMP, buildMine, buildStump, type Mine } from './kolgruvan'
 import { CartRun } from './gruvvagn'
 import { Hacking } from './kolhackning'
-import { buildCalendar, today } from './julkalender'
+import { buildCalendar, julafton, today } from './julkalender'
+import { CentralPark } from './centralpark'
+import { PARK } from './sleigh'
 import { MINE_TALK } from './gruvfolk'
 import { buildCalendarVillage, type Act } from './kalenderbyn'
 import { buildToyTrain } from './leksakstag'
@@ -38,6 +40,7 @@ import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { buildWorld, keepInside } from './world'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
+import { noise } from './sfx'
 
 const $ = (id: string) => document.getElementById(id)!
 const touch = TOUCH
@@ -138,6 +141,7 @@ type Target =
   | { kind: 'exhibit'; title: string; caption?: string; image: () => string; open?: () => void; prompt?: string }
   | { kind: 'arcade'; cab: Cabinet }
   | { kind: 'sleigh' }
+  | { kind: 'singer'; who: NonNullable<ReturnType<CentralPark['nearPerson']>> }
   | { kind: 'camper' }
   | { kind: 'matadors' }
   | { kind: 'slide' }
@@ -161,6 +165,24 @@ let choir: ReturnType<typeof buildChoir> | null = null
 let stump: ReturnType<typeof buildStump> | null = null
 let mine: Mine | null = null
 let inMine = false
+/** Central Park, from the 23rd: off to New York with Tomten (see centralpark.ts). */
+let park: CentralPark | null = null
+let inPark = false
+/** From the 23rd (but not on julafton, when he's out on his rounds) Tomten asks if you're coming. */
+const newYorkOn = () => today().open >= 23 && !julafton()
+const santaTalk: Talk = {
+  name: 'Tomten',
+  avatar: '🎅',
+  greeting: () => [
+    html.p('Ho ho ho! I kväll smiter jag iväg till New York och delar ut lite klappar i smyg – en dag i förväg, så att ingen märker något.'),
+    html.p('Vill du följa med? Det kan bli lite skumpigt. Julandan där borta är inte vad den har varit.'),
+  ],
+  topics: [
+    { label: '🗽 Ja! Jag följer med till New York', pages: () => [], go: () => startPark() },
+    { label: '🛷 Kan jag få låna släden en sväng i stället?', pages: () => [], go: () => takeSleigh() },
+  ],
+  bye: 'Ho ho ho! Säg till om du ångrar dig.',
+}
 /** Gruvexpressen: the mine cart ride (made the first time you get in). */
 let cartRun: CartRun | null = null
 /** Your turn at the coal face (made the first time you take the pick). */
@@ -227,6 +249,13 @@ async function build() {
   circles.push(...calendar.colliders)
   advent = buildCalendarVillage(scene, () => ($('me-name') as HTMLInputElement).value.trim())
   circles.push(...advent.colliders)
+  solids.push(...advent.solids)
+  advent.voice.say = (text) => toast(text)
+  advent.voice.glogg = () => {
+    vm.glogg()
+    $('sip').hidden = false
+    setTimeout(() => toast(TOUCH ? '☕ Tryck på glaset för en klunk' : '☕ Tryck F för en klunk'), 2600)
+  }
   calendar.status = advent.status
   calendar.done = { has: advent.has, mark: advent.mark }
   toyTrain = buildToyTrain(scene)
@@ -508,6 +537,11 @@ let target: Target | null = null
 let talking: Nisse | null = null
 
 function findTarget(): Target | null {
+  // in Central Park: the people you could get singing
+  if (inPark && park) {
+    const who = park.nearPerson(player.pos, player.forward)
+    return who ? { kind: 'singer', who } : null
+  }
   // down in the mine: only the ladder back up (for now)
   if (inMine && mine) {
     const f = player.forward
@@ -627,7 +661,11 @@ function setTarget(t: Target | null) {
       : t.kind === 'arcade'
         ? `Spela ${t.cab.def.name}`
         : t.kind === 'sleigh'
-          ? 'Knuffa ut tomten och ta släden'
+          ? newYorkOn()
+            ? 'Prata med Tomten'
+            : 'Knuffa ut tomten och ta släden'
+          : t.kind === 'singer'
+            ? 'Sjung för dem 🎶'
           : t.kind === 'camper'
             ? 'Hoppa in i husvagnen'
             : t.kind === 'matadors'
@@ -920,18 +958,19 @@ function syncMenu() {
 function interact() {
   if (!target || !player.enabled) return
   const t = target
+  if (t.kind === 'singer') {
+    park?.convert(t.who, player.pos)
+    setTarget(null)
+    return
+  }
   pause()
   if (t.kind === 'npc') {
     talking = t.npc
     dialog.start(t.talk)
   } else if (t.kind === 'arcade') playArcade(t.cab)
   else if (t.kind === 'sleigh') {
-    // shove Tomten out and jump in
-    cursor.hide()
-    $('hud').classList.add('flight')
-    sleigh.push(player.pos)
-    sleigh.say('🎅 Hallå!? Det där är MIN släde!')
-    flight.start()
+    if (newYorkOn()) dialog.start(santaTalk)
+    else takeSleigh()
   } else if (t.kind === 'camper') startTrip()
   else if (t.kind === 'matadors') dialog.start(matadorTalk)
   else if (t.kind === 'slide') {
@@ -1037,6 +1076,62 @@ function goUp() {
     resume()
   }, 1100)
 }
+/** Shove Tomten out and jump in. */
+function takeSleigh() {
+  cursor.hide()
+  $('hud').classList.add('flight')
+  sleigh.push(player.pos)
+  sleigh.say('🎅 Hallå!? Det där är MIN släde!')
+  flight.start()
+}
+/** Off to New York with Tomten – and down in Central Park. */
+function startPark() {
+  cursor.hide()
+  $('hud').classList.add('busy')
+  if (!park) {
+    const p = (park = new CentralPark())
+    const place = (at: THREE.Vector3, yaw: number) => {
+      player.pos.set(at.x, 0, at.z)
+      player.yaw = yaw
+      player.pitch = -0.05
+      player.vel.set(0, 0, 0)
+      player.floor = player.height = 0
+    }
+    p.say = (text) => toast(text)
+    p.onPlay = (at, yaw) => {
+      place(at, yaw)
+      resume()
+    }
+    p.onCaught = place
+    p.onDone = (r) => {
+      pause(false)
+      $('fade').classList.add('on')
+      setTimeout(() => {
+        inPark = false
+        // home again, by the sleigh in the yard
+        player.pos.set(PARK.x + 2, 0, PARK.z + 2)
+        player.yaw = Math.atan2(2, 2)
+        player.pitch = 0
+        player.floor = player.height = 0
+        setTarget(null)
+        $('fade').classList.remove('on')
+        resume()
+        const time = `${Math.floor(r.seconds / 60)}:${String(Math.floor(r.seconds % 60)).padStart(2, '0')}`
+        // (after Tomten's hello by the sleigh, so it isn't lost under it)
+        setTimeout(() => toast(r.won ? `🎉 Julandan räddad på ${time}!${r.best ? ' Nytt rekord!' : ''}` : '🎅 Ho ho ho … vi försöker igen en annan kväll!'), 1800)
+      }, 700)
+    }
+  }
+  const p = park
+  $('fade').classList.add('on')
+  setTimeout(() => {
+    inPark = true
+    setTarget(null)
+    renderer.compile(p.scene, camera)
+    p.start()
+    $('fade').classList.remove('on')
+  }, 700)
+}
 function startTrip() {
   cursor.hide()
   $('hud').classList.add('trip')
@@ -1066,6 +1161,24 @@ addEventListener('keyup', (e) => {
   if (e.code === 'KeyZ') zoomHeld = false
 })
 addEventListener('blur', () => (zoomHeld = false))
+/** A sip of glögg (F, or the glass button on a phone). */
+function sip() {
+  if (!player.enabled) return
+  const left = vm.sip()
+  if (left < 0) return
+  setTimeout(() => noise(0.45, 700, 250, 0.05, 2), 350)
+  if (left === 0) {
+    $('sip').hidden = true
+    setTimeout(() => toast('☕ Slut på glöggen! Ståndet på torget har mer.'), 1300)
+  }
+}
+addEventListener('keydown', (e) => {
+  if (e.code === 'KeyF' && !e.repeat && !(e.target as HTMLElement | null)?.closest?.('input, textarea')) sip()
+})
+$('sip').addEventListener('pointerdown', (e) => {
+  e.preventDefault()
+  sip()
+})
 $('zoom').addEventListener('pointerdown', (e) => {
   e.preventDefault()
   zoomToggled = !zoomToggled
@@ -1249,6 +1362,14 @@ function frame(now: number) {
     advent?.hush()
     cartRun.update(dt)
     renderer.toneMappingExposure = EXPOSURE
+  } else if (inPark && park) {
+    // New York: the park is its own world (and it waits while you're in the menu)
+    advent?.hush()
+    if (park.cinematic) park.camera(camera)
+    else player.update(dt, park.collide, park.ground)
+    if (park.cinematic || player.enabled) park.update(t, dt, player.pos)
+    renderer.toneMappingExposure = EXPOSURE
+    if (player.enabled && frameNo % 2 === 0) setTarget(findTarget())
   } else if (inMine && mine) {
     // down in the mine: just you, the miners and their song (the village waits up above)
     advent?.hush()
@@ -1309,12 +1430,16 @@ function frame(now: number) {
   corrida.update(dt, t)
   if (frameNo % 2 === 0) renderer.shadowMap.needsUpdate = true
   updateZoom(dt)
+  vm.cupPose(dt, t)
   // before drawing: a new resolution resizes (and clears) the canvas, which would otherwise show as a black flash
   if (!idle) adaptResolution(now)
   renderer.info.reset()
   renderer.clear()
   if (cartRun?.active) renderer.render(cartRun.scene, camera)
-  else if (inMine && mine) {
+  else if (inPark && park) {
+    renderer.render(park.scene, camera)
+    vm.render(renderer, camera)
+  } else if (inMine && mine) {
     renderer.render(mine.scene, camera)
     vm.render(renderer, camera)
   } else if (trip.inWorld) renderer.render(trip.world!.scene, camera)
@@ -1388,4 +1513,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, startPark, goto, get shops() { return shops } } })
