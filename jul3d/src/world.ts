@@ -22,6 +22,35 @@ export const NORTH: { path: Rect; yard: Rect; garden: Rect } = {
   yard: { x0: -26, x1: 26, z0: -100, z1: -52 },
   garden: { x0: 3.5, x1: 60, z0: -67, z1: -26 },
 }
+/**
+ * Where the forest's animals are (djur.ts): the bird feeder at the south-east edge of the village and the
+ * birch beside it, where the roe deer come out to eat and the way back to their spot in the forest, and
+ * the moose's way through the forest to the path north. The ways are kept clear of firs.
+ */
+export const WILD = {
+  feeder: { x: 27.3, z: 32.6 },
+  birch: { x: 30.3, z: 30.4 },
+  deerFeed: [
+    { x: 29.4, z: 35.1 },
+    { x: 26.9, z: 37.1 },
+  ],
+  deerHome: { x: 37.3, z: 44.4 },
+  moose: [
+    { x: -75, z: -54 },
+    { x: -0.5, z: -47 },
+  ],
+}
+const segDist = (a: { x: number; z: number }, b: { x: number; z: number }, x: number, z: number) => {
+  const dx = b.x - a.x
+  const dz = b.z - a.z
+  const u = THREE.MathUtils.clamp(((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz), 0, 1)
+  return Math.hypot(x - a.x - u * dx, z - a.z - u * dz)
+}
+/** How far (x, z) is from the animals' ways. */
+function wildWay(x: number, z: number) {
+  return Math.min(...WILD.deerFeed.map((f) => segDist(WILD.deerHome, f, x, z)), segDist(WILD.moose[0], WILD.moose[1], x, z) - 0.8)
+}
+
 const rectDist = (r: Rect, x: number, z: number) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1))
 
 /** How far (x, z) is from the ground you can walk on: the village circle, the path north and the yard. */
@@ -285,6 +314,8 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     const s = 0.9 + rand() * 1.1
     // the way north to Leksaksfabriken stays clear
     if (outside(Math.cos(a) * r, Math.sin(a) * r) < 2 + s * 1.7) continue
+    // nor do the deer's and the moose's
+    if (wildWay(Math.cos(a) * r, Math.sin(a) * r) < 1 + s * 1.8) continue
     firs.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, s })
   }
   // and far out, for flying over in Tomtens släde (hidden in the fog while you walk, so only drawn when flying)
