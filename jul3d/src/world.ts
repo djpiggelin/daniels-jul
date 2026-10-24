@@ -1,7 +1,9 @@
 // The village square: night sky, aurora, falling snow, the big julgran, a forest ring and lamp posts.
+// The weather is Stockholm's, right now (vader.ts): snow or rain, wind, clouds and fog.
 import * as THREE from 'three'
 import { keepApart } from './batch'
 import { glowTexture, makeCanvas, rng, toTexture } from './tex'
+import type { Weather } from './vader'
 
 export type Circle = { x: number; z: number; r: number }
 
@@ -20,11 +22,74 @@ export const NORTH: { path: Rect; yard: Rect; garden: Rect } = {
   yard: { x0: -26, x1: 26, z0: -100, z1: -52 },
   garden: { x0: 3.5, x1: 60, z0: -67, z1: -26 },
 }
+/**
+ * Where the forest's animals are (djur.ts): the bird feeder at the south-east edge of the village and the
+ * birch beside it, where the roe deer come out to eat and the way back to their spot in the forest, and
+ * the moose's way through the forest to the path north. The ways are kept clear of firs.
+ */
+export const WILD = {
+  feeder: { x: 27.3, z: 32.6 },
+  birch: { x: 30.3, z: 30.4 },
+  deerFeed: [
+    { x: 29.4, z: 35.1 },
+    { x: 26.9, z: 37.1 },
+  ],
+  deerHome: { x: 37.3, z: 44.4 },
+  moose: [
+    { x: -75, z: -54 },
+    { x: -0.5, z: -47 },
+  ],
+}
+const segDist = (a: { x: number; z: number }, b: { x: number; z: number }, x: number, z: number) => {
+  const dx = b.x - a.x
+  const dz = b.z - a.z
+  const u = THREE.MathUtils.clamp(((x - a.x) * dx + (z - a.z) * dz) / (dx * dx + dz * dz), 0, 1)
+  return Math.hypot(x - a.x - u * dx, z - a.z - u * dz)
+}
+/** How far (x, z) is from the animals' ways. */
+function wildWay(x: number, z: number) {
+  // (and the sledging run, wide enough to steer on)
+  const run = Math.abs(z - (HILL.z0 + HILL.z1) / 2) < (HILL.z1 - HILL.z0) / 2 + 6 ? Math.abs(x - runX(Math.min(Math.max(z, HILL.z0), HILL.z1))) - 4 : Infinity
+  return Math.min(...WILD.deerFeed.map((f) => segDist(WILD.deerHome, f, x, z)), segDist(WILD.moose[0], WILD.moose[1], x, z) - 0.8, run)
+}
+
+/**
+ * West of the village: the path out to Skridskosjön and the shore round it (skridskosjo.ts) – the lake
+ * itself an ellipse of ice.
+ */
+export const WEST: { path: Rect; shore: Rect } = {
+  path: { x0: -52, x1: -40, z0: 2.5, z1: 9.5 },
+  shore: { x0: -98, x1: -50, z0: -17, z1: 21 },
+}
+export const LAKE = { x: -74, z: 2, rx: 19, rz: 13 }
+/** Is (x, z) out on the ice? (`margin` metres in from its edge) */
+export const onIce = (x: number, z: number, margin = 0) => ((x - LAKE.x) / (LAKE.rx - margin)) ** 2 + ((z - LAKE.z) / (LAKE.rz - margin)) ** 2 < 1
+
+/**
+ * South of the village: Pulkabacken (pulkabacke.ts), a long hill rising into the forest, the run down it
+ * winding a little; at its foot a patch of the village's ground to start from.
+ */
+export const HILL = { z0: 47, z1: 112, top: 18, base: { x0: -9, x1: 9, z0: 40, z1: 47.5 } as Rect }
+/** Where the run is at z: its middle swings gently from side to side. */
+export const runX = (z: number) => Math.sin(((z - HILL.z0) / (HILL.z1 - HILL.z0)) * Math.PI * 1.5) * 5
+/** How high the hill is at (x, z) (over and above the drifts). */
+export function hillHeight(x: number, z: number) {
+  if (z <= HILL.z0) return 0
+  const u = Math.min(1, (z - HILL.z0) / (HILL.z1 - HILL.z0))
+  const along = z <= HILL.z1 ? (1 - Math.cos(Math.PI * u)) / 2 : Math.exp(-(((z - HILL.z1) / 26) ** 2))
+  const across = Math.exp(-(((x - runX(Math.min(z, HILL.z1))) / 26) ** 2))
+  return HILL.top * along * across
+}
+
+/** Snögubbsbacken, at the south-west of the square (snogubbar.ts): where you roll snowballs and build snowmen. (netlify/functions/snogubbar.mts has the same.) */
+export const SNOWFIELD: Rect = { x0: -14, x1: -3, z0: 25, z1: 37 }
+
 const rectDist = (r: Rect, x: number, z: number) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1))
 
-/** How far (x, z) is from the ground you can walk on: the village circle, the path north and the yard. */
+const GROUNDS = [NORTH.path, NORTH.yard, NORTH.garden, WEST.path, WEST.shore, HILL.base]
+/** How far (x, z) is from the ground you can walk on: the village circle, the path north and the yard, the lake and the foot of the hill. */
 export function outside(x: number, z: number) {
-  return Math.min(Math.max(0, Math.hypot(x, z) - VILLAGE_RADIUS), rectDist(NORTH.path, x, z), rectDist(NORTH.yard, x, z), rectDist(NORTH.garden, x, z))
+  return Math.min(Math.max(0, Math.hypot(x, z) - VILLAGE_RADIUS), ...GROUNDS.map((g) => rectDist(g, x, z)))
 }
 
 /** Back onto that ground, the shortest way. */
@@ -32,24 +97,26 @@ export function keepInside(p: THREE.Vector3) {
   if (outside(p.x, p.z) === 0) return
   const r = Math.hypot(p.x, p.z)
   const options = [{ x: (p.x / r) * VILLAGE_RADIUS, z: (p.z / r) * VILLAGE_RADIUS }]
-  for (const b of [NORTH.path, NORTH.yard, NORTH.garden]) options.push({ x: THREE.MathUtils.clamp(p.x, b.x0, b.x1), z: THREE.MathUtils.clamp(p.z, b.z0, b.z1) })
+  for (const b of GROUNDS) options.push({ x: THREE.MathUtils.clamp(p.x, b.x0, b.x1), z: THREE.MathUtils.clamp(p.z, b.z0, b.z1) })
   let best = options[0]
   for (const o of options) if (Math.hypot(o.x - p.x, o.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z)) best = o
   p.x = best.x
   p.z = best.z
 }
 
-/** Height of the snow at (x, z): flat where you can walk, rolling drifts outside it. */
+/** Height of the snow at (x, z): flat where you can walk, rolling drifts outside it, and Pulkabacken. */
 export function groundHeight(x: number, z: number) {
-  const k = THREE.MathUtils.smoothstep(outside(x, z), 0, 12)
-  return k * ((Math.sin(x * 0.17) * Math.cos(z * 0.13) + Math.sin(x * 0.06 + z * 0.08)) * 0.7 + 0.6)
+  let k = THREE.MathUtils.smoothstep(outside(x, z), 0, 12)
+  // (the sledging run is packed smooth)
+  if (z > HILL.z0 - 4 && z < HILL.z1 + 4) k *= 0.25 + 0.75 * THREE.MathUtils.smoothstep(Math.abs(x - runX(Math.min(z, HILL.z1))), 4, 9)
+  return k * ((Math.sin(x * 0.17) * Math.cos(z * 0.13) + Math.sin(x * 0.06 + z * 0.08)) * 0.7 + 0.6) + hillHeight(x, z)
 }
 
 export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   const roofs: Roof[] = []
   /** Things a snowball can hit. */
   const solids: THREE.Object3D[] = []
-  const updaters: ((t: number, dt: number, player: THREE.Vector3) => void)[] = []
+  const updaters: ((t: number, dt: number, player: THREE.Vector3, walking: boolean) => void)[] = []
   const colliders: Circle[] = []
   const rand = rng(42)
 
@@ -283,6 +350,8 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     const s = 0.9 + rand() * 1.1
     // the way north to Leksaksfabriken stays clear
     if (outside(Math.cos(a) * r, Math.sin(a) * r) < 2 + s * 1.7) continue
+    // nor do the deer's and the moose's
+    if (wildWay(Math.cos(a) * r, Math.sin(a) * r) < 1 + s * 1.8) continue
     firs.push({ x: Math.cos(a) * r, z: Math.sin(a) * r, s })
   }
   // and far out, for flying over in Tomtens släde (hidden in the fog while you walk, so only drawn when flying)
@@ -449,8 +518,8 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     addLamp(Math.sin(a) * r, -Math.cos(a) * r)
   }
 
-  /* ---------- falling snow ---------- */
-  const N = opts.lowPower ? 2500 : 5000
+  /* ---------- falling snow, and rain – as much as Stockholm has right now ---------- */
+  const N = opts.lowPower ? 3000 : 6000
   const BOX = { x: 50, y: 22, z: 50 }
   const flakes = new Float32Array(N * 3)
   const drift = new Float32Array(N)
@@ -472,19 +541,69 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   const snow = new THREE.Points(snowGeo, new THREE.PointsMaterial({ size: 0.11, map: toTexture(fc), transparent: true, depthWrite: false, opacity: 0.9 }))
   snow.frustumCulled = false
   scene.add(snow)
-  updaters.push((t, dt, player) => {
-    for (let i = 0; i < N; i++) {
+  // rain: short streaks, slanting with the wind
+  const NR = opts.lowPower ? 1200 : 2500
+  const RAIN = 9
+  const drops = new Float32Array(NR * 6)
+  for (let i = 0; i < NR; i++) {
+    const x = (rand() - 0.5) * BOX.x
+    const y = rand() * BOX.y
+    const z = (rand() - 0.5) * BOX.z
+    drops.set([x, y, z, x, y + 0.45, z], i * 6)
+  }
+  const rainGeo = new THREE.BufferGeometry()
+  rainGeo.setAttribute('position', new THREE.BufferAttribute(drops, 3))
+  rainGeo.setDrawRange(0, 0)
+  const rain = new THREE.LineSegments(rainGeo, new THREE.LineBasicMaterial({ color: 0xb8c8e8, transparent: true, opacity: 0.4, depthWrite: false }))
+  rain.frustumCulled = false
+  rain.visible = false
+  scene.add(rain)
+
+  /** The weather as the village has it now – eased towards what Stockholm says, so it turns gradually. */
+  const wx = { snow: 0.6, rain: 0, cloud: 0.6, fog: 1, aurora: 1, wind: 2, windX: 0, windZ: 1 }
+  let want: Weather | null = null
+  let skyAgain = 0
+  const ease = (a: number, b: number, rate: number, dt: number) => a + (b - a) * (1 - Math.exp(-rate * dt))
+  /** Under a roof? (flakes and drops that reach one disappear, and come back from the sky) */
+  const underRoof = (x: number, y: number, z: number) => {
+    for (const r of roofs) {
+      if (y > r.h) continue
+      const dx = x - r.x
+      const dz = z - r.z
+      if (Math.abs(dx * r.cos - dz * r.sin) < r.hw && Math.abs(dx * r.sin + dz * r.cos) < r.hd) return true
+    }
+    return false
+  }
+  updaters.push((t, dt, player, walking) => {
+    if (want) {
+      for (const k of ['snow', 'rain', 'cloud', 'fog', 'aurora', 'wind'] as const) wx[k] = ease(wx[k], want[k], 0.08, dt)
+      wx.windX = ease(wx.windX, want.windX, 0.2, dt)
+      wx.windZ = ease(wx.windZ, want.windZ, 0.2, dt)
+      // (the sky follows the clouds every second or so)
+      if ((skyAgain -= dt) <= 0) {
+        skyAgain = 1
+        daylight(lastK, lastSun)
+      }
+    }
+    // the haze thickens with fog and heavy snow (from up in the sleigh, flight.ts sees further)
+    const fog = scene.fog as THREE.FogExp2
+    if (walking) fog.density = ease(fog.density, 0.016 * wx.fog, 0.5, dt)
+    const blow = Math.min(wx.wind, 16) * 0.45
+    const bx = wx.windX * blow
+    const bz = wx.windZ * blow
+    const n = Math.round(N * wx.snow)
+    snowGeo.setDrawRange(0, n)
+    snow.visible = n > 0
+    // (thick snow comes in bigger flakes)
+    ;(snow.material as THREE.PointsMaterial).size = 0.11 + 0.07 * Math.max(0, wx.snow - 0.4)
+    for (let i = 0; i < n; i++) {
       const j = i * 3
       flakes[j + 1] -= dt * (0.8 + (i % 7) * 0.08)
-      flakes[j] += Math.sin(t * 0.6 + drift[i]) * dt * 0.3
+      flakes[j] += (Math.sin(t * 0.6 + drift[i]) * 0.3 + bx) * dt
+      flakes[j + 2] += bz * dt
       if (flakes[j + 1] < 0) flakes[j + 1] += BOX.y
       // flakes that reach a roof disappear (and come back from the sky)
-      for (const r of roofs) {
-        if (flakes[j + 1] > r.h) continue
-        const dx = flakes[j] - r.x
-        const dz = flakes[j + 2] - r.z
-        if (Math.abs(dx * r.cos - dz * r.sin) < r.hw && Math.abs(dx * r.sin + dz * r.cos) < r.hd) flakes[j + 1] = -0.5
-      }
+      if (underRoof(flakes[j], flakes[j + 1], flakes[j + 2])) flakes[j + 1] = -0.5
       // keep the box centred on the player
       const dx = flakes[j] - player.x
       if (dx > BOX.x / 2) flakes[j] -= BOX.x
@@ -493,7 +612,32 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
       if (dz > BOX.z / 2) flakes[j + 2] -= BOX.z
       else if (dz < -BOX.z / 2) flakes[j + 2] += BOX.z
     }
-    snowGeo.attributes.position.needsUpdate = true
+    if (n) snowGeo.attributes.position.needsUpdate = true
+    const nr = Math.round(NR * wx.rain)
+    rainGeo.setDrawRange(0, nr * 2)
+    rain.visible = nr > 0
+    for (let i = 0; i < nr; i++) {
+      const j = i * 6
+      let x = drops[j] + bx * 1.6 * dt
+      let y = drops[j + 1] - RAIN * dt
+      let z = drops[j + 2] + bz * 1.6 * dt
+      if (y < 0) y += BOX.y
+      else if (underRoof(x, y, z)) y = BOX.y
+      const dx = x - player.x
+      if (dx > BOX.x / 2) x -= BOX.x
+      else if (dx < -BOX.x / 2) x += BOX.x
+      const dz = z - player.z
+      if (dz > BOX.z / 2) z -= BOX.z
+      else if (dz < -BOX.z / 2) z += BOX.z
+      // the streak trails back the way it came
+      drops[j] = x
+      drops[j + 1] = y
+      drops[j + 2] = z
+      drops[j + 3] = x - bx * 0.08
+      drops[j + 4] = y + 0.45
+      drops[j + 5] = z - bz * 0.08
+    }
+    if (nr) rainGeo.attributes.position.needsUpdate = true
     sky.position.copy(player)
     stars.position.copy(player)
     auroraMat.uniforms.uTime.value = t
@@ -505,6 +649,10 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   const DUSK = new THREE.Color(0.9, 0.52, 0.42)
   const skyU = (sky.material as THREE.ShaderMaterial).uniforms
   const moonAt = moonLight.position.clone()
+  // under a grey sky: pale by day, a dull dark at night
+  const OVERCAST = { night: { top: new THREE.Color(0.045, 0.045, 0.06), hor: new THREE.Color(0.15, 0.14, 0.19) }, day: { top: new THREE.Color(0.52, 0.56, 0.62), hor: new THREE.Color(0.7, 0.72, 0.76) } }
+  const grey = new THREE.Color()
+  let lastSun = new THREE.Vector3(0, -1, 0)
   /** How strong the aurora is beyond the usual (the calendar's door 20 turns it up). */
   let auroraBoost = 1
   let lastK = 0
@@ -514,28 +662,38 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
    */
   function daylight(k: number, sun: THREE.Vector3) {
     lastK = k
-    const dusk = Math.max(0, 1 - Math.abs(k - 0.35) / 0.3) * 0.55
-    skyU.uTop.value.lerpColors(NIGHT.top, DAY.top, k)
-    skyU.uHor.value.lerpColors(NIGHT.hor, DAY.hor, k).lerp(DUSK, dusk)
+    lastSun = sun
+    const oc = wx.cloud * 0.85
+    const dusk = Math.max(0, 1 - Math.abs(k - 0.35) / 0.3) * 0.55 * (1 - wx.cloud * 0.7)
+    skyU.uTop.value.lerpColors(NIGHT.top, DAY.top, k).lerp(grey.lerpColors(OVERCAST.night.top, OVERCAST.day.top, k), oc)
+    skyU.uHor.value.lerpColors(NIGHT.hor, DAY.hor, k).lerp(grey.lerpColors(OVERCAST.night.hor, OVERCAST.day.hor, k), oc).lerp(DUSK, dusk)
     const fog = scene.fog as THREE.FogExp2
-    fog.color.lerpColors(NIGHT.fog, DAY.fog, k).lerp(DUSK, dusk * 0.4)
+    fog.color.lerpColors(NIGHT.fog, DAY.fog, k).lerp(grey, oc * 0.7).lerp(DUSK, dusk * 0.4)
     ;(scene.background as THREE.Color).copy(fog.color)
     hemi.color.lerpColors(NIGHT.sky, DAY.sky, k)
     hemi.groundColor.lerpColors(NIGHT.ground, DAY.ground, k)
     hemi.intensity = 0.9 + 0.6 * k
     moonLight.color.lerpColors(NIGHT.light, DAY.light, k)
-    moonLight.intensity = 1.1 + 1.3 * k
+    moonLight.intensity = (1.1 + 1.3 * k) * (1 - 0.5 * wx.cloud)
     // by day the light comes from the sun (never quite on the horizon, or the shadows run off forever)
     if (k > 0.5) moonLight.position.set(sun.x, Math.max(sun.y, 0.25), sun.z).normalize().multiplyScalar(60)
     else moonLight.position.copy(moonAt)
-    ;(stars.material as THREE.PointsMaterial).opacity = 0.9 * (1 - k) ** 2
-    moon.visible = moonGlow.visible = k < 0.6
-    auroraMat.uniforms.uFade.value = (1 - k) ** 2 * auroraBoost
+    ;(stars.material as THREE.PointsMaterial).opacity = 0.9 * (1 - k) ** 2 * (1 - wx.cloud) ** 2
+    moon.visible = moonGlow.visible = k < 0.6 && wx.cloud < 0.85
+    auroraMat.uniforms.uFade.value = auroraFade()
   }
+  /** The northern lights: only at night, brighter when the Kp index is up, hidden by clouds. */
+  const auroraFade = () => (1 - lastK) ** 2 * auroraBoost * wx.aurora * (1 - wx.cloud) ** 2
   function aurora(boost: number) {
     if (boost === auroraBoost) return
     auroraBoost = boost
-    auroraMat.uniforms.uFade.value = (1 - lastK) ** 2 * auroraBoost
+    auroraMat.uniforms.uFade.value = auroraFade()
+  }
+  /** Stockholm's weather (vader.ts). The first time it is as it is; after that it turns gradually. */
+  function weather(w: Weather) {
+    if (!want) Object.assign(wx, { snow: w.snow, rain: w.rain, cloud: w.cloud, fog: w.fog, aurora: w.aurora, wind: w.wind, windX: w.windX, windZ: w.windZ })
+    want = w
+    daylight(lastK, lastSun)
   }
 
   return {
@@ -544,7 +702,9 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     solids,
     daylight,
     aurora,
-    update: (t: number, dt: number, player: THREE.Vector3) => updaters.forEach((u) => u(t, dt, player)),
+    weather,
+    /** (`walking`: not up in the sleigh, where flight.ts has the haze) */
+    update: (t: number, dt: number, player: THREE.Vector3, walking = true) => updaters.forEach((u) => u(t, dt, player, walking)),
     /** The far forest is only worth drawing from up in the air. */
     showFar: (on: boolean) => (far.group.visible = on),
     /** Moon shadows on/off (the economy graphics setting). */

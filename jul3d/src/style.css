@@ -679,3 +679,18 @@ body:not(.touch) #zoom { display: none; }
 #hud.trip #trip-quit { display: flex; }
 #trip-quit kbd { font-size: 11px; opacity: 0.7; }
 body.touch #trip-quit kbd { display: none; }
+
+/* Pulkabacken: the time, the gates, and on a phone the buttons to steer */
+#pulka { position: absolute; inset: 0; pointer-events: none; text-align: center; }
+#pulka .pk-time {
+  position: absolute; top: max(16px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%);
+  padding: 8px 20px; border-radius: 14px; background: rgba(7, 11, 29, 0.62); border: 1px solid rgba(246, 196, 83, 0.5);
+  font: 700 30px var(--sans, system-ui); font-variant-numeric: tabular-nums; color: var(--snow, #fff);
+}
+#pulka .pk-gates { position: absolute; top: calc(max(16px, env(safe-area-inset-top)) + 58px); left: 50%; transform: translateX(-50%); font-size: 14px; opacity: 0.85; text-shadow: 0 1px 4px #000; }
+#pulka .pk-msg { position: absolute; top: 34%; left: 0; right: 0; font: 600 56px var(--serif, Georgia); color: #fff3dc; text-shadow: 0 2px 12px rgba(0, 0, 0, 0.6); }
+#pulka.done .pk-msg { color: var(--gold, #f6c453); }
+#pulka button { display: none; pointer-events: auto; position: absolute; bottom: 12%; width: 84px; height: 84px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.6); background: rgba(7, 11, 29, 0.5); color: #fff; font-size: 34px; touch-action: none; }
+body.touch #pulka button { display: block; }
+#pulka .pk-l { left: 22px; }
+#pulka .pk-r { right: 22px; }

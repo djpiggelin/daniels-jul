@@ -3,7 +3,9 @@ import { cleanName, json, season, store, updateJSON } from '../lib/store.mts'
 
 type Entry = { name: string; score: number; at: string }
 
-const GAMES = new Set(['klappfangst', 'renflyg', 'tomtememory'])
+const GAMES = new Set(['klappfangst', 'renflyg', 'tomtememory', 'pulka'])
+/** Games where lower is better: Pulkabacken is a time, in hundredths of a second. */
+const LOWEST_WINS = new Set(['pulka'])
 const MAX_SCORE = 1_000_000
 const KEEP = 50
 
@@ -29,7 +31,7 @@ export default async (req: Request) => {
     }
     const list = await updateJSON<Entry[]>(keyFor(game), [], (l) =>
       [...l, { name, score, at: new Date().toISOString() }]
-        .sort((a, b) => b.score - a.score)
+        .sort((a, b) => (LOWEST_WINS.has(game) ? a.score - b.score : b.score - a.score))
         .slice(0, KEEP),
     )
     return json(list.slice(0, 10))
