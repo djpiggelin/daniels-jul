@@ -12,6 +12,7 @@ import { Slide } from './rutschkana'
 import { ARRIVE, STUMP, buildMine, buildStump, type Mine } from './kolgruvan'
 import { CartRun } from './gruvvagn'
 import { Hacking } from './kolhackning'
+import { buildCalendar } from './julkalender'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -140,6 +141,7 @@ type Target =
   | { kind: 'ladder' }
   | { kind: 'cart' }
   | { kind: 'hack' }
+  | { kind: 'calendar' }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
@@ -156,6 +158,8 @@ let inMine = false
 let cartRun: CartRun | null = null
 /** Your turn at the coal face (made the first time you take the pick). */
 let hacking: Hacking | null = null
+/** Julkalendern on the square. */
+let calendar: ReturnType<typeof buildCalendar> | null = null
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -205,6 +209,9 @@ async function build() {
   // the way down to Kolgruvan (hidden: see kolgruvan.ts)
   stump = buildStump(scene)
   circles.push(...stump.colliders)
+  // the calendar house, with a door a day from the first of December
+  calendar = buildCalendar(scene)
+  circles.push(...calendar.colliders)
   solids.push(choir.group)
   const square = await buildSquare(scene, shops)
   circles.push(...square.colliders)
@@ -521,6 +528,7 @@ function findTarget(): Target | null {
   }
   // up on the gallery at the top of Leksaksfabriken's chute
   if (slide.near(player.pos, player.floor, fwd)) return { kind: 'slide' }
+  if (calendar?.near(player.pos, fwd)) return { kind: 'calendar' }
   // right at the old stump, looking down into it
   if (stump?.near(player.pos, player.pitch)) return { kind: 'stump' }
   return aimed
@@ -590,7 +598,9 @@ function setTarget(t: Target | null) {
                       ? 'Åk Gruvexpressen'
                       : t.kind === 'hack'
                         ? 'Ta hackan och hacka kol'
-                        : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
+                        : t.kind === 'calendar'
+                          ? calendar!.prompt()
+                          : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -780,6 +790,7 @@ function onEsc() {
   if (corrida.active) return corrida.leave()
   if (cartRun?.active) return cartRun.leave()
   if (hacking?.active) return hacking.leave()
+  if (calendar?.open) return calendar.close()
   openMenu()
 }
 addEventListener('keydown', (e) => {
@@ -884,6 +895,7 @@ function interact() {
   else if (t.kind === 'ladder') goUp()
   else if (t.kind === 'cart') ride()
   else if (t.kind === 'hack') hack()
+  else if (t.kind === 'calendar') calendar?.show(() => resume())
   else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
 }
@@ -1022,7 +1034,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || hacking?.active || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || hacking?.active || calendar?.open || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
@@ -1214,6 +1226,7 @@ function frame(now: number) {
     // the tin soldiers' band plays as you come near (not from up in the sleigh)
     parade.near(player.pos, !flight.active)
     choir?.update(dt, player.pos, !flight.active)
+    calendar?.update(t, dt)
     // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
     if ((skyTimer -= dt) <= 0) {
       skyTimer = 5
@@ -1298,6 +1311,8 @@ go.addEventListener('click', () => {
   fillScreen()
   joinOthers()
   started = true
+  // a door waiting in the calendar today?
+  if (calendar?.waiting()) setTimeout(() => toast('🎄 Dagens lucka väntar i julkalendern på torget!'), 2500)
   $('start').hidden = true
   $('hud').hidden = false
   player.enabled = true
@@ -1313,4 +1328,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })

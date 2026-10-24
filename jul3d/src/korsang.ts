@@ -364,7 +364,7 @@ const loadedAt = Date.now()
 const stockholm = new Intl.DateTimeFormat('en-GB', { timeZone: 'Europe/Stockholm', year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit', second: '2-digit', hourCycle: 'h23' })
 
 /** Stockholm's wall clock right now, as ms whose getUTC* parts are Stockholm's date and time. */
-function wallClock() {
+export function wallClock() {
   if (pretend !== null) return pretend + (Date.now() - loadedAt)
   // (the date and the milliseconds from the same moment, or it could slip back a second as one ticks over)
   const now = new Date()
