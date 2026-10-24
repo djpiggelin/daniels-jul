@@ -19,6 +19,11 @@ import { parade, stamping } from './verkstadslek'
 import { chute as slideway } from './rutschkana'
 import { wallClock } from './korsang'
 
+/** Whether the great doors are open (December until tjugondag Knut): shut, the band inside is silent too (main.ts). */
+export const factoryDoors = { open: true }
+/** Shut, the doorway stops snowballs (added to the hitboxes; shown only while the doors are shut). */
+const shutHit = keepApart(new THREE.Group())
+
 /** The star on the big tree in the yard (the calendar's door 14 takes it away, until you bring it back). */
 export const yardTree = { star: null as THREE.Object3D | null }
 
@@ -776,11 +781,14 @@ function exterior(shop: Shop) {
   carpet.rotation.x = -Math.PI / 2
   carpet.castShadow = false
 
-  // the great doors, standing open into the hall
+  // the great doors, standing open into the hall – from the 1st of December until it all comes down after
+  // tjugondag Knut; the rest of the year they're shut, with a note on them
   const open = 1.75
+  const hinges: { hinge: THREE.Group; sx: number }[] = []
   for (const sx of [-1, 1]) {
     const dh = DOOR_H - DOOR_W / 2
-    const hinge = new THREE.Group()
+    const hinge = keepApart(new THREE.Group())
+    hinges.push({ hinge, sx })
     hinge.position.set(sx * (DOOR_W / 2 - 0.1), 0, D / 2 - 0.7)
     hinge.rotation.y = -sx * open
     const leaf = new THREE.Group()
@@ -796,6 +804,43 @@ function exterior(shop: Shop) {
     const ox = (-sx * DOOR_W) / 4
     shop.block(hinge.position.x + ox * Math.cos(hinge.rotation.y), hinge.position.z - ox * Math.sin(hinge.rotation.y), 0.35, DOOR_W / 4)
   }
+  const shut = shop.block(0, D / 2 - 0.7, DOOR_W / 2, 0.25, -Infinity, Infinity)
+  // (shut, the doorway is filled right up into its arch – behind the leaves, so nothing shows through
+  // the gaps between them – and snowballs stop at it)
+  const filled = new THREE.Shape()
+  arch(DOOR_W + 0.1, DOOR_H + 0.05, filled)
+  const lunette = keepApart(add(g, new THREE.ShapeGeometry(filled, 24), mat(0x8a1020, 0.6), 0, 0, D / 2 - 0.85))
+  ;(lunette.material as THREE.Material).side = THREE.DoubleSide
+  const door = new THREE.Mesh(box(DOOR_W, DOOR_H, 0.4), new THREE.MeshBasicMaterial())
+  door.position.set(0, DOOR_H / 2, D / 2 - 0.75)
+  door.visible = false
+  shutHit.add(door)
+  const [nc, nctx] = makeCanvas(512, 256)
+  nctx.fillStyle = '#fbf3e0'
+  nctx.fillRect(0, 0, 512, 256)
+  nctx.strokeStyle = '#c8102e'
+  nctx.lineWidth = 10
+  nctx.strokeRect(8, 8, 496, 240)
+  nctx.fillStyle = '#8a1a1e'
+  nctx.textAlign = 'center'
+  nctx.font = "600 64px Fraunces, Georgia, serif"
+  nctx.fillText('Out of Office 🎅', 256, 108)
+  nctx.font = "600 40px 'DM Sans', sans-serif"
+  nctx.fillText('Åter 1 december', 256, 178)
+  nctx.font = "italic 26px Georgia, serif"
+  nctx.fillText('– Tomten & nissarna', 256, 222)
+  const note = keepApart(new THREE.Mesh(new THREE.PlaneGeometry(2.2, 1.1), new THREE.MeshStandardMaterial({ map: toTexture(nc), roughness: 0.8, emissive: 0xffffff, emissiveMap: toTexture(nc), emissiveIntensity: 0.2 })))
+  note.position.set(0, 2.2, D / 2 - 0.45)
+  g.add(note)
+  shop.updaters.push(() => {
+    const d = new Date(wallClock())
+    const m = d.getUTCMonth() + 1
+    const isOpen = m === 12 || (m === 1 && d.getUTCDate() <= 13)
+    for (const { hinge, sx } of hinges) hinge.rotation.y = isOpen ? -sx * open : 0
+    shut.y0 = isOpen ? 99 : -Infinity
+    note.visible = lunette.visible = shutHit.visible = !isOpen
+    factoryDoors.open = isOpen
+  })
 
   // the nutcracker guards
   for (const s of [-1, 1]) {
@@ -1463,6 +1508,98 @@ function wrapping(shop: Shop, x: number, z: number, first: number) {
 }
 
 /** A nisse up a ladder, painting a rocking horse. */
+/**
+ * The chessboard nisse, as on the ordinary 2D page (see Scenery.tsx): a nod to the painting nisse in
+ * Tomtens verkstad on Kalle Anka – the paint in his bucket is already checkered, so every stroke leaves
+ * orange-and-black squares. The board on its easel is half done and stays that way; he just keeps dabbing.
+ */
+function chessNisse(shop: Shop, x: number, z: number, yaw: number) {
+  const g = new THREE.Group()
+  g.position.set(x, 0, z)
+  g.rotation.y = yaw
+  const S = 1.3
+  // the board: the left side painted, a ragged brush edge towards the right, wet drips at the edge
+  const [c, ctx] = makeCanvas(512, 512)
+  ctx.fillStyle = '#8b5a2b'
+  ctx.fillRect(0, 0, 512, 512)
+  ctx.fillStyle = '#ecd3ac'
+  ctx.fillRect(16, 16, 480, 480)
+  ctx.save()
+  ctx.beginPath()
+  ctx.moveTo(16, 16)
+  ctx.lineTo(16 + 480 * 0.62, 16)
+  const edge = [[0.6, 0.08], [0.65, 0.2], [0.6, 0.32], [0.67, 0.44], [0.62, 0.55], [0.7, 0.67], [0.66, 0.8], [0.74, 0.9], [0.78, 1]]
+  for (const [ex, ey] of edge) ctx.lineTo(16 + 480 * ex, 16 + 480 * ey)
+  ctx.lineTo(16, 496)
+  ctx.closePath()
+  ctx.clip()
+  const cell = 480 / 8
+  for (let r = 0; r < 8; r++)
+    for (let k = 0; k < 8; k++) {
+      ctx.fillStyle = (r + k) % 2 ? '#14141a' : '#f6a623'
+      ctx.fillRect(16 + k * cell, 16 + r * cell, cell, cell)
+    }
+  ctx.restore()
+  // the drips: checkered, of course
+  const drip = (dx: number, dy: number) => {
+    for (let i = 0; i < 6; i++) {
+      ctx.fillStyle = i % 2 ? '#14141a' : '#f6a623'
+      ctx.fillRect(16 + 480 * dx - 6, 16 + 480 * dy + i * 8, 12, 8)
+    }
+  }
+  drip(0.64, 0.14)
+  drip(0.7, 0.5)
+  const board = new THREE.Mesh(new THREE.BoxGeometry(1.2 * S, 1.2 * S, 0.05), [mat(C.wood, 0.7), mat(C.wood, 0.7), mat(C.wood, 0.7), mat(C.wood, 0.7), new THREE.MeshStandardMaterial({ map: toTexture(c), roughness: 0.7 }), mat(C.wood, 0.7)])
+  board.position.set(0, 1.3 * S, 0)
+  board.rotation.x = -0.12
+  g.add(board)
+  // the easel: two legs in front, one behind, a ledge under the board
+  for (const s of [-1, 1]) {
+    const leg = add(g, box(0.05, 2.0 * S, 0.05), mat(C.wood, 0.7), s * 0.45 * S, 0.95 * S, 0.05)
+    leg.rotation.z = s * 0.1
+  }
+  const back = add(g, box(0.05, 2.0 * S, 0.05), mat(C.wood, 0.7), 0, 0.92 * S, -0.35 * S)
+  back.rotation.x = 0.3
+  add(g, box(1.3 * S, 0.06, 0.12), mat(C.wood, 0.7), 0, 0.5 * S, 0.06)
+  // the bucket – the paint inside it already checkered
+  const [bc, bctx] = makeCanvas(64, 64)
+  for (let r = 0; r < 8; r++)
+    for (let k = 0; k < 8; k++) {
+      bctx.fillStyle = (r + k) % 2 ? '#14141a' : '#f6a623'
+      bctx.fillRect(k * 8, r * 8, 8, 8)
+    }
+  const checks = new THREE.MeshStandardMaterial({ map: toTexture(bc), roughness: 0.3 })
+  const bucket = new THREE.Group()
+  bucket.position.set(0.95 * S, 0, 0.35)
+  add(bucket, cyl(0.17, 0.14, 0.3, 14), mat(0x5a3b22, 0.6), 0, 0.15, 0)
+  add(bucket, cyl(0.16, 0.16, 0.01, 14), checks, 0, 0.29, 0)
+  const handle = add(bucket, new THREE.TorusGeometry(0.17, 0.008, 6, 16, Math.PI), mat(C.black, 0.4), 0, 0.3, 0)
+  handle.rotation.y = 0.4
+  for (const a of [0.4, 2.2]) add(bucket, box(0.04, 0.12, 0.02), checks, Math.cos(a) * 0.165, 0.24, Math.sin(a) * 0.165).rotation.y = -a
+  g.add(bucket)
+  // the nisse, brush in hand, dab-dab-dabbing at the edge of the painted part
+  const nisse = new Nisse({ coat: C.green, hat: C.red, beard: false, ears: true, scale: 0.85, apron: C.white })
+  nisse.group.position.set(0.75 * S, 0, 0.55)
+  nisse.setYaw(-2.6)
+  const brush = new THREE.Group()
+  add(brush, cyl(0.012, 0.012, 0.28, 6), mat(C.wood, 0.6), 0, -0.14, 0)
+  add(brush, cyl(0.024, 0.017, 0.07, 8), checks, 0, -0.31, 0)
+  brush.position.set(0, -0.5, 0.05)
+  nisse.armR.add(brush)
+  g.add(nisse.group)
+  moving(nisse.armR)
+  moving(nisse.head)
+  shop.group.add(g)
+  shop.block(x, z, 1.1, 0.9)
+  shop.updaters.push((t) => {
+    // dab – dab – dab, a step back to look, and on again
+    const look = Math.sin(t * 0.4) > 0.75
+    nisse.armR.rotation.x = look ? -0.4 : -1.35 + Math.abs(Math.sin(t * 6)) * 0.25
+    nisse.armR.rotation.z = look ? 0.2 : -0.35 + Math.sin(t * 0.9) * 0.12
+    nisse.head.rotation.z = look ? Math.sin(t * 1.5) * 0.15 : 0
+  })
+}
+
 function paintingCorner(shop: Shop, x: number, z: number) {
   const horse = moving(rockingHorse())
   horse.position.set(x, 0, z)
@@ -1683,6 +1820,7 @@ function lasse(): { npc: Nisse; talk: Talk } {
 /** Simple invisible boxes for aiming and snowballs, so they don't test the building's every triangle. */
 function hitboxes() {
   const g = keepApart(new THREE.Group())
+  g.add(shutHit)
   const m = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
   // (the walls' boxes are only their outer half, so from inside the boards on them are hit first)
   const boxes: [number, number, number, number, number, number][] = [
@@ -1746,6 +1884,7 @@ export async function buildLeksaksfabriken(): Promise<BuiltShop> {
   workbench(room, 13.0, 1.8, C.green, C.red, 0.66)
   for (const [i, x] of [-6.5, -2, 2.5, 7].entries()) workbench(room, x, -9.4, LOOKS[i].coat, LOOKS[i].hat, i * 0.27)
   paintingCorner(room, -15.2, 9.8)
+  chessNisse(room, -12.4, -6.0, 0.5)
   for (const z of [-5.2, -1.6, 2.0]) shelves(room, -IN_X + 0.05, z, Math.PI / 2)
   shelves(room, IN_X - 0.05, -3.6, -Math.PI / 2)
   shelves(room, 14.6, -IN_Z + 0.05, 0)
