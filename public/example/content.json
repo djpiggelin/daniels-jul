@@ -69,7 +69,8 @@
       "image": "images/julbord.svg",
       "reindeer": "Rudolf",
       "accent": "red",
-      "potluck": true
+      "potluck": true,
+      "private": true
     },
     {
       "id": "julafton",
@@ -86,6 +87,10 @@
       "accent": "green"
     }
   ],
+  "invites": {
+    "tomten-xmas": { "name": "Tomten", "events": ["julbord"] },
+    "nisse-xmas": { "name": "Nisse", "events": ["julbord"] }
+  },
   "guests": [
     {
       "name": "Tomten",

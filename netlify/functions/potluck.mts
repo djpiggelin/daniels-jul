@@ -1,4 +1,5 @@
-import type { Config } from '@netlify/functions'
+import type { Config, Context } from '@netlify/functions'
+import { access } from '../lib/invite.mts'
 import { cleanName, json, season, store, updateJSON } from '../lib/store.mts'
 
 // itemId -> list of people who claimed it
@@ -6,7 +7,12 @@ type Claims = Record<string, { name: string; picture?: string | null }[]>
 
 const key = () => `potluck-${season()}`
 
-export default async (req: Request) => {
+export default async (req: Request, context: Context) => {
+  // who brings what is for those invited to the julbord
+  const { content, sees } = await access(req, context)
+  const julbord = content?.events.find((e) => e.potluck)
+  if (julbord && !sees(julbord)) return json({ error: 'Not found' }, 404)
+
   if (req.method === 'GET') {
     const claims = ((await store().get(key(), { type: 'json' })) ?? {}) as Claims
     return json(claims)
