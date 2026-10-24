@@ -933,7 +933,6 @@ export function buildWildlife(scene: THREE.Scene, say: (text: string) => void) {
           if (mooseToldAt !== Math.floor(clock / 1000 / PERIOD) && player && near(me, mB) < 40) {
             mooseToldAt = Math.floor(clock / 1000 / PERIOD)
             say('🫎 Psst! En älg står på stigen mot Leksaksfabriken. Gå försiktigt.')
-            api.onMoose()
           }
         } else {
           // turn round, and back the way it came
@@ -968,8 +967,6 @@ export function buildWildlife(scene: THREE.Scene, say: (text: string) => void) {
     fox: fx,
     hare,
     moose: mo,
-    /** When you meet the moose on the path. */
-    onMoose: () => {},
   }
   return api
 }

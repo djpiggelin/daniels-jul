@@ -371,7 +371,6 @@ export function buildLake(scene: THREE.Scene, say: (text: string) => void) {
           for (const p of players) if ((p.team === 1) === red) p.cheer = 2.5
           if (atLake) {
             const lead = score.red === score.blue ? `Det står ${score.red}–${score.blue}.` : `${score.red > score.blue ? 'Röda' : 'Blå'} leder ${Math.max(score.red, score.blue)}–${Math.min(score.red, score.blue)}.`
-            if (lastTouch === 'you') api.onYourGoal()
             say(lastTouch === 'you' ? `🏒 MÅL! Ditt mål – för ${red ? 'röda' : 'blå'}! ${lead}` : `🏒 MÅL för ${red ? 'röda' : 'blå'}! ${lead}`)
           }
           ball.x = Math.sign(ball.x) * (RINK.L + 0.4)
@@ -459,8 +458,6 @@ export function buildLake(scene: THREE.Scene, say: (text: string) => void) {
     colliders,
     solids,
     update,
-    /** When a goal is yours. */
-    onYourGoal: () => {},
     /** Standing by the ball, facing it: you can hit it. */
     nearBall(pos: THREE.Vector3, fwd: THREE.Vector3) {
       if (resetIn > 0) return false

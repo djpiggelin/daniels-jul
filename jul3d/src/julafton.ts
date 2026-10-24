@@ -135,7 +135,7 @@ function card(lines: string[], sub = '') {
 
 export type Julafton = ReturnType<typeof buildJulafton>
 
-export function buildJulafton(scene: THREE.Scene, renderer: THREE.WebGLRenderer, doors: { x: number; z: number }[], ctx: { say: (text: string) => void; name: () => string; gift: () => void }) {
+export function buildJulafton(scene: THREE.Scene, renderer: THREE.WebGLRenderer, doors: { x: number; z: number }[], ctx: { say: (text: string) => void; name: () => string }) {
   const group = new THREE.Group()
   scene.add(group)
   const colliders: Circle[] = []
@@ -257,7 +257,6 @@ export function buildJulafton(scene: THREE.Scene, renderer: THREE.WebGLRenderer,
           } catch {
             /* fine */
           }
-          ctx.gift()
           const name = ctx.name()
           const gift = GIFTS[Math.floor(Math.random() * GIFTS.length)]
           return [html.p(`Tomten letar länge i säcken, och så räcker han dig ett paket med rött snöre. På etiketten står det: ${name ? `"Till ${name}"` : '"Till dig"'}.`) + html.p(`Du öppnar det. Det är ${gift}!`) + html.p('– Ho ho ho! God jul, och var snäll nästa år också!')]

@@ -3,7 +3,7 @@ import { cleanName, json, season, store, updateJSON } from '../lib/store.mts'
 
 type Entry = { name: string; score: number; at: string }
 
-const GAMES = new Set(['klappfangst', 'renflyg', 'tomtememory', 'pulka'])
+const GAMES = new Set(['klappfangst', 'renflyg', 'tomtememory', 'pulka', 'paketlinjen'])
 /** Games where lower is better: Pulkabacken is a time, in hundredths of a second. */
 const LOWEST_WINS = new Set(['pulka'])
 const MAX_SCORE = 1_000_000
