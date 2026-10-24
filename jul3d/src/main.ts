@@ -18,6 +18,9 @@ import { PARK, WORKSHOP } from './sleigh'
 import { buildTomtegarden, tomtegardenToast } from './tomtegarden'
 import { buildWildlife, type Wildlife } from './djur'
 import { buildJulstamning, type Julstamning } from './julstamning'
+import { buildLake, type Lake } from './skridskosjo'
+import { Sledding } from './pulkabacke'
+import { buildSnowmen, type Snowmen } from './snogubbar'
 import { factoryDoors } from './leksaksfabriken'
 import type { Claus } from './tomtefolk'
 import type { Box, Floor } from './shop'
@@ -45,7 +48,7 @@ import { bakeStatic, mergeRigid } from './batch'
 import { PARTICIPANTS } from './data'
 import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
-import { buildWorld, keepInside } from './world'
+import { buildWorld, keepInside, onIce } from './world'
 import { watchWeather } from './vader'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 import { noise } from './sfx'
@@ -162,6 +165,9 @@ type Target =
   | { kind: 'hack' }
   | { kind: 'calendar' }
   | { kind: 'mood' }
+  | { kind: 'bandy' }
+  | { kind: 'pulka' }
+  | { kind: 'snow'; label: string }
   | { kind: 'pickup'; item: Act }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
@@ -217,6 +223,12 @@ let garden: ReturnType<typeof buildTomtegarden> | null = null
 let wild: Wildlife | null = null
 /** Byns julstämning: the village's shared Christmas spirit for the day, its thermometer on the square. */
 let mood: Julstamning | null = null
+/** Skridskosjön, west of the village: skating, and bandy on the ice. */
+let lake: Lake | null = null
+/** Pulkabacken, south of the village: down the hill against the clock. */
+let sled: Sledding | null = null
+/** Snögubbsbacken: snowmen everyone builds, standing for the rest of the season. */
+let snowmen: Snowmen | null = null
 /** How light it is (0 night … 1 day), as last worked out. */
 let dayK = 0
 /** Everything with walls to bump into and floors to stand on: the shops, and Tomtegården's buildings. */
@@ -304,6 +316,25 @@ async function build() {
   wild = buildWildlife(scene, (text) => toast(text))
   circles.push(...wild.colliders)
   solids.push(...wild.solids)
+  lake = buildLake(scene, (text) => toast(text))
+  lake.onYourGoal = () => mood?.cheer('bandy')
+  circles.push(...lake.colliders)
+  solids.push(...lake.solids)
+  sled = new Sledding(scene, player, camera)
+  sled.onDone = () => resume()
+  sled.say = (text) => toast(text)
+  sled.name = () => rememberedName.get()
+  circles.push(...sled.colliders)
+  solids.push(...sled.solids)
+  snowmen = buildSnowmen(scene, {
+    addCollider: (c) => circles.push(c),
+    addSolid: (o) => solids.push(o),
+    ask: (talk) => dialog.start(talk),
+    done: () => resume(),
+    say: (text) => toast(text),
+    name: () => rememberedName.get(),
+    built: () => mood?.cheer('snowman'),
+  })
   mood = buildJulstamning(scene, (text) => toast(text))
   circles.push(...mood.colliders)
   solids.push(...mood.solids)
@@ -396,6 +427,9 @@ async function build() {
     ...(garden?.moving ?? []),
     ...(wild ? [wild.group] : []),
     ...(mood ? [mood.group] : []),
+    ...(lake ? [lake.group] : []),
+    ...(sled ? [sled.group] : []),
+    ...(snowmen ? [snowmen.group] : []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -670,6 +704,10 @@ function findTarget(): Target | null {
   if (slide.near(player.pos, player.floor, fwd)) return { kind: 'slide' }
   if (calendar?.near(player.pos, fwd)) return { kind: 'calendar' }
   if (mood?.near(player.pos, fwd)) return { kind: 'mood' }
+  if (player.ice && lake?.nearBall(player.pos, fwd)) return { kind: 'bandy' }
+  if (sled?.near(player.pos, fwd)) return { kind: 'pulka' }
+  const snow = snowmen?.prompt(player.pos, fwd)
+  if (snow) return { kind: 'snow', label: snow }
   const item = advent?.near(player.pos, player.floor + player.height)
   if (item) return { kind: 'pickup', item }
   // right at the old stump, looking down into it
@@ -754,6 +792,12 @@ function setTarget(t: Target | null) {
                           ? calendar!.prompt()
                           : t.kind === 'mood'
                             ? 'Läs julstämningsmätaren'
+                            : t.kind === 'bandy'
+                              ? 'Slå bollen'
+                              : t.kind === 'pulka'
+                                ? 'Ta en pulka och åk'
+                                : t.kind === 'snow'
+                                  ? t.label
                           : t.kind === 'pickup'
                             ? t.item.prompt
                             : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
@@ -1037,6 +1081,18 @@ function interact() {
     setTarget(null)
     return
   }
+  // (rolling a snowball, putting it down or up: no need to stop – dressing the snowman is a talk)
+  if (t.kind === 'snow' && t.label !== 'Klä snögubben') {
+    snowmen?.act(player.pos, player.forward)
+    setTarget(null)
+    return
+  }
+  // (a hit at the ball, and on you skate)
+  if (t.kind === 'bandy') {
+    lake?.shoot(player.forward)
+    setTarget(null)
+    return
+  }
   pause()
   if (t.kind === 'npc') {
     talking = t.npc
@@ -1057,6 +1113,12 @@ function interact() {
   else if (t.kind === 'slide') {
     cursor.hide()
     slide.start()
+  } else if (t.kind === 'snow') {
+    snowmen?.act(player.pos, player.forward)
+  } else if (t.kind === 'pulka') {
+    cursor.hide()
+    sled!.start()
+    mood?.cheer('pulka')
   } else if (t.kind === 'stump') goDown()
   else if (t.kind === 'ladder') goUp()
   else if (t.kind === 'cart') ride()
@@ -1519,7 +1581,11 @@ function frame(now: number) {
   } else if (!trip.inWorld && !corrida.inWorld) {
     // (down the chute, the chute steers)
     if (slide.active) slide.update(dt)
-    else player.update(dt, collidePlayer, groundAt)
+    else if (sled?.active) sled.update(dt)
+    else {
+      player.ice = onIce(player.pos.x, player.pos.z, 0.2)
+      player.update(dt, collidePlayer, groundAt)
+    }
     // (how high you are, the others see: up on a gallery or in mid-jump)
     mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.floor + player.height)
     thrower.update(dt, t)
@@ -1529,6 +1595,8 @@ function frame(now: number) {
     sleighYard?.update(t, flight.active)
     garden?.update(t, dt, player.pos)
     wild?.update(t, dt, flight.active ? null : player.pos, wallClock(), dayK)
+    lake?.update(t, dt, flight.active ? null : player)
+    snowmen?.update(flight.active || sled?.active ? null : player.pos, player.yaw)
     sleigh.update(t, dt, player.pos)
     camper.update(t, dt, player.pos)
     matadors.update(t, dt, player.pos)
@@ -1667,4 +1735,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, startPark, goto, get shops() { return shops } } })

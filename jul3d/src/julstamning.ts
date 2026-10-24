@@ -33,6 +33,9 @@ const REASONS = {
   game: { points: 3, perDay: 5, label: 'ett spel i spelhallen' },
   park: { points: 10, perDay: 2, label: 'att få Central Park att sjunga' },
   moose: { points: 3, perDay: 2, label: 'att möta älgen på stigen' },
+  pulka: { points: 2, perDay: 5, label: 'ett åk i Pulkabacken' },
+  snowman: { points: 5, perDay: 2, label: 'en snögubbe i Snögubbsbacken' },
+  bandy: { points: 3, perDay: 3, label: 'ett mål i bandy på Skridskosjön' },
 }
 export type Cheer = keyof typeof REASONS
 
@@ -458,8 +461,8 @@ export function buildJulstamning(scene: THREE.Scene, say: (text: string) => void
       const pct = Math.round(count.level * 100)
       const next = TIERS.find((x) => count.level < x.at)
       return [
-        html.p(`Julstämningen i byn i dag: ${pct} %.`),
-        html.p(next ? `Vid ${Math.round(next.at * 100)} %: ${next.icon} ${next.name.toLowerCase()}. Alla som är i byn hjälps åt, och vid midnatt börjar det om.` : 'Den är på topp! Alla som är här i dag har gjort byn alldeles julig. Vid midnatt börjar det om.'),
+        html.p(`Julstämningen i byn i dag: ${pct} %.`) +
+          html.p(next ? `Vid ${Math.round(next.at * 100)} %: ${next.icon} ${next.name.toLowerCase()}. Alla som är i byn hjälps åt, och vid midnatt börjar det om.` : 'Den är på topp! Alla som är här i dag har gjort byn alldeles julig. Vid midnatt börjar det om.'),
       ]
     },
     topics: [

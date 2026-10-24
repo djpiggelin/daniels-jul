@@ -48,14 +48,48 @@ const segDist = (a: { x: number; z: number }, b: { x: number; z: number }, x: nu
 }
 /** How far (x, z) is from the animals' ways. */
 function wildWay(x: number, z: number) {
-  return Math.min(...WILD.deerFeed.map((f) => segDist(WILD.deerHome, f, x, z)), segDist(WILD.moose[0], WILD.moose[1], x, z) - 0.8)
+  // (and the sledging run, wide enough to steer on)
+  const run = Math.abs(z - (HILL.z0 + HILL.z1) / 2) < (HILL.z1 - HILL.z0) / 2 + 6 ? Math.abs(x - runX(Math.min(Math.max(z, HILL.z0), HILL.z1))) - 4 : Infinity
+  return Math.min(...WILD.deerFeed.map((f) => segDist(WILD.deerHome, f, x, z)), segDist(WILD.moose[0], WILD.moose[1], x, z) - 0.8, run)
 }
+
+/**
+ * West of the village: the path out to Skridskosjön and the shore round it (skridskosjo.ts) – the lake
+ * itself an ellipse of ice.
+ */
+export const WEST: { path: Rect; shore: Rect } = {
+  path: { x0: -52, x1: -40, z0: 2.5, z1: 9.5 },
+  shore: { x0: -98, x1: -50, z0: -17, z1: 21 },
+}
+export const LAKE = { x: -74, z: 2, rx: 19, rz: 13 }
+/** Is (x, z) out on the ice? (`margin` metres in from its edge) */
+export const onIce = (x: number, z: number, margin = 0) => ((x - LAKE.x) / (LAKE.rx - margin)) ** 2 + ((z - LAKE.z) / (LAKE.rz - margin)) ** 2 < 1
+
+/**
+ * South of the village: Pulkabacken (pulkabacke.ts), a long hill rising into the forest, the run down it
+ * winding a little; at its foot a patch of the village's ground to start from.
+ */
+export const HILL = { z0: 47, z1: 112, top: 18, base: { x0: -9, x1: 9, z0: 40, z1: 47.5 } as Rect }
+/** Where the run is at z: its middle swings gently from side to side. */
+export const runX = (z: number) => Math.sin(((z - HILL.z0) / (HILL.z1 - HILL.z0)) * Math.PI * 1.5) * 5
+/** How high the hill is at (x, z) (over and above the drifts). */
+export function hillHeight(x: number, z: number) {
+  if (z <= HILL.z0) return 0
+  const u = Math.min(1, (z - HILL.z0) / (HILL.z1 - HILL.z0))
+  const along = z <= HILL.z1 ? (1 - Math.cos(Math.PI * u)) / 2 : Math.exp(-(((z - HILL.z1) / 26) ** 2))
+  const across = Math.exp(-(((x - runX(Math.min(z, HILL.z1))) / 26) ** 2))
+  return HILL.top * along * across
+}
+
+/** Snögubbsbacken, at the south-west of the square (snogubbar.ts): where you roll snowballs and build snowmen. (netlify/functions/snogubbar.mts has the same.) */
+export const SNOWFIELD: Rect = { x0: -14, x1: -3, z0: 25, z1: 37 }
 
 const rectDist = (r: Rect, x: number, z: number) => Math.hypot(Math.max(r.x0 - x, 0, x - r.x1), Math.max(r.z0 - z, 0, z - r.z1))
 
-/** How far (x, z) is from the ground you can walk on: the village circle, the path north and the yard. */
+const GROUNDS = [NORTH.path, NORTH.yard, NORTH.garden, WEST.path, WEST.shore, HILL.base]
+/** How far (x, z) is from the ground you can walk on: the village circle, the path north and the yard, the lake and the foot of the hill. */
 export function outside(x: number, z: number) {
-  return Math.min(Math.max(0, Math.hypot(x, z) - VILLAGE_RADIUS), rectDist(NORTH.path, x, z), rectDist(NORTH.yard, x, z), rectDist(NORTH.garden, x, z))
+  return Math.min(Math.max(0, Math.hypot(x, z) - VILLAGE_RADIUS), ...GROUNDS.map((g) => rectDist(g, x, z)))
 }
 
 /** Back onto that ground, the shortest way. */
@@ -63,17 +97,19 @@ export function keepInside(p: THREE.Vector3) {
   if (outside(p.x, p.z) === 0) return
   const r = Math.hypot(p.x, p.z)
   const options = [{ x: (p.x / r) * VILLAGE_RADIUS, z: (p.z / r) * VILLAGE_RADIUS }]
-  for (const b of [NORTH.path, NORTH.yard, NORTH.garden]) options.push({ x: THREE.MathUtils.clamp(p.x, b.x0, b.x1), z: THREE.MathUtils.clamp(p.z, b.z0, b.z1) })
+  for (const b of GROUNDS) options.push({ x: THREE.MathUtils.clamp(p.x, b.x0, b.x1), z: THREE.MathUtils.clamp(p.z, b.z0, b.z1) })
   let best = options[0]
   for (const o of options) if (Math.hypot(o.x - p.x, o.z - p.z) < Math.hypot(best.x - p.x, best.z - p.z)) best = o
   p.x = best.x
   p.z = best.z
 }
 
-/** Height of the snow at (x, z): flat where you can walk, rolling drifts outside it. */
+/** Height of the snow at (x, z): flat where you can walk, rolling drifts outside it, and Pulkabacken. */
 export function groundHeight(x: number, z: number) {
-  const k = THREE.MathUtils.smoothstep(outside(x, z), 0, 12)
-  return k * ((Math.sin(x * 0.17) * Math.cos(z * 0.13) + Math.sin(x * 0.06 + z * 0.08)) * 0.7 + 0.6)
+  let k = THREE.MathUtils.smoothstep(outside(x, z), 0, 12)
+  // (the sledging run is packed smooth)
+  if (z > HILL.z0 - 4 && z < HILL.z1 + 4) k *= 0.25 + 0.75 * THREE.MathUtils.smoothstep(Math.abs(x - runX(Math.min(z, HILL.z1))), 4, 9)
+  return k * ((Math.sin(x * 0.17) * Math.cos(z * 0.13) + Math.sin(x * 0.06 + z * 0.08)) * 0.7 + 0.6) + hillHeight(x, z)
 }
 
 export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
