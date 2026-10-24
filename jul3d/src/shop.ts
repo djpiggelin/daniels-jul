@@ -1,6 +1,7 @@
 // A shop house with an open front, plus helpers for hanging things on its walls.
 import * as THREE from 'three'
 import { drawSign, planksTexture, toTexture } from './tex'
+import { LOG_R, doorFir, garland, julkarve, lantern, logCourses, logGable, logMaterials, logPost } from './timmer'
 
 export const W = 10
 export const D = 8
@@ -60,7 +61,8 @@ export class Shop {
     const canvas = drawSign(title, '')
     const tex = toTexture(canvas, { live: true })
     const sign = new THREE.Mesh(new THREE.PlaneGeometry(4.4 * sk, 1.29 * sk), new THREE.MeshStandardMaterial({ map: tex, roughness: 0.7, emissive: 0xffffff, emissiveMap: tex, emissiveIntensity: 0.18 }))
-    sign.position.set(0, H_ + 0.78 * sk, D_ / 2 + 0.13)
+    // (out in front of the log gable – a bare shop has no gable of its own)
+    sign.position.set(0, H_ + 0.78 * sk, D_ / 2 + (bare ? 0.13 : 0.45))
     g.add(sign)
     this.signMesh = sign
     this.sign = { canvas, tex, title, last: '' }
@@ -75,7 +77,11 @@ export class Shop {
     g.add(fill)
   }
 
-  /** The house itself: floor, walls, open front, gables, roof, icicles and string lights – sized to this shop. */
+  /**
+   * The house itself – a log cabin, like a fjällstuga: floor, walls (planks inside, round logs crossing
+   * at the corners outside), the open front between log posts, log gables, roof, icicles, string lights
+   * and Christmas on it all – a spruce garland, lanterns, little firs by the door, a julkärve – sized to this shop.
+   */
   private house(colors: ShopColors) {
     const { w: W_, d: D_, h: H_, ridge: RIDGE_ } = this.size
     const g = this.group
@@ -113,18 +119,37 @@ export class Shop {
       w.castShadow = w.receiveShadow = true
       g.add(w)
     }
-    this.boxes.push({ x: 0, z: -D_ / 2, hw: W_ / 2 + 0.2, hd: 0.25 }, { x: -W_ / 2, z: 0, hw: 0.25, hd: D_ / 2 + 0.2 }, { x: W_ / 2, z: 0, hw: 0.25, hd: D_ / 2 + 0.2 })
-
-    // front posts + header beam
-    for (const x of [-W_ / 2, W_ / 2]) {
-      const post = new THREE.Mesh(new THREE.BoxGeometry(0.4, H_, 0.4), trim)
-      post.position.set(x, H_ / 2, D_ / 2)
-      post.castShadow = true
-      g.add(post)
+    // the logs outside, the side walls' courses half a log higher so they cross the back wall's at the corners
+    const logs = logMaterials(new THREE.Color(colors.wall).lerp(new THREE.Color(0xffffff), 0.72).getHex())
+    const out = 0.1 + LOG_R * 0.85
+    logCourses(g, logs, -W_ / 2, W_ / 2, 0, H_, -D_ / 2 - out, { over0: 0.4, over1: 0.4 })
+    for (const s of [-1, 1]) {
+      const side = new THREE.Group()
+      side.position.set(s * (W_ / 2 + out), 0, 0)
+      side.rotation.y = Math.PI / 2
+      logCourses(side, logs, -D_ / 2, D_ / 2, 0, H_, 0, { over0: 0.35, over1: 0.4, phase: 1 })
+      g.add(side)
     }
-    const header = new THREE.Mesh(new THREE.BoxGeometry(W_ + 0.4, 0.45, 0.4), trim)
-    header.position.set(0, H_ - 0.22, D_ / 2)
+    this.boxes.push({ x: 0, z: -D_ / 2, hw: W_ / 2 + 0.3, hd: 0.25 + LOG_R * 2 }, { x: -W_ / 2, z: 0, hw: 0.25 + LOG_R * 2, hd: D_ / 2 + 0.3 }, { x: W_ / 2, z: 0, hw: 0.25 + LOG_R * 2, hd: D_ / 2 + 0.3 })
+
+    // round log posts at the open front, a log beam across the top
+    for (const x of [-W_ / 2, W_ / 2]) logPost(g, logs, x, D_ / 2, H_, 0.22)
+    const header = new THREE.Mesh(new THREE.CylinderGeometry(0.21, 0.21, W_ + 0.7, 12), logs)
+    header.rotation.z = Math.PI / 2
+    header.position.set(0, H_ - 0.2, D_ / 2)
+    header.castShadow = true
     g.add(header)
+    void trim
+
+    // Christmas: a garland along the beam, lanterns on the posts, firs by the door, a julkärve at the corner
+    garland(g, -W_ / 2, W_ / 2, H_ - 0.5, D_ / 2 + 0.24, 3)
+    for (const s of [-1, 1]) {
+      lantern(g, s * W_ / 2, H_ - 0.75, D_ / 2 + 0.15, 0.32)
+      doorFir(g, s * (W_ / 2 + 0.75), D_ / 2 + 0.55)
+      this.boxes.push({ x: s * (W_ / 2 + 0.75), z: D_ / 2 + 0.55, hw: 0.3, hd: 0.3 })
+    }
+    julkarve(g, W_ / 2 + 1.1, D_ / 2 - 1.2)
+    this.boxes.push({ x: W_ / 2 + 1.1, z: D_ / 2 - 1.2, hw: 0.12, hd: 0.12 })
 
     // gables
     const tri = new THREE.Shape()
@@ -142,6 +167,9 @@ export class Shop {
       gable.castShadow = true
       g.add(gable)
     }
+    // …faced with logs, front and back
+    logGable(g, logs, W_ + 0.7, H_, RIDGE_, D_ / 2 + 0.1 + LOG_R * 0.6)
+    logGable(g, logs, W_ + 0.7, H_, RIDGE_, -D_ / 2 - 0.1 - LOG_R * 0.6)
     // inner ceiling so the room feels cosy and closed
     const ceilMat = back.i.clone()
     ceilMat.color.setHex(0x8a6a50)
@@ -189,7 +217,7 @@ export class Shop {
       const ice = new THREE.Mesh(iceGeo, iceMat)
       ice.scale.set(1, h, 1)
       ice.rotation.x = Math.PI
-      ice.position.set(x, y - h / 2 + 0.02, D_ / 2 + 0.2)
+      ice.position.set(x, y - h / 2 + 0.02, D_ / 2 + 0.38)
       if (Math.abs(x) > 0.4) g.add(ice)
     }
 
@@ -203,7 +231,7 @@ export class Shop {
       const k = i / (N - 1)
       const x = THREE.MathUtils.lerp(-W_ / 2 - 0.3, W_ / 2 + 0.3, k)
       const y = H_ + RIDGE_ * (1 - Math.abs(x) / (W_ / 2)) - 0.18 - Math.sin(k * Math.PI * 6) ** 2 * 0.12
-      spots.push(new THREE.Vector3(x, y, D_ / 2 + 0.25))
+      spots.push(new THREE.Vector3(x, y, D_ / 2 + 0.42))
       bulbs.setColorAt(i, cols[i % 4])
     }
     g.add(bulbs)
@@ -252,7 +280,9 @@ export class Shop {
   }
 
   block(x: number, z: number, hw: number, hd: number, y0?: number, y1?: number) {
-    this.boxes.push({ x, z, hw, hd, y0, y1 })
+    const b: Box = { x, z, hw, hd, y0, y1 }
+    this.boxes.push(b)
+    return b
   }
 
   /** Something to stand on, `top` metres up. */

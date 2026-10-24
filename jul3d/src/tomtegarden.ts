@@ -6,8 +6,8 @@
 //     films: two stockings on the mantel, the tree in the corner, the cat asleep on the rug, and now and
 //     then a nisse dropping in. He lives here until the 23rd (and is back from the 25th).
 //   Stallet – the reindeer in their stalls, eating polkagrisar (their favourite) from the troughs.
-//   Slädverkstaden – the sleigh, being polished and mended by nissar with screwdrivers and cloths. Its
-//     doors open on the 1st of December (until then: Out of Office); there's a side door, though…
+//   Slädverkstaden – the sleigh, being polished and mended by nissar with screwdrivers and cloths
+//     (and taken out from here, doors flying open, if you hop up into it).
 //
 // On the 23rd and julafton the sleigh, the team and Tomten are out at Leksaksfabriken (see
 // julaftonsrunda.ts) – the stalls stand empty and Tomtemor sits by the fire on her own.
@@ -21,6 +21,7 @@ import type { Box, Floor } from './shop'
 import { Reindeer, std } from './sleigh'
 import { drawArrowSign, glowTexture, makeCanvas, planksTexture, toTexture } from './tex'
 import { Claus, wingChair } from './tomtefolk'
+import { LOG_R, doorFir, garland, julkarve, lantern, logCourses, logGable, logMaterials } from './timmer'
 import { html, type Talk } from './ui'
 import type { Circle, Roof } from './world'
 
@@ -101,8 +102,9 @@ const sign = (lines: string[], w: number, h: number, opts?: Parameters<typeof si
 /**
  * Four walls round w × d (centred on the lot's origin), h high and t thick, with doorways in them:
  * `{ wall, at, width, height }` (at: along the wall, from its middle). Their boxes go into the lot.
+ * With `logs`, the outside is round logs (timmer.ts), their ends crossing at the corners.
  */
-function walls(lot: Lot, w: number, d: number, h: number, t: number, outside: THREE.Material, inside: THREE.Material | null, gaps: { wall: 'front' | 'back' | 'left' | 'right'; at: number; width: number; height: number }[]) {
+function walls(lot: Lot, w: number, d: number, h: number, t: number, outside: THREE.Material, inside: THREE.Material | null, gaps: { wall: 'front' | 'back' | 'left' | 'right'; at: number; width: number; height: number }[], logs?: THREE.Material[]) {
   const g = lot.group
   const sides = [
     { wall: 'front' as const, len: w, x: 0, z: d / 2, rot: 0 },
@@ -131,6 +133,11 @@ function walls(lot: Lot, w: number, d: number, h: number, t: number, outside: TH
       const m = add(wall, box(len, y1 - y0, t), outside, mid, (y0 + y1) / 2, 0)
       m.castShadow = m.receiveShadow = true
       if (inside) add(wall, new THREE.PlaneGeometry(len, y1 - y0), inside, mid, (y0 + y1) / 2, -t / 2 - 0.005).rotation.y = Math.PI
+      // (outside is the group's +z on every side; the ends of the wall stick out past the corners)
+      if (logs) {
+        const across = s.wall === 'left' || s.wall === 'right'
+        logCourses(wall, logs, u0, u1, y0, y1, t / 2 + LOG_R * 0.85, { over0: u0 <= -s.len / 2 + 0.01 ? 0.4 : 0, over1: u1 >= s.len / 2 - 0.01 ? 0.4 : 0, phase: across ? 1 : 0 })
+      }
       // only the low ones are in the way
       if (y0 < 2) {
         const c = Math.cos(s.rot)
@@ -145,8 +152,8 @@ function walls(lot: Lot, w: number, d: number, h: number, t: number, outside: TH
   }
 }
 
-/** A gable roof over w × d (the ridge along x), its eaves at `eave`, `rise` up to the ridge, snow on top. */
-function gableRoof(parent: THREE.Object3D, w: number, d: number, eave: number, rise: number, mat: THREE.Material, gableMat: THREE.Material, over = 0.6) {
+/** A gable roof over w × d (the ridge along x), its eaves at `eave`, `rise` up to the ridge, snow on top (log gables with `logs`). */
+function gableRoof(parent: THREE.Object3D, w: number, d: number, eave: number, rise: number, mat: THREE.Material, gableMat: THREE.Material, over = 0.6, logs?: THREE.Material[]) {
   const half = d / 2 + over
   const slope = Math.atan2(rise, d / 2)
   const len = Math.hypot(half, rise * (half / (d / 2)))
@@ -168,6 +175,13 @@ function gableRoof(parent: THREE.Object3D, w: number, d: number, eave: number, r
     const gable = add(parent, new THREE.ShapeGeometry(tri), gableMat, s * (w / 2), eave, 0)
     gable.rotation.y = s * (Math.PI / 2)
     ;(gable.material as THREE.Material).side = THREE.DoubleSide
+    if (logs) {
+      const lg = new THREE.Group()
+      lg.position.x = s * (w / 2 + LOG_R * 0.9)
+      lg.rotation.y = Math.PI / 2
+      logGable(lg, logs, d + 0.8, eave, rise, 0)
+      parent.add(lg)
+    }
   }
 }
 
@@ -367,7 +381,7 @@ export type GardenDay = {
   tomteHome: boolean
   /** The reindeer in their stalls (likewise). */
   deerHome: boolean
-  /** Slädverkstaden open: from the 1st of December until it all comes down after tjugondag Knut. */
+  /** Leksaksfabriken open (from the 1st of December until it all comes down after tjugondag Knut) – Tomten talks about it. */
   open: boolean
   /** The sleigh in its place in the slädverkstad (not at the factory, not off flying). */
   sleighHome: boolean
@@ -385,11 +399,13 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
   const updaters: ((t: number, dt: number, player: THREE.Vector3) => void)[] = []
   let day: GardenDay = { tomteHome: true, deerHome: true, open: true, sleighHome: true, flyingOut: false }
 
-  const red = planksTexture('#8e1f1f', { boards: 8, seed: 11 })
-  const sidingMat = (w: number, h: number) => new THREE.MeshStandardMaterial({ map: repeat(red, w / 2.2, h / 2.2), roughness: 0.85 })
   const pine = planksTexture('#b07a4a', { boards: 6, seed: 12 })
   const floorPlanks = planksTexture('#7a4a28', { boards: 8, vertical: false, seed: 13 })
   const roofMat = std(0x2c3a35, 0.8)
+  // the stable and the slädverkstad are log cabins (timmer.ts), their doors of dark planks
+  const timber = logMaterials(0xe8d8c8)
+  const doorPlanks = planksTexture('#5a3a22', { boards: 5, seed: 17 })
+  const plankDoor = (w: number, h: number) => new THREE.MeshStandardMaterial({ map: repeat(doorPlanks, w / 1.4, h / 2.4), roughness: 0.85 })
   // grey fieldstone (the manor's ground floor and towers) and cream plaster between dark timbers (its upper floor)
   const fieldstone = (() => {
     const [c, ctx] = makeCanvas(256, 256)
@@ -852,7 +868,8 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
     // a nisse dropping by every few minutes, with news from the slädverkstad or the stable
     const visitor = new Nisse({ coat: 0x2fa36b, hat: 0xc8102e, apron: 0x8a5a32, scale: 0.85, beard: false, ears: true })
     visitor.group.visible = false
-    g.add(visitor.group)
+    // (it moves: kept out of the house's baking, or a ghost of it would stay behind in the room)
+    g.add(keepApart(visitor.group))
     moving.push(visitor.group)
     const VISIT = 150
     const NEWS = [
@@ -934,10 +951,13 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
     const D = 9
     const H = 3.8
     const g = stable.group
-    walls(stable, W, D, H, 0.3, sidingMat(W, H), new THREE.MeshStandardMaterial({ map: repeat(pine, 2.5, 1), roughness: 0.85, side: THREE.DoubleSide }), [{ wall: 'front', at: 0, width: 10.4, height: 3.2 }])
-    for (const [x, z] of [[-W / 2, -D / 2], [W / 2, -D / 2], [-W / 2, D / 2], [W / 2, D / 2]]) add(g, box(0.36, H, 0.36), WHITE, x, H / 2, z)
-    add(g, box(W + 0.3, 0.3, 0.36), WHITE, 0, H - 0.4, D / 2)
-    gableRoof(g, W, D, H, 3.2, roofMat, sidingMat(D, 3.2))
+    walls(stable, W, D, H, 0.3, DARK, new THREE.MeshStandardMaterial({ map: repeat(pine, 2.5, 1), roughness: 0.85, side: THREE.DoubleSide }), [{ wall: 'front', at: 0, width: 10.4, height: 3.2 }], timber)
+    gableRoof(g, W, D, H, 3.2, roofMat, DARK, 0.6, timber)
+    // Christmas on the stable: a garland over the doorway, lanterns, a julkärve for the birds
+    garland(g, -5, 5, 3.0, D / 2 + 0.45, 4)
+    for (const s of [-1, 1]) lantern(g, s * 5.4, 2.9, D / 2 + 0.3, 0.35)
+    julkarve(g, W / 2 + 1.2, D / 2 + 0.8)
+    stable.block(W / 2 + 1.2, D / 2 + 0.8, 0.12, 0.12)
     roofs.push(stable.roof(W / 2 + 0.6, D / 2 + 0.6, H + 3))
     // a pine ceiling (the roof is dark from below), the big stable doors swung wide open
     add(g, new THREE.PlaneGeometry(W - 0.6, D - 0.6), new THREE.MeshStandardMaterial({ map: repeat(pine, 3, 2), roughness: 0.85, side: THREE.DoubleSide }), 0, H - 0.05, 0).rotation.x = Math.PI / 2
@@ -945,7 +965,7 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
       const leaf = new THREE.Group()
       leaf.position.set(s * 5.2, 0, D / 2 + 0.1)
       leaf.rotation.y = s * 1.9
-      add(leaf, box(2.6, 3.0, 0.1), sidingMat(2.6, 3.0), -s * 1.3, 1.5, 0)
+      add(leaf, box(2.6, 3.0, 0.1), plankDoor(2.6, 3.0), -s * 1.3, 1.5, 0)
       for (const y of [0.6, 2.4]) add(leaf, box(2.6, 0.14, 0.14), WHITE, -s * 1.3, y, 0.06)
       const brace = add(leaf, box(0.12, 3.1, 0.14), WHITE, -s * 1.3, 1.5, 0.06)
       brace.rotation.z = s * 0.6
@@ -957,9 +977,9 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
       add(g, box(1.1, 0.6, 1.0), std(0xd8b866, 1), x, y, z)
       stable.block(x, z, 0.6, 0.55)
     }
-    const lantern = new THREE.PointLight(0xffc070, 7, 10, 1.5)
-    lantern.position.set(0, 2.6, 0.5)
-    g.add(lantern)
+    const stableLight = new THREE.PointLight(0xffc070, 7, 10, 1.5)
+    stableLight.position.set(0, 2.6, 0.5)
+    g.add(stableLight)
     add(g, box(0.25, 0.35, 0.25), WARM_GLASS, 0, 2.75, 0.5)
     // five stalls along the back, a trough of polkagrisar in front of each, a name over each
     const names = ['Komet', 'Dunder', 'Rudolf', 'Blixten', 'Cupido']
@@ -1003,7 +1023,6 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
   const shop = new Lot(32, -61.5, 0)
   lots.push(shop)
   const doors: { leaf: THREE.Group; s: number; box: Box }[] = []
-  let ooo: THREE.Mesh
   const workers: { n: Nisse; tool: 'cloth' | 'screwdriver' | 'ladder' }[] = []
   let doorOpen = 1
   {
@@ -1011,12 +1030,18 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
     const D = 10
     const H = 5.2
     const g = shop.group
-    walls(shop, W, D, H, 0.3, sidingMat(W, H), new THREE.MeshStandardMaterial({ map: repeat(pine, 3, 1.5), roughness: 0.85, side: THREE.DoubleSide }), [
+    walls(shop, W, D, H, 0.3, DARK, new THREE.MeshStandardMaterial({ map: repeat(pine, 3, 1.5), roughness: 0.85, side: THREE.DoubleSide }), [
       { wall: 'front', at: 0, width: 7.2, height: 4.8 },
       { wall: 'right', at: -2.5, width: 1.3, height: 2.3 },
-    ])
-    for (const [x, z] of [[-W / 2, -D / 2], [W / 2, -D / 2], [-W / 2, D / 2], [W / 2, D / 2]]) add(g, box(0.36, H, 0.36), WHITE, x, H / 2, z)
-    gableRoof(g, W, D, H, 3.6, roofMat, sidingMat(D, 3.6))
+    ], timber)
+    gableRoof(g, W, D, H, 3.6, roofMat, DARK, 0.6, timber)
+    // Christmas: a garland over the great doors, lanterns, firs either side
+    garland(g, -3.6, 3.6, 5.0, D / 2 + 0.45, 4)
+    for (const s of [-1, 1]) {
+      lantern(g, s * 4.2, 3.6, D / 2 + 0.3, 0.35)
+      doorFir(g, s * 4.9, D / 2 + 1.0, 1.5)
+      shop.block(s * 4.9, D / 2 + 1.0, 0.35, 0.35)
+    }
     roofs.push(shop.roof(W / 2 + 0.6, D / 2 + 0.6, H + 3.4))
     add(g, new THREE.PlaneGeometry(W - 0.6, D - 0.6), std(0x8a8478, 0.95), 0, 0.02, 0).rotation.x = -Math.PI / 2
     add(g, new THREE.PlaneGeometry(W - 0.6, D - 0.6), new THREE.MeshStandardMaterial({ map: repeat(pine, 3, 2.5), roughness: 0.85, side: THREE.DoubleSide }), 0, H - 0.05, 0).rotation.x = Math.PI / 2
@@ -1027,7 +1052,7 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
     for (const s of [-1, 1]) {
       const leaf = keepApart(new THREE.Group())
       leaf.position.set(s * 3.6, 0, D / 2 + 0.15)
-      add(leaf, box(3.6, 4.7, 0.14), sidingMat(3.6, 4.7), -s * 1.8, 2.35, 0)
+      add(leaf, box(3.6, 4.7, 0.14), plankDoor(3.6, 4.7), -s * 1.8, 2.35, 0)
       for (const y of [0.5, 2.35, 4.2]) add(leaf, box(3.6, 0.16, 0.16), WHITE, -s * 1.8, y, 0.08)
       const brace = add(leaf, box(0.14, 4.6, 0.16), WHITE, -s * 1.8, 2.35, 0.08)
       brace.rotation.z = s * 0.65
@@ -1035,16 +1060,12 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
       g.add(leaf)
       doors.push({ leaf, s, box: shop.block(-s * 1.8 + s * 3.6, D / 2 + 0.15, 1.8, 0.12, -Infinity, Infinity) })
     }
-    // Out of Office – back on the 1st of December
-    ooo = keepApart(sign(['Out of Office 🎅', 'Åter 1 december'], 2.0, 0.66, { bg: '#fbf3e0', fg: '#8a1a1e', accent: '#c8102e' }))
-    ooo.position.set(1.8, 2.0, D / 2 + 0.25)
-    g.add(ooo)
     // the side door, ajar – for anyone who simply must take the sleigh out early
     const side = new THREE.Group()
     // (the doorway is at z = 2.5: on the right-hand wall, `at` runs the other way)
     side.position.set(W / 2 + 0.15, 0, 2.5 + 0.65)
     side.rotation.y = 1.3
-    add(side, box(0.08, 2.25, 1.3), sidingMat(1.3, 2.25), 0, 1.12, -0.65)
+    add(side, box(0.08, 2.25, 1.3), plankDoor(1.3, 2.25), 0, 1.12, -0.65)
     g.add(side)
     // the workbench, tools on the wall, paint pots, a spare runner, lamps
     add(g, box(0.9, 0.9, 3.4), WOOD, -W / 2 + 0.75, 0.45, -1.2)
@@ -1103,16 +1124,15 @@ export function buildTomtegarden(scene: THREE.Scene, opts: { onNewYork: () => vo
       workers.push({ n, tool })
     }
     updaters.push((t, dt) => {
-      // the doors: open from the 1st of December, or when the sleigh is going out
-      const want = day.open || day.flyingOut ? 1 : 0
+      // the doors stand open while the sleigh's in for its polish (and when it's going out)
+      const want = day.sleighHome || day.flyingOut ? 1 : 0
       doorOpen += (want - doorOpen) * Math.min(1, dt * (day.flyingOut ? 5 : 1.5))
       for (const d of doors) {
         d.leaf.rotation.y = d.s * doorOpen * 1.75
         d.box.y0 = doorOpen > 0.2 ? 99 : -Infinity
       }
-      ooo.visible = !day.open && doorOpen < 0.2
-      // the nissar polish and tinker while the sleigh is in (and the place is open)
-      const working = day.open && day.sleighHome
+      // the nissar polish and tinker while the sleigh is in
+      const working = day.sleighHome
       for (const w of workers) {
         w.n.group.visible = working
         if (!working) continue
@@ -1234,7 +1254,7 @@ function tomtenTalk(day: () => GardenDay, newYork: () => void): Talk {
         pages: () =>
           day().open
             ? [html.p('Nissarna putsar och skruvar för fullt borta i slädverkstaden. Medarna ska blänka och varenda bjällra ska klinga rent.'), html.p('Den 23:e kör vi ut den till Leksaksfabriken och lastar. Ho ho!')]
-            : [html.p('Slädverkstaden har stängt till den 1 december – nissarna har semester. Det står till och med på dörren.'), html.p('Släden står där inne och väntar. Det finns förstås en sidodörr … men det har du inte hört av mig. Ho ho ho!')],
+            : [html.p('Leksaksfabriken har stängt till den 1 december – där har nissarna semester. Det står till och med på porten.'), html.p('Men släden kan de inte låta bli: den putsar de i slädverkstaden här borta ändå. Ho ho ho!')],
       },
       {
         label: '🦌 Hur mår renarna?',
