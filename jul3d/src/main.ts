@@ -22,10 +22,9 @@ import { buildLake, type Lake } from './skridskosjo'
 import { Sledding } from './pulkabacke'
 import { buildSnowmen, type Snowmen } from './snogubbar'
 import { buildMarket, type Market } from './julmarknad'
-import { buildChapel, chapelSign, type Chapel } from './kapell'
 import { buildJulafton, type Julafton } from './julafton'
 import { buildFireworks, type Fireworks } from './fyrverkeri'
-import { julotta, toMidnight, tomteVisit } from './hogtider'
+import { toMidnight, tomteVisit } from './hogtider'
 import { factoryDoors } from './leksaksfabriken'
 import type { Claus } from './tomtefolk'
 import type { Box, Floor } from './shop'
@@ -234,12 +233,11 @@ let lake: Lake | null = null
 let sled: Sledding | null = null
 /** Snögubbsbacken: snowmen everyone builds, standing for the rest of the season. */
 let snowmen: Snowmen | null = null
-/** The high days: julmarknad on Advent weekends, the chapel and julotta, julafton's Kalle Anka and Tomten at the door, nyårsafton's fireworks (hogtider.ts). */
+/** The high days: julmarknad on Advent weekends, julafton's Kalle Anka and Tomten at the door, nyårsafton's fireworks (hogtider.ts). */
 let market: Market | null = null
-let chapel: Chapel | null = null
 let christmasEve: Julafton | null = null
 let fireworks: Fireworks | null = null
-/** (now and then: julotta and midnight count for the julstämning if you're there) */
+/** (now and then: midnight counts for the julstämning if you're there) */
 let feastCheckAt = 0
 /** How light it is (0 night … 1 day), as last worked out. */
 let dayK = 0
@@ -323,12 +321,7 @@ async function build() {
   world.roofs.push(...garden.roofs)
   solids.push(...garden.solids)
   for (const k of garden.talkers) k.who.group.userData.onSnowball = () => (k.who.laugh(), toast(k.who.kind === 'tomten' ? '🎅 Ho ho ho! Inte inomhus, min vän!' : '🤶 Men snälla du, det smälter ju på mattan!'))
-  chapel = buildChapel(scene)
-  chapelSign(scene)
-  circles.push(...chapel.colliders)
-  world.roofs.push(...chapel.roofs)
-  talkers.push(chapel.talker)
-  blockers = [...shops.map((s) => s.shop), ...garden.lots, chapel.lot]
+  blockers = [...shops.map((s) => s.shop), ...garden.lots]
   circles.push(...sleighYard.colliders)
   wild = buildWildlife(scene, (text) => toast(text))
   circles.push(...wild.colliders)
@@ -463,7 +456,6 @@ async function build() {
     ...(sled ? [sled.group] : []),
     ...(snowmen ? [snowmen.group] : []),
     ...(market ? [market.group] : []),
-    ...(chapel?.moving ?? []),
     ...(christmasEve ? [christmasEve.group] : []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
@@ -1639,12 +1631,10 @@ function frame(now: number) {
       const clock = wallClock()
       const me = flight.active ? null : player.pos
       market?.update(t, dt, player.pos, clock)
-      chapel?.update(t, dt, me, clock)
       christmasEve?.update(t, dt, me, clock)
       fireworks?.update(dt, camera.position, clock)
       if (t >= feastCheckAt) {
         feastCheckAt = t + 3
-        if (me && chapel && julotta(clock) && Math.hypot(me.x - chapel.at.x, me.z - chapel.at.z) < 18) mood?.cheer('julotta')
         const m = toMidnight(clock)
         if (m != null && m < 0 && m > -600) mood?.cheer('nyar')
       }
@@ -1787,4 +1777,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get chapel() { return chapel }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, startPark, goto, get shops() { return shops } } })

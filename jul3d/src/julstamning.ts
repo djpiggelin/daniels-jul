@@ -37,7 +37,6 @@ const REASONS = {
   snowman: { points: 5, perDay: 2, label: 'en snögubbe i Snögubbsbacken' },
   market: { points: 2, perDay: 5, label: 'något från julmarknaden på adventshelgerna' },
   tomte: { points: 10, perDay: 1, label: 'ett paket från Tomten på julaftonskvällen' },
-  julotta: { points: 5, perDay: 1, label: 'julottan i kapellet' },
   nyar: { points: 5, perDay: 1, label: 'tolvslaget på nyårsnatten' },
   bandy: { points: 3, perDay: 3, label: 'ett mål i bandy på Skridskosjön' },
 }

@@ -179,7 +179,7 @@ export function buildFireworks(scene: THREE.Scene, say: (text: string) => void) 
         el.className = 'gott'
         if (!toldNewYear) {
           toldNewYear = true
-          say(`🎆 Gott nytt år ${new Date(clock).getUTCFullYear()}! Klockorna i kapellet ringer in det nya året.`)
+          say(`🎆 Gott nytt år ${new Date(clock).getUTCFullYear()}!`)
         }
       } else el.hidden = true
     } else el.hidden = true
