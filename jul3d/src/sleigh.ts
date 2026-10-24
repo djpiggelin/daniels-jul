@@ -1,4 +1,4 @@
-// Tomtens släde, parked behind you as you arrive: the sleigh, five reindeer (Rudolf in front) and
+// Tomtens släde, parked in the yard outside Leksaksfabriken: the sleigh, five reindeer (Rudolf in front) and
 // Tomten himself in the seat. Walk up, press E, push him out into the snow and take the reins –
 // the flying is in flight.ts. Everything here is in sleigh space: -z forward, the sleigh's middle at the origin.
 import * as THREE from 'three'
@@ -10,8 +10,8 @@ import type { Circle } from './world'
 
 export const std = (color: number, roughness = 0.7, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
-/** Where the sleigh waits: behind you as you arrive, side on so you see the whole team. */
-export const PARK = { x: -2.5, z: 38, yaw: -Math.PI / 2 }
+/** Where the sleigh waits: in Leksaksfabriken's yard by the sacks, side on to the path so you see the whole team. */
+export const PARK = { x: 10, z: -52.5, yaw: -Math.PI / 2 }
 /** Your eyes when you sit in it. */
 export const EYE = new THREE.Vector3(0, 2.8, 0.8)
 /** Where the reins are held. */
@@ -255,6 +255,8 @@ export class Sleigh {
   private nearFor = 0
   /** 0 parked … 1 flying: how hard the team gallops. */
   gallop = 0
+  /** Out on his rounds (julafton, see julaftonsrunda.ts): no pushing him out, he has no time to talk. */
+  busy = false
   /** Tomten speaks (shown as a toast). */
   say: (text: string) => void = () => {}
 
@@ -331,7 +333,7 @@ export class Sleigh {
 
   /** Can you push him out right now? */
   get ready() {
-    return this.santaState === 'seated'
+    return this.santaState === 'seated' && !this.busy
   }
 
   /** Middle of the seat, in the world. */
@@ -424,7 +426,8 @@ export class Sleigh {
       this.nearFor = near ? this.nearFor + dt : 0
       const wave = near && this.nearFor < 2.5
       s.armR.rotation.set(wave ? -0.4 : -1.1, 0, wave ? 2.5 + Math.sin(t * 8) * 0.35 : 0.1)
-      if (this.nearFor > 0 && this.nearFor <= dt) this.say('🎅 Ho ho ho! Titta gärna – men rör inte min släde!')
+      if (this.nearFor > 0 && this.nearFor <= dt)
+        this.say(this.busy ? '🎅 Ho ho ho! Ingen tid nu – det är JULAFTON! En säck till, sen bär det av igen!' : '🎅 Ho ho ho! Titta gärna – men rör inte min släde!')
       return
     }
 

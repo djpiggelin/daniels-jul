@@ -16,6 +16,7 @@ import { buildCalendar, today } from './julkalender'
 import { MINE_TALK } from './gruvfolk'
 import { buildCalendarVillage, type Act } from './kalenderbyn'
 import { buildToyTrain } from './leksakstag'
+import { buildSleighYard } from './julaftonsrunda'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -151,7 +152,9 @@ const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
 /** Everyone you can talk to: the shopkeepers and the arcade hosts. */
 const talkers: { npc: Nisse; talk: Talk }[] = []
-const circles = [...world.colliders, ...sleigh.colliders(), ...camper.colliders()]
+/** (switched off while Tomten is out on his rounds, see julaftonsrunda.ts) */
+const sleighCircles = sleigh.colliders()
+const circles = [...world.colliders, ...sleighCircles, ...camper.colliders()]
 let arcade: Arcade | null = null
 let choir: ReturnType<typeof buildChoir> | null = null
 /** The hollow stump at the edge of the village, and the coal mine under it (built the first time you climb down). */
@@ -168,6 +171,8 @@ let calendar: ReturnType<typeof buildCalendar> | null = null
 let advent: ReturnType<typeof buildCalendarVillage> | null = null
 /** The toy train round the julgran. */
 let toyTrain: ReturnType<typeof buildToyTrain> | null = null
+/** The sacks and the nissar by the sleigh, and Tomten's rounds on julafton. */
+let sleighYard: ReturnType<typeof buildSleighYard> | null = null
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -225,6 +230,8 @@ async function build() {
   calendar.status = advent.status
   calendar.done = { has: advent.has, mark: advent.mark }
   toyTrain = buildToyTrain(scene)
+  sleighYard = buildSleighYard(scene, sleigh, sleighCircles)
+  circles.push(...sleighYard.colliders)
   // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
   const sixten = MINE_TALK.fisher.greeting
   MINE_TALK.fisher.greeting = () =>
@@ -305,6 +312,7 @@ async function build() {
     sleigh.group,
     sleigh.santa.group,
     ...(toyTrain ? [toyTrain.train] : []),
+    ...(sleighYard?.moving ?? []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -1260,6 +1268,7 @@ function frame(now: number) {
     thrower.update(dt, t)
     arcade?.update(dt, t)
     flight.update(dt, t)
+    sleighYard?.update(t, flight.active)
     sleigh.update(t, dt, player.pos)
     camper.update(t, dt, player.pos)
     matadors.update(t, dt, player.pos)
@@ -1379,4 +1388,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, goto, get shops() { return shops } } })

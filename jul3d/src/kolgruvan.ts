@@ -19,7 +19,7 @@ import type { Circle } from './world'
 import type { HackSpot } from './kolhackning'
 import { MINE_TALK } from './gruvfolk'
 import { html, type Talk } from './ui'
-import { wallClock } from './korsang'
+import { julafton } from './julkalender'
 
 const std = (color: number, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
@@ -892,10 +892,6 @@ export function buildMine() {
     const stig = { npc: n, talk: MINE_TALK.sleeper }
     people.push(stig)
     // on julafton, wake him and it finally sinks in: up he gets and off he runs, up the ladder to wake Tomten
-    const julafton = () => {
-      const d = new Date(wallClock())
-      return d.getUTCMonth() === 11 && d.getUTCDate() === 24
-    }
     const sleeper = MINE_TALK.sleeper
     const dozing = sleeper.greeting
     sleeper.greeting = () => (julafton() ? [html.p('Zzz … mmh … julgröt … tomtar … zzz …'), html.p('… vad är det för dag i dag … zzz …')] : dozing())
@@ -950,7 +946,7 @@ export function buildMine() {
           g.position.set(to.x, 0, to.z)
           leg++
         } else g.position.set(g.position.x + (dx / d) * step, 0, g.position.z + (dz / d) * step)
-        g.rotation.set(0, Math.atan2(dx, dz), 0, 'YXZ')
+        g.rotation.set(0, Math.atan2(-dx, -dz), 0, 'YXZ')
         n.walkPose(run * 14, 1)
         return
       }

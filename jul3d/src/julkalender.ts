@@ -170,6 +170,12 @@ const DOOR = 0.5
 const AT = new THREE.Vector3(13.6, 0, -2.6)
 
 /** The calendar day it is: which December (the year), and how many doors may be open (none outside the season). */
+/** Is it julafton on the village clock (all day)? */
+export function julafton() {
+  const d = new Date(wallClock())
+  return d.getUTCMonth() === 11 && d.getUTCDate() === 24
+}
+
 export function today() {
   const d = new Date(wallClock())
   const m = d.getUTCMonth() + 1

@@ -588,7 +588,7 @@ export class Flight {
     )
     // stand on the village side of the sleigh, facing it
     const g = this.sleigh.group
-    const p = g.localToWorld(new THREE.Vector3(-3.6, 0, -1.8))
+    const p = g.localToWorld(new THREE.Vector3(3.6, 0, -1.8))
     this.player.pos.set(p.x, 0, p.z)
     const c = g.localToWorld(new THREE.Vector3(0, 0, -2.6))
     this.player.yaw = Math.atan2(-(c.x - p.x), -(c.z - p.z))
