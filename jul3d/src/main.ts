@@ -24,6 +24,9 @@ import { buildSnowmen, type Snowmen } from './snogubbar'
 import { buildMarket, type Market } from './julmarknad'
 import { buildJulafton, type Julafton } from './julafton'
 import { buildFireworks, type Fireworks } from './fyrverkeri'
+import { PackingLine } from './paketlinjen'
+import { buildHouseWindow, type Bakery } from './husvitrin'
+import { buildBaubles, type Baubles } from './julkulor'
 import { toMidnight, tomteVisit } from './hogtider'
 import { factoryDoors } from './leksaksfabriken'
 import type { Claus } from './tomtefolk'
@@ -172,6 +175,9 @@ type Target =
   | { kind: 'bandy' }
   | { kind: 'pulka' }
   | { kind: 'snow'; label: string }
+  | { kind: 'paket' }
+  | { kind: 'vitrin' }
+  | { kind: 'kula'; i: number }
   | { kind: 'pickup'; item: Act }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
@@ -237,6 +243,12 @@ let snowmen: Snowmen | null = null
 let market: Market | null = null
 let christmasEve: Julafton | null = null
 let fireworks: Fireworks | null = null
+/** Paketlinjen, in Leksaksfabriken's yard: wrapping the toys in the paper they wished for. */
+let packing: PackingLine | null = null
+/** Gingerbread houses by Tomtens bageri: Bagar-Berit's table, and the window everyone votes in. */
+let bakery: Bakery | null = null
+/** The 24 baubles hidden round the village, and Kul-Kerstin's hints. */
+let baubles: Baubles | null = null
 /** (now and then: midnight counts for the julstämning if you're there) */
 let feastCheckAt = 0
 /** How light it is (0 night … 1 day), as last worked out. */
@@ -360,6 +372,37 @@ async function build() {
     talkers.push(christmasEve.talker)
   }
   fireworks = buildFireworks(scene, (text) => toast(text))
+  bakery = buildHouseWindow(scene, {
+    ask: (talk) => dialog.start(talk),
+    done: () => resume(),
+    say: (text) => toast(text),
+    name: () => rememberedName.get(),
+    built: () => mood?.cheer('pepparkaka'),
+    voted: () => mood?.cheer('rosta'),
+  })
+  circles.push(...bakery.colliders)
+  talkers.push(bakery.talker)
+  baubles = buildBaubles(scene, { say: (text) => toast(text), found: () => mood?.cheer('kula') })
+  circles.push(...baubles.colliders)
+  talkers.push(baubles.talker)
+  packing = new PackingLine(scene)
+  circles.push(...packing.colliders)
+  solids.push(packing.group)
+  packing.onLeft = () => resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
+  {
+    // the season's best wrappers, on the board in the shed (shared, like the arcade's)
+    const lb = (list: unknown) => Array.isArray(list) && packing?.showBoard(list)
+    fetch('/api/leaderboard?game=paketlinjen').then((r) => (r.ok ? r.json() : [])).then(lb).catch(() => {})
+    packing.onScore = (score) => {
+      mood?.cheer('paket')
+      const name = rememberedName.get()
+      if (!name || score <= 0) return
+      fetch('/api/leaderboard', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ game: 'paketlinjen', name, score }) })
+        .then((r) => (r.ok ? r.json() : []))
+        .then(lb)
+        .catch(() => {})
+    }
+  }
   mood = buildJulstamning(scene, (text) => toast(text))
   circles.push(...mood.colliders)
   solids.push(...mood.solids)
@@ -457,6 +500,9 @@ async function build() {
     ...(snowmen ? [snowmen.group] : []),
     ...(market ? [market.group] : []),
     ...(christmasEve ? [christmasEve.group] : []),
+    ...(packing ? [packing.group] : []),
+    ...(bakery ? [bakery.group, ...bakery.moving] : []),
+    ...(baubles ? [baubles.group, ...baubles.moving] : []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -735,6 +781,10 @@ function findTarget(): Target | null {
   if (mood?.near(player.pos, fwd)) return { kind: 'mood' }
   if (player.ice && lake?.nearBall(player.pos, fwd)) return { kind: 'bandy' }
   if (sled?.near(player.pos, fwd)) return { kind: 'pulka' }
+  if (packing?.near(player.pos, fwd)) return { kind: 'paket' }
+  if (bakery?.nearWindow(player.pos, fwd)) return { kind: 'vitrin' }
+  const kula = baubles?.near(player.pos, fwd) ?? -1
+  if (kula >= 0) return { kind: 'kula', i: kula }
   const snow = snowmen?.prompt(player.pos, fwd)
   if (snow) return { kind: 'snow', label: snow }
   const item = advent?.near(player.pos, player.floor + player.height)
@@ -827,6 +877,12 @@ function setTarget(t: Target | null) {
                                 ? 'Ta en pulka och åk'
                                 : t.kind === 'snow'
                                   ? t.label
+                                  : t.kind === 'paket'
+                                    ? '📦 Hjälp till att slå in paket'
+                                    : t.kind === 'vitrin'
+                                      ? '🏠 Titta på pepparkakshusen'
+                                      : t.kind === 'kula'
+                                        ? '🎄 Plocka upp julkulan'
                           : t.kind === 'pickup'
                             ? t.item.prompt
                             : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
@@ -1015,6 +1071,7 @@ function onEsc() {
   if (dialog.open) return dialog.close()
   if (viewer.open) return viewer.close()
   if (stamping.active) return stamping.leave()
+  if (packing?.active) return packing.leave()
   if (arcade?.active) return arcade.leave()
   if (flight.active) return flight.leave()
   if (trip.active) return trip.leave()
@@ -1116,6 +1173,12 @@ function interact() {
     setTarget(null)
     return
   }
+  // (a bauble: picked up, and on you go)
+  if (t.kind === 'kula') {
+    baubles?.pick(t.i)
+    setTarget(null)
+    return
+  }
   // (a hit at the ball, and on you skate)
   if (t.kind === 'bandy') {
     lake?.shoot(player.forward)
@@ -1142,6 +1205,16 @@ function interact() {
   else if (t.kind === 'slide') {
     cursor.hide()
     slide.start()
+  } else if (t.kind === 'vitrin') {
+    dialog.start(bakery!.voteTalk())
+  } else if (t.kind === 'paket') {
+    cursor.hide()
+    $('hud').classList.add('stampla', 'busy')
+    const v = packing!.viewpoint()
+    player.pos.set(v.x, 0, v.z)
+    player.yaw = v.yaw
+    player.pitch = v.pitch
+    packing!.start()
   } else if (t.kind === 'snow') {
     snowmen?.act(player.pos, player.forward)
   } else if (t.kind === 'pulka') {
@@ -1427,7 +1500,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || hacking?.active || calendar?.open || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || packing?.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || hacking?.active || calendar?.open || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
@@ -1633,6 +1706,9 @@ function frame(now: number) {
       market?.update(t, dt, player.pos, clock)
       christmasEve?.update(t, dt, me, clock)
       fireworks?.update(dt, camera.position, clock)
+      packing?.update(t, dt)
+      bakery?.update(t, dt, player.pos)
+      baubles?.update(t, dt, player.pos)
       if (t >= feastCheckAt) {
         feastCheckAt = t + 3
         const m = toMidnight(clock)
@@ -1777,4 +1853,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, get packing() { return packing }, get bakery() { return bakery }, get baubles() { return baubles }, startPark, goto, get shops() { return shops } } })

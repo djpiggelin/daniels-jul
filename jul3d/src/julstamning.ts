@@ -38,6 +38,10 @@ const REASONS = {
   market: { points: 2, perDay: 5, label: 'något från julmarknaden på adventshelgerna' },
   tomte: { points: 10, perDay: 1, label: 'ett paket från Tomten på julaftonskvällen' },
   nyar: { points: 5, perDay: 1, label: 'tolvslaget på nyårsnatten' },
+  paket: { points: 3, perDay: 3, label: 'en omgång på Paketlinjen' },
+  pepparkaka: { points: 5, perDay: 2, label: 'ett pepparkakshus i bagarens vitrin' },
+  rosta: { points: 1, perDay: 5, label: 'en röst på ett pepparkakshus' },
+  kula: { points: 1, perDay: 10, label: 'en gömd julkula' },
   bandy: { points: 3, perDay: 3, label: 'ett mål i bandy på Skridskosjön' },
 }
 export type Cheer = keyof typeof REASONS
