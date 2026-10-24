@@ -5,6 +5,7 @@
 // in the same place.)
 import * as THREE from 'three'
 import { julafton } from './julkalender'
+import { tomteVisit } from './hogtider'
 import { wallClock } from './korsang'
 import { Nisse } from './npc'
 import { PARK, std, type Sleigh } from './sleigh'
@@ -154,7 +155,8 @@ export function buildSleighYard(scene: THREE.Scene, sleigh: Sleigh, sleighCircle
     }
 
     /* Tomten's rounds, on julafton (unless you've just taken his sleigh for a spin) */
-    const out = julafton() && !flying
+    // (from five to eight Tomten walks round the village on foot instead – julafton.ts – the sleigh resting)
+    const out = julafton() && !flying && !tomteVisit()
     sleigh.busy = out
     if (!out) {
       if (wasAway) {

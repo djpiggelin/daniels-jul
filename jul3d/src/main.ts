@@ -21,6 +21,10 @@ import { buildJulstamning, type Julstamning } from './julstamning'
 import { buildLake, type Lake } from './skridskosjo'
 import { Sledding } from './pulkabacke'
 import { buildSnowmen, type Snowmen } from './snogubbar'
+import { buildMarket, type Market } from './julmarknad'
+import { buildJulafton, type Julafton } from './julafton'
+import { buildFireworks, type Fireworks } from './fyrverkeri'
+import { toMidnight, tomteVisit } from './hogtider'
 import { factoryDoors } from './leksaksfabriken'
 import type { Claus } from './tomtefolk'
 import type { Box, Floor } from './shop'
@@ -229,6 +233,12 @@ let lake: Lake | null = null
 let sled: Sledding | null = null
 /** Snögubbsbacken: snowmen everyone builds, standing for the rest of the season. */
 let snowmen: Snowmen | null = null
+/** The high days: julmarknad on Advent weekends, julafton's Kalle Anka and Tomten at the door, nyårsafton's fireworks (hogtider.ts). */
+let market: Market | null = null
+let christmasEve: Julafton | null = null
+let fireworks: Fireworks | null = null
+/** (now and then: midnight counts for the julstämning if you're there) */
+let feastCheckAt = 0
 /** How light it is (0 night … 1 day), as last worked out. */
 let dayK = 0
 /** Everything with walls to bump into and floors to stand on: the shops, and Tomtegården's buildings. */
@@ -335,6 +345,21 @@ async function build() {
     name: () => rememberedName.get(),
     built: () => mood?.cheer('snowman'),
   })
+  market = buildMarket(scene, { resume: () => resume(), say: (text) => toast(text), cheer: () => mood?.cheer('market') })
+  circles.push(...market.colliders)
+  talkers.push(...market.talkers)
+  {
+    // (Tomten's round on julafton evening: the doors of the four shops round the square)
+    const doors = shops.slice(0, 4).map((s) => {
+      s.shop.group.updateMatrixWorld(true)
+      const p = s.shop.group.localToWorld(new THREE.Vector3(0, 0, s.shop.size.d / 2 + 1.1))
+      return { x: p.x, z: p.z }
+    })
+    christmasEve = buildJulafton(scene, renderer, doors, { say: (text) => toast(text), name: () => rememberedName.get(), gift: () => mood?.cheer('tomte') })
+    circles.push(...christmasEve.colliders)
+    talkers.push(christmasEve.talker)
+  }
+  fireworks = buildFireworks(scene, (text) => toast(text))
   mood = buildJulstamning(scene, (text) => toast(text))
   circles.push(...mood.colliders)
   solids.push(...mood.solids)
@@ -430,6 +455,8 @@ async function build() {
     ...(lake ? [lake.group] : []),
     ...(sled ? [sled.group] : []),
     ...(snowmen ? [snowmen.group] : []),
+    ...(market ? [market.group] : []),
+    ...(christmasEve ? [christmasEve.group] : []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -657,6 +684,8 @@ function findTarget(): Target | null {
   let best: (typeof talkers)[number] | null = null
   let bestD = 3.4
   for (const s of talkers) {
+    // (the market's stallholders only on market days, Tomten only on his rounds)
+    if (!s.npc.group.visible || s.npc.group.parent?.visible === false) continue
     const np = s.npc.group.position
     const dx = np.x - player.pos.x
     const dz = np.z - player.pos.z
@@ -1262,7 +1291,8 @@ function season(t: number) {
       sleigh.home = home
       sleigh.park()
     }
-    sleigh.driver = out
+    // (on julafton evening Tomten is out on foot, round the village – julafton.ts)
+    sleigh.driver = out && !tomteVisit()
     sleigh.team = out
     if (!julafton()) refreshSleighCircles()
   }
@@ -1597,6 +1627,18 @@ function frame(now: number) {
     wild?.update(t, dt, flight.active ? null : player.pos, wallClock(), dayK)
     lake?.update(t, dt, flight.active ? null : player)
     snowmen?.update(flight.active || sled?.active ? null : player.pos, player.yaw)
+    {
+      const clock = wallClock()
+      const me = flight.active ? null : player.pos
+      market?.update(t, dt, player.pos, clock)
+      christmasEve?.update(t, dt, me, clock)
+      fireworks?.update(dt, camera.position, clock)
+      if (t >= feastCheckAt) {
+        feastCheckAt = t + 3
+        const m = toMidnight(clock)
+        if (m != null && m < 0 && m > -600) mood?.cheer('nyar')
+      }
+    }
     sleigh.update(t, dt, player.pos)
     camper.update(t, dt, player.pos)
     matadors.update(t, dt, player.pos)
@@ -1735,4 +1777,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, startPark, goto, get shops() { return shops } } })
