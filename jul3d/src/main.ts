@@ -44,6 +44,7 @@ import { PARTICIPANTS } from './data'
 import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { buildWorld, keepInside } from './world'
+import { watchWeather, weatherLine, type Weather } from './vader'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 import { noise } from './sfx'
 
@@ -95,6 +96,12 @@ const cursor = new VirtualCursor(() => player.locked)
 const menu = new PauseMenu()
 
 const world = buildWorld(scene, { lowPower: QUALITY.lowPower })
+// Stockholm's weather, right now, over the village
+let weatherNow: Weather | null = null
+watchWeather((w) => {
+  weatherNow = w
+  world.weather(w)
+})
 camera.position.set(0, 1.62, 32)
 const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
@@ -1316,6 +1323,7 @@ function updateHud() {
   $('next-event').innerHTML = next
     ? `Nästa: <b>${next.emoji} ${next.name}</b> · ${formatShortDate(next.start)}<br><span class="clock">${clockText(next, now)}</span>`
     : 'God jul! Vi ses nästa år 🎄'
+  if (weatherNow) $('next-event').innerHTML += `<br><span class="weather">${weatherLine(weatherNow)}</span>`
   for (const s of shops) s.shop.setSignLine(`${formatShortDate(s.event.start)} · ${clockText(s.event, now)}`)
 }
 
@@ -1496,7 +1504,7 @@ function frame(now: number) {
     sleigh.update(t, dt, player.pos)
     camper.update(t, dt, player.pos)
     matadors.update(t, dt, player.pos)
-    world.update(t, dt, flight.active ? flight.pos : player.pos)
+    world.update(t, dt, flight.active ? flight.pos : player.pos, !flight.active)
     for (const s of shops) s.shop.update(t, dt)
     for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
     // on Lucia morning the elves are all in the procession, and on the first Sunday of Advent at the concert
