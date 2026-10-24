@@ -16,6 +16,8 @@ export class Player {
   /** Throw wind-up: >0 leans back, <0 lurches forward. */
   lean = 0
   readonly vel = new THREE.Vector3()
+  /** Out on the ice (Skridskosjön): you glide – faster, and slow to start, stop and turn. */
+  ice = false
   private runFor = 0
   private keys = new Set<string>()
   private pending = false
@@ -190,8 +192,8 @@ export class Player {
     const r = new THREE.Vector3(Math.cos(this.yaw), 0, -Math.sin(this.yaw))
     const dir = f.multiplyScalar(fwd).add(r.multiplyScalar(side))
     if (dir.lengthSq() > 1) dir.normalize()
-    const target = dir.multiplyScalar(this.enabled ? 4.2 + run * 2.6 : 0)
-    this.vel.lerp(target, 1 - Math.exp(-10 * dt))
+    const target = dir.multiplyScalar(this.enabled ? (this.ice ? 5 + run * 3 : 4.2 + run * 2.6) : 0)
+    this.vel.lerp(target, 1 - Math.exp(-(this.ice ? 1.4 : 10) * dt))
     const was = this.pos.clone()
     this.pos.addScaledVector(this.vel, dt)
     const feet = this.floor + this.height
@@ -230,10 +232,11 @@ export class Player {
       }
     }
     const airborne = this.height > 0
-    const bobY = airborne ? 0 : Math.sin(this.bob) * 0.045 * Math.min(1, speed / 4)
+    // (on skates you glide along: hardly a bob, a sway from side to side instead)
+    const bobY = airborne ? 0 : Math.sin(this.bob) * (this.ice ? 0.012 : 0.045) * Math.min(1, speed / 4)
     // lean back while winding up a throw (head goes back and up a little)
     const back = this.lean * 0.16
     this.camera.position.set(this.pos.x + Math.sin(this.yaw) * back, 1.62 + this.eye + this.height + bobY - Math.abs(this.lean) * 0.04, this.pos.z + Math.cos(this.yaw) * back)
-    this.camera.rotation.set(this.pitch + this.lean * 0.13, this.yaw, -this.lean * 0.05, 'YXZ')
+    this.camera.rotation.set(this.pitch + this.lean * 0.13, this.yaw, -this.lean * 0.05 + (this.ice ? Math.sin(this.bob * 0.5) * 0.035 * Math.min(1, speed / 4) : 0), 'YXZ')
   }
 }

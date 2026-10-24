@@ -85,6 +85,7 @@ if (prune) {
 
 console.log(`✔ ${files.length} filer uppladdade till "${STORE}"`)
 if (invites.length) {
-  console.log('\nInbjudningslänkar (sätt sajtens adress framför):')
-  for (const [code, inv] of invites) console.log(`  ${inv.name.padEnd(20)} /?inbjudan=${encodeURIComponent(code)}`)
+  const site = (process.env.SITE_URL ?? '').replace(/\/$/, '')
+  console.log(`\nInbjudningslänkar${site ? '' : ' (sätt SITE_URL i .env så blir de hela)'}:`)
+  for (const [code, inv] of invites) console.log(`  ${inv.name.padEnd(20)} ${site}/?inbjudan=${encodeURIComponent(code)}`)
 }

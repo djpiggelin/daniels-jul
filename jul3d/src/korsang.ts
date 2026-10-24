@@ -389,7 +389,8 @@ function secondsOfDay() {
 }
 
 /** The first Sunday of Advent: four Sundays before Christmas Day. */
-function firstAdvent(year: number) {
+/** The first Sunday of Advent (midnight, as a wall-clock date). */
+export function firstAdvent(year: number) {
   const xmas = new Date(Date.UTC(year, 11, 25))
   const back = xmas.getUTCDay() === 0 ? 7 : xmas.getUTCDay()
   return new Date(Date.UTC(year, 11, 25 - back - 21))
@@ -578,7 +579,7 @@ export function buildChoir(scene: THREE.Scene, bakery?: THREE.Object3D) {
   const group = new THREE.Group()
   const colliders: Circle[] = []
   const song = new Playlist(1)
-  // a nook of their own on the east side of the square, between Tomtens stuga and Arkitektkontoret,
+  // a nook of their own on the east side of the square, between Julstugan and Arkitektkontoret,
   // with a little tree behind them – facing out over the square towards the big tree
   const A = THREE.MathUtils.degToRad(104)
   const R = 24.5
