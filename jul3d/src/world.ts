@@ -500,11 +500,15 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
   const DUSK = new THREE.Color(0.9, 0.52, 0.42)
   const skyU = (sky.material as THREE.ShaderMaterial).uniforms
   const moonAt = moonLight.position.clone()
+  /** How strong the aurora is beyond the usual (the calendar's door 20 turns it up). */
+  let auroraBoost = 1
+  let lastK = 0
   /**
    * How light it is: `k` 0 at night … 1 in daylight, with the sun's direction for its light. The
    * horizon blushes at dawn and dusk; stars, moon and aurora fade out as the day comes.
    */
   function daylight(k: number, sun: THREE.Vector3) {
+    lastK = k
     const dusk = Math.max(0, 1 - Math.abs(k - 0.35) / 0.3) * 0.55
     skyU.uTop.value.lerpColors(NIGHT.top, DAY.top, k)
     skyU.uHor.value.lerpColors(NIGHT.hor, DAY.hor, k).lerp(DUSK, dusk)
@@ -521,7 +525,12 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     else moonLight.position.copy(moonAt)
     ;(stars.material as THREE.PointsMaterial).opacity = 0.9 * (1 - k) ** 2
     moon.visible = moonGlow.visible = k < 0.6
-    auroraMat.uniforms.uFade.value = (1 - k) ** 2
+    auroraMat.uniforms.uFade.value = (1 - k) ** 2 * auroraBoost
+  }
+  function aurora(boost: number) {
+    if (boost === auroraBoost) return
+    auroraBoost = boost
+    auroraMat.uniforms.uFade.value = (1 - lastK) ** 2 * auroraBoost
   }
 
   return {
@@ -529,6 +538,7 @@ export function buildWorld(scene: THREE.Scene, opts: { lowPower: boolean }) {
     roofs,
     solids,
     daylight,
+    aurora,
     update: (t: number, dt: number, player: THREE.Vector3) => updaters.forEach((u) => u(t, dt, player)),
     /** The far forest is only worth drawing from up in the air. */
     showFar: (on: boolean) => (far.group.visible = on),

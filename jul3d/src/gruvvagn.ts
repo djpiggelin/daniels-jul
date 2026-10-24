@@ -11,6 +11,8 @@ import { glowTexture, makeCanvas, toTexture } from './tex'
 
 const std = (color: number, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 const BEST_KEY = 'jul3d.best.gruvvagn'
+/** The furthest you've gone, in metres (for the calendar's door 19). */
+export const BEST_M_KEY = 'jul3d.best.gruvvagn.m'
 const LANE = 1.35
 const SEG = 24
 const SEGS = 7
@@ -387,6 +389,12 @@ export class CartRun {
     this.music.stop()
     const score = this.score()
     const record = score > this.best
+    try {
+      const m = Math.floor(-this.z)
+      if (m > (Number(localStorage.getItem(BEST_M_KEY)) || 0)) localStorage.setItem(BEST_M_KEY, String(m))
+    } catch {
+      /* fine */
+    }
     if (record) {
       this.best = score
       try {

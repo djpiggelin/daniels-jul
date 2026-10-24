@@ -12,8 +12,9 @@ import { Slide } from './rutschkana'
 import { ARRIVE, STUMP, buildMine, buildStump, type Mine } from './kolgruvan'
 import { CartRun } from './gruvvagn'
 import { Hacking } from './kolhackning'
-import { buildCalendar } from './julkalender'
-import { buildCalendarVillage } from './kalenderbyn'
+import { buildCalendar, today } from './julkalender'
+import { MINE_TALK } from './gruvfolk'
+import { buildCalendarVillage, type Act } from './kalenderbyn'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -143,7 +144,7 @@ type Target =
   | { kind: 'cart' }
   | { kind: 'hack' }
   | { kind: 'calendar' }
-  | { kind: 'pickup'; item: NonNullable<ReturnType<NonNullable<typeof advent>['near']>> }
+  | { kind: 'pickup'; item: Act }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
@@ -216,9 +217,19 @@ async function build() {
   // the calendar house, with a door a day from the first of December
   calendar = buildCalendar(scene)
   circles.push(...calendar.colliders)
-  advent = buildCalendarVillage(scene)
+  advent = buildCalendarVillage(scene, () => ($('me-name') as HTMLInputElement).value.trim())
   circles.push(...advent.colliders)
   calendar.status = advent.status
+  calendar.done = { has: advent.has, mark: advent.mark }
+  // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
+  const sixten = MINE_TALK.fisher.greeting
+  MINE_TALK.fisher.greeting = () =>
+    advent?.givePipe() ? [html.p('Min pipa! Där var den ju! Jag har letat efter den i tre år.'), html.p('Tack. Du är snällare än du ser ut. Men säg inte det till någon här nere.')] : sixten()
+  const kolbjorn = MINE_TALK.foreman.greeting
+  MINE_TALK.foreman.greeting = () => {
+    if (today().open >= 15) advent?.mark('forman')
+    return kolbjorn()
+  }
   solids.push(choir.group)
   const square = await buildSquare(scene, shops)
   circles.push(...square.colliders)
@@ -488,6 +499,8 @@ function findTarget(): Target | null {
   if (inMine && mine) {
     const f = player.forward
     if (mine.nearLadder(player.pos, f)) return { kind: 'ladder' }
+    const thing = advent?.near(player.pos, 0, true)
+    if (thing) return { kind: 'pickup', item: thing }
     // (the people down there first: you'll want to talk to the foreman standing by things)
     const who = mine.nearPerson(player.pos, f)
     if (who) return { kind: 'npc', ...who }
@@ -917,7 +930,8 @@ function interact() {
   else if (t.kind === 'hack') hack()
   else if (t.kind === 'calendar') calendar?.show(() => resume())
   else if (t.kind === 'pickup') {
-    toast(advent!.take(t.item))
+    const said = t.item.act()
+    if (said) toast(said)
     setTarget(null)
     resume()
   }
@@ -927,7 +941,10 @@ function interact() {
 /** Down the ladder in the stump into Kolgruvan: black for a moment, the creak of the rungs, then the mine. */
 function goDown() {
   cursor.hide()
-  mine ??= buildMine()
+  if (!mine) {
+    mine = buildMine()
+    advent?.attachMine(mine.scene)
+  }
   const m = mine
   $('fade').classList.add('on')
   m.climb()
@@ -1216,10 +1233,12 @@ function frame(now: number) {
   mp?.update(t, dt)
   // off on the camper trip or in Madrid, the village stands still (it's only a painted backdrop, after all)
   if (cartRun?.active) {
+    advent?.hush()
     cartRun.update(dt)
     renderer.toneMappingExposure = EXPOSURE
   } else if (inMine && mine) {
     // down in the mine: just you, the miners and their song (the village waits up above)
+    advent?.hush()
     if (hacking?.active) hacking.update(dt)
     else player.update(dt, mine.collide, mine.ground)
     mine.update(t, dt, player.pos, player.enabled)
@@ -1252,7 +1271,7 @@ function frame(now: number) {
     parade.near(player.pos, !flight.active)
     choir?.update(dt, player.pos, !flight.active)
     calendar?.update(t, dt)
-    advent?.update(t, dt, player.pos)
+    advent?.update(t, dt, player.pos, !flight.active, world.aurora)
     // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
     if ((skyTimer -= dt) <= 0) {
       skyTimer = 5

@@ -18,6 +18,9 @@ import type { BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
 import { chute as slideway } from './rutschkana'
 
+/** The star on the big tree in the yard (the calendar's door 14 takes it away, until you bring it back). */
+export const yardTree = { star: null as THREE.Object3D | null }
+
 const JULAFTON = EVENTS.find((e) => e.santa) ?? EVENTS[EVENTS.length - 1]
 
 /* ---------- the plan (shop-local metres: +z faces the village, the facade is at z = 12) ---------- */
@@ -425,6 +428,7 @@ function bigTree(height: number, updaters: Shop['updaters'], bulbsN = 240) {
   star.geometry.center()
   star.position.y = 9.25 * k
   g.add(star)
+  g.userData.star = star
   glow(g, 0, 9.25 * k, 0, 5 * k, 'rgba(255,220,120,0.9)')
   const tmp = new THREE.Color()
   updaters.push((t) => {
@@ -841,6 +845,7 @@ function yard(shop: Shop) {
   const tree = bigTree(17, shop.updaters, 320)
   tree.position.set(-13.5, 0, TOWER.z1 + 9)
   g.add(tree)
+  yardTree.star = tree.userData.star
   // and heaps and heaps of presents under it, in rings and piles all the way round
   {
     const cols = [C.red, C.green, C.gold, C.blue, C.white, 0x8e3fb0, 0xd4782a, 0x2fa3a3]

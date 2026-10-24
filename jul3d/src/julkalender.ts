@@ -347,6 +347,11 @@ export function buildCalendar(scene: THREE.Scene) {
 @keyframes kal-pop { from { transform: scale(0.3) rotate(-15deg); opacity: 0; } }
 #kalender p { line-height: 1.55; margin: 0 0 10px; }
 #kalender .village { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(29, 110, 72, 0.12); border-left: 4px solid #1d6e48; }
+#kalender .riddle { margin-top: 12px; padding: 10px 12px; border-radius: 10px; background: rgba(179, 32, 42, 0.08); border-left: 4px solid #b3202a; }
+#kalender .ans { display: flex; gap: 8px; }
+#kalender .ans input { flex: 1; min-width: 0; padding: 8px 12px; border-radius: 999px; border: 1px solid #c8962a; font: 500 16px var(--sans); }
+#kalender .ans button { padding: 8px 16px; border-radius: 999px; border: 1px solid #b3202a; background: #b3202a; color: #fff; font: 600 15px var(--sans); }
+#kalender .miss { color: #b3202a; margin: 8px 0 0; }
 #kalender .row { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; flex-wrap: wrap; }
 #kalender .row button { padding: 9px 16px; border-radius: 999px; border: 1px solid #b3202a; background: #b3202a; color: #fff; font: 600 15px var(--sans); }
 #kalender .row button.off { background: transparent; color: #b3202a; }
@@ -355,6 +360,8 @@ export function buildCalendar(scene: THREE.Scene) {
   let isOpen = false
   /** How a door's task is going (kalenderbyn.ts), shown under it. */
   let status: (day: number) => string = () => ''
+  /** What you've done (kalenderbyn.ts keeps it): door 4's riddle is answered here. */
+  let done: { has: (id: string) => boolean; mark: (id: string) => void } = { has: () => false, mark: () => {} }
   let onClose: () => void = () => {}
 
   function grid() {
@@ -370,7 +377,12 @@ export function buildCalendar(scene: THREE.Scene) {
   }
   function chapter(n: number, fresh: boolean) {
     const d = DOORS[n - 1]
-    panel.innerHTML = `<div class="card"><div class="day">Lucka ${n} · ${n} december</div><h3>${d.title}</h3>${fresh ? `<div class="big">${d.icon}</div>` : ''}${d.story.map((s) => `<p>${s}</p>`).join('')}<div class="village"><b>I byn:</b> ${d.village}${status(n) ? `<br><b>${status(n)}</b>` : ''}</div><div class="row"><button class="off" data-go="grid">Alla luckor</button><button data-go="close">Stäng</button></div></div>`
+    panel.innerHTML = `<div class="card"><div class="day">Lucka ${n} · ${n} december</div><h3>${d.title}</h3>${fresh ? `<div class="big">${d.icon}</div>` : ''}${d.story.map((s) => `<p>${s}</p>`).join('')}<div class="village"><b>I byn:</b> ${d.village}${status(n) ? `<br><b>${status(n)}</b>` : ''}</div>${n === 4 ? riddle() : ''}<div class="row"><button class="off" data-go="grid">Alla luckor</button><button data-go="close">Stäng</button></div></div>`
+  }
+  /** Door 4's riddle: answer it right and you get a clue. */
+  function riddle() {
+    if (done.has('gata')) return '<div class="village"><b>Ledtråd:</b> Kol finns där det är mörkt och djupt – kanske under granarna i väster?</div>'
+    return '<div class="riddle"><p><b>Julgåta:</b> Jag är svart när du köper mig, röd när du använder mig och grå när du slänger mig. Vad är jag?</p><div class="ans"><input id="kal-answer" maxlength="30" placeholder="Ditt svar …" /><button data-go="answer">Svara</button></div><p class="miss" hidden>Inte riktigt … tänk på vad gruvnissarna gräver fram.</p></div>'
   }
   /** Open door n (if it may be): it swings open on the house, and the chapter shows. */
   function openDoor(n: number) {
@@ -387,15 +399,36 @@ export function buildCalendar(scene: THREE.Scene) {
     chapter(n, fresh)
   }
   panel.addEventListener('click', (e) => {
+    // (the mouse may be grabbed: the virtual cursor clicks, so focus the answer box by hand)
+    if ((e.target as HTMLElement).tagName === 'INPUT') return (e.target as HTMLInputElement).focus()
     const b = (e.target as HTMLElement).closest('button')
     if (!b) return
+    if (b.dataset.go === 'answer') return answer()
     if (b.dataset.day) openDoor(Number(b.dataset.day))
     else if (b.dataset.go === 'grid') grid()
     else if (b.dataset.go === 'close') close()
   })
 
-  function show(done: () => void) {
-    onClose = done
+  function answer() {
+    const v = (panel.querySelector('#kal-answer') as HTMLInputElement | null)?.value.trim().toLowerCase() ?? ''
+    if (/^(en |ett )?(bit )?(kol|kolet|kolbit|kolbiten|träkol|stenkol)$/.test(v)) {
+      done.mark('gata')
+      ;[784, 988, 1175, 1568].forEach((f, i) => setTimeout(() => blip(f, 0.12, 'triangle', 0.05), i * 90))
+      chapter(4, false)
+    } else {
+      panel.querySelector('.miss')?.removeAttribute('hidden')
+      blip(220, 0.15, 'square', 0.04)
+    }
+  }
+  panel.addEventListener('keydown', (e) => {
+    if ((e.target as HTMLElement).id === 'kal-answer' && e.key === 'Enter') {
+      e.preventDefault()
+      answer()
+    }
+  })
+
+  function show(then: () => void) {
+    onClose = then
     isOpen = true
     panel.hidden = false
     // straight to today's door if it's waiting; otherwise all of them
@@ -467,6 +500,9 @@ export function buildCalendar(scene: THREE.Scene) {
     },
     set status(fn: (day: number) => string) {
       status = fn
+    },
+    set done(d: { has: (id: string) => boolean; mark: (id: string) => void }) {
+      done = d
     },
     prompt: () => (waiting() ? `Öppna lucka ${today().open} i julkalendern` : 'Titta i julkalendern'),
   }
