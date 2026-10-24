@@ -35,8 +35,10 @@ export class Hacking {
   private chunks: { m: THREE.Mesh; v: THREE.Vector3; t: number }[] = []
   private pick = new THREE.Group()
   private swing = 0
-  private aimYaw = 0
-  private aimPitch = 0
+  /** Where the pick will strike, on the screen (px): it follows the mouse; a tap goes straight there. */
+  private ax = 0
+  private ay = 0
+  private reticle: HTMLElement
   private left = ROUND
   private spawn = 0
   private score = 0
@@ -81,13 +83,18 @@ export class Hacking {
     this.panel = document.createElement('div')
     this.panel.id = 'hack-panel'
     this.panel.hidden = true
-    document.body.append(this.hud, this.panel)
+    this.reticle = document.createElement('div')
+    this.reticle.id = 'hack-aim'
+    this.reticle.hidden = true
+    document.body.append(this.hud, this.panel, this.reticle)
     const css = document.createElement('style')
     css.textContent = `
 #hack-hud { position: fixed; top: max(14px, env(safe-area-inset-top)); left: 50%; transform: translateX(-50%); z-index: 5; color: #fbf3e0; font: 600 18px/1.3 system-ui, sans-serif; text-align: center; text-shadow: 0 2px 6px #000; pointer-events: none; }
 #hack-hud b { font-size: 26px; }
 #hack-hud .hint { display: block; margin-top: 6px; font-weight: 500; font-size: 14px; opacity: 0.85; }
 #hack-hud .flash { display: block; margin-top: 16vh; font-size: 34px; color: #ffd27a; }
+#hack-aim { position: fixed; left: 0; top: 0; z-index: 5; width: 46px; height: 46px; margin: -23px 0 0 -23px; border: 3px solid rgba(255, 220, 140, 0.9); border-radius: 50%; box-shadow: 0 0 10px rgba(255, 200, 90, 0.7); pointer-events: none; }
+#hack-aim::after { content: ''; position: absolute; left: 50%; top: 50%; width: 6px; height: 6px; margin: -3px 0 0 -3px; border-radius: 50%; background: #ffe0a0; }
 #hack-panel { position: fixed; inset: 0; z-index: 6; display: grid; place-items: center; background: rgba(5, 3, 2, 0.55); color: #fbf3e0; font: 500 17px/1.4 system-ui, sans-serif; text-align: center; }
 #hack-panel[hidden] { display: none; }
 #hack-panel .card { background: rgba(30, 20, 14, 0.92); border: 1px solid #8a6a3a; border-radius: 16px; padding: 22px 26px; max-width: min(360px, calc(100vw - 32px)); }
@@ -112,18 +119,25 @@ export class Hacking {
       }
       if (e.code === 'Space' || e.code === 'KeyE' || e.code === 'Enter') {
         e.preventDefault()
-        this.strike()
+        this.strike(this.ax, this.ay)
       }
     })
-    // aim with the mouse (it's grabbed), strike with a click; on a phone, tap the glint
+    // the sight follows the mouse (moved by how far it goes when the mouse is grabbed, otherwise to
+    // where the pointer is); a click strikes there. On a phone, tap the glint.
     addEventListener('mousemove', (e) => {
-      if (!this.active || this.over || !document.pointerLockElement) return
-      this.aimYaw = THREE.MathUtils.clamp(this.aimYaw - e.movementX * 0.0022, -0.5, 0.5)
-      this.aimPitch = THREE.MathUtils.clamp(this.aimPitch - e.movementY * 0.0022, -0.4, 0.4)
+      if (!this.active || this.over) return
+      if (document.pointerLockElement) {
+        this.ax = THREE.MathUtils.clamp(this.ax + e.movementX, 0, innerWidth)
+        this.ay = THREE.MathUtils.clamp(this.ay + e.movementY, 0, innerHeight)
+      } else {
+        this.ax = e.clientX
+        this.ay = e.clientY
+      }
     })
     addEventListener('mousedown', (e) => {
       if (!this.active || this.over || e.button !== 0) return
-      this.strike()
+      if ((e.target as HTMLElement).closest?.('button')) return
+      this.strike(this.ax, this.ay)
     })
     addEventListener('pointerdown', (e) => {
       if (!this.active || this.over || e.pointerType === 'mouse') return
@@ -148,7 +162,9 @@ export class Hacking {
     this.left = ROUND
     this.spawn = 0.6
     this.score = this.combo = 0
-    this.aimYaw = this.aimPitch = 0
+    this.ax = innerWidth / 2
+    this.ay = innerHeight / 2
+    this.reticle.hidden = TOUCH
     for (const g of this.glints) this.off(g)
     this.panel.hidden = true
     this.hud.hidden = false
@@ -163,6 +179,7 @@ export class Hacking {
     this.chunks = []
     this.hud.hidden = true
     this.panel.hidden = true
+    this.reticle.hidden = true
     this.onLeft()
   }
 
@@ -182,7 +199,7 @@ export class Hacking {
     this.swing = 1
     const px = x ?? innerWidth / 2
     const py = y ?? innerHeight / 2
-    const reach = TOUCH ? 80 : 60
+    const reach = TOUCH ? 80 : 70
     let best: Glint | null = null
     let bestD = reach
     const p = new THREE.Vector3()
@@ -244,6 +261,7 @@ export class Hacking {
       <button data-go="again">Ett skift till${touch ? '' : ' (Space)'}</button><button class="off" data-go="leave">Lägg ner hackan${touch ? '' : ' (Esc)'}</button></div>`
     this.panel.hidden = false
     this.hud.hidden = true
+    this.reticle.hidden = true
   }
 
   update(dt: number) {
@@ -252,7 +270,8 @@ export class Hacking {
     // the camera: standing at the seam, looking where you aim
     const c = this.camera
     c.position.set(s.x, 1.62, s.z)
-    c.rotation.set(-0.08 + this.aimPitch, s.yaw + Math.PI + this.aimYaw, 0, 'YXZ')
+    c.rotation.set(-0.08, s.yaw + Math.PI, 0, 'YXZ')
+    this.reticle.style.transform = `translate(${this.ax}px, ${this.ay}px)`
     // the pick: raised, then down
     this.swing = Math.max(0, this.swing - dt * 4)
     const k = this.swing
@@ -318,6 +337,6 @@ export class Hacking {
     const time = Math.ceil(this.left)
     this.hud.innerHTML = `⛏ <b>${this.score}</b> kol · 0:${String(time).padStart(2, '0')}${this.combo >= 2 ? ` · ${this.combo} i rad` : ''}` +
       (this.flashT > 0 ? `<span class="flash">${this.flash}</span>` : '') +
-      (this.left > ROUND - 4 ? `<span class="hint">${TOUCH ? 'Tryck på glimtarna i kolet innan de slocknar' : 'Sikta med musen och klicka (eller Space) på glimtarna innan de slocknar'}</span>` : '')
+      (this.left > ROUND - 4 ? `<span class="hint">${TOUCH ? 'Tryck på glimtarna i kolet innan de slocknar' : 'Flytta siktet med musen och klicka på glimtarna innan de slocknar'}</span>` : '')
   }
 }

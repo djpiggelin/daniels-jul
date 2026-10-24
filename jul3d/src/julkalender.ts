@@ -169,14 +169,15 @@ const DOOR = 0.5
 /** Where it stands: on the east side of the square, facing the big tree. */
 const AT = new THREE.Vector3(13.6, 0, -2.6)
 
-/** The calendar day it is: which December (the year), and how many doors may be open. */
-function today() {
+/** The calendar day it is: which December (the year), and how many doors may be open (none outside the season). */
+export function today() {
   const d = new Date(wallClock())
   const m = d.getUTCMonth() + 1
   const year = m === 1 ? d.getUTCFullYear() - 1 : d.getUTCFullYear()
   let open = 0
   if (m === 12) open = Math.min(24, d.getUTCDate() - (d.getUTCHours() < 6 ? 1 : 0))
-  else if (m === 1) open = 24
+  // (into January, until it all comes down after tjugondag Knut)
+  else if (m === 1 && d.getUTCDate() <= 13) open = 24
   return { year, open }
 }
 
@@ -352,6 +353,8 @@ export function buildCalendar(scene: THREE.Scene) {
 `
   document.head.append(css)
   let isOpen = false
+  /** How a door's task is going (kalenderbyn.ts), shown under it. */
+  let status: (day: number) => string = () => ''
   let onClose: () => void = () => {}
 
   function grid() {
@@ -367,7 +370,7 @@ export function buildCalendar(scene: THREE.Scene) {
   }
   function chapter(n: number, fresh: boolean) {
     const d = DOORS[n - 1]
-    panel.innerHTML = `<div class="card"><div class="day">Lucka ${n} · ${n} december</div><h3>${d.title}</h3>${fresh ? `<div class="big">${d.icon}</div>` : ''}${d.story.map((s) => `<p>${s}</p>`).join('')}<div class="village"><b>I byn:</b> ${d.village}</div><div class="row"><button class="off" data-go="grid">Alla luckor</button><button data-go="close">Stäng</button></div></div>`
+    panel.innerHTML = `<div class="card"><div class="day">Lucka ${n} · ${n} december</div><h3>${d.title}</h3>${fresh ? `<div class="big">${d.icon}</div>` : ''}${d.story.map((s) => `<p>${s}</p>`).join('')}<div class="village"><b>I byn:</b> ${d.village}${status(n) ? `<br><b>${status(n)}</b>` : ''}</div><div class="row"><button class="off" data-go="grid">Alla luckor</button><button data-go="close">Stäng</button></div></div>`
   }
   /** Open door n (if it may be): it swings open on the house, and the chapter shows. */
   function openDoor(n: number) {
@@ -461,6 +464,9 @@ export function buildCalendar(scene: THREE.Scene) {
       const dz = centre.z - pos.z
       const d = Math.hypot(front.x - pos.x, front.z - pos.z)
       return d < 3.2 && (dx * fwd.x + dz * fwd.z) / Math.hypot(dx, dz) > 0.5
+    },
+    set status(fn: (day: number) => string) {
+      status = fn
     },
     prompt: () => (waiting() ? `Öppna lucka ${today().open} i julkalendern` : 'Titta i julkalendern'),
   }

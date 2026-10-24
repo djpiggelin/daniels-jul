@@ -17,6 +17,8 @@ import { SUNG } from './sung'
 import { glowTexture, makeCanvas, toTexture } from './tex'
 import type { Circle } from './world'
 import type { HackSpot } from './kolhackning'
+import { MINE_TALK } from './gruvfolk'
+import type { Talk } from './ui'
 
 const std = (color: number, roughness = 0.8, metalness = 0) => new THREE.MeshStandardMaterial({ color, roughness, metalness })
 
@@ -837,6 +839,107 @@ export function buildMine() {
     jeweller.n.armR.rotation.x = -1.3 + Math.sin(t * 6) * 0.15
   })
 
+  /* ---------- the rest of them: on a break, at cards, asleep, skimming stones ---------- */
+  const people: { npc: Nisse; talk: Talk }[] = [
+    { npc: foreman.n, talk: MINE_TALK.foreman },
+    { npc: fisher.n, talk: MINE_TALK.fisher },
+    { npc: jeweller.n, talk: MINE_TALK.jeweller },
+    { npc: sorters[0], talk: MINE_TALK.sorter },
+  ]
+  const crateMat = darkWood
+  const sitOn = (i: number, x: number, z: number, yaw: number, seat: number, talk?: Talk) => {
+    const { n } = miner(i)
+    n.sit(true)
+    n.group.position.set(x, seat, z)
+    n.setYaw(yaw)
+    n.armR.rotation.set(-1.0, 0, -0.1)
+    n.armL.rotation.set(-1.0, 0, 0.1)
+    mergeRigid(n.group)
+    scene.add(n.group)
+    obstacles.push({ x, z, r: 0.45 })
+    if (talk) people.push({ npc: n, talk })
+    return n
+  }
+  // Lill-Snorre, the youngest, on a crate near the way in, dreaming of the factory
+  statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.6, 0.45, 0.6), crateMat).translateX(2.4).translateY(0.22).translateZ(-21.3))
+  const snorre = sitOn(5, 2.4, -21.3, -2.6, 0.45, MINE_TALK.apprentice)
+  snorre.group.scale.setScalar(0.62)
+  // Tjurige Tore, on his break by the heap, with a mug
+  const tore = sitOn(3, -2.3, -23.5, 2.2, 0.32, MINE_TALK.grump)
+  const mug = new THREE.Mesh(new THREE.CylinderGeometry(0.05, 0.045, 0.1, 10), std(0x8a8e98, 0.4, 0.6))
+  mug.position.y = -0.45
+  tore.armR.add(mug)
+  // Fusk-Folke and Knorr-Knut, at cards on a crate
+  statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.8, 0.5, 0.6), crateMat).translateX(-1).translateY(0.25).translateZ(-28.6))
+  for (let i = 0; i < 5; i++) statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.06, 0.005, 0.09), std(0xfbf8f2, 0.6)).translateX(-1.15 + i * 0.07).translateY(0.505).translateZ(-28.6 + (i % 2) * 0.05).rotateY(i * 0.4))
+  for (const [x, yaw, i] of [[-1.85, Math.PI / 2, 0], [-0.15, -Math.PI / 2, 2]] as const) {
+    statics.add(new THREE.Mesh(new THREE.BoxGeometry(0.4, 0.3, 0.4), crateMat).translateX(x).translateY(0.15).translateZ(-28.6))
+    const n = sitOn(i, x, -28.6, yaw, 0.3, i === 0 ? MINE_TALK.cards : undefined)
+    const hand = new THREE.Mesh(new THREE.BoxGeometry(0.12, 0.09, 0.005), std(0xfbf8f2, 0.6))
+    hand.position.set(0, -0.45, 0.05)
+    n.armL.add(hand)
+  }
+  obstacles.push({ x: -1, z: -28.6, r: 0.5 })
+  // Slö-Stig, fast asleep on the sacks in Sorteringen
+  {
+    const { n } = miner(7)
+    n.group.position.set(sort.x - 4.9, 1.05, sort.z - 2.5)
+    n.group.rotation.set(0, 0.4, Math.PI / 2 - 0.15, 'YXZ')
+    n.armL.rotation.set(0, 0, 0.6)
+    mergeRigid(n.group)
+    scene.add(n.group)
+    people.push({ npc: n, talk: MINE_TALK.sleeper })
+    // (and the Zzz over him)
+    const [zc, zctx] = makeCanvas(128, 64)
+    zctx.fillStyle = '#fbf3e0'
+    zctx.font = 'bold 44px Georgia, serif'
+    zctx.fillText('z z Z', 6, 48)
+    const zzz = new THREE.Sprite(new THREE.SpriteMaterial({ map: toTexture(zc), transparent: true, depthWrite: false }))
+    zzz.scale.set(0.7, 0.35, 1)
+    scene.add(zzz)
+    updaters.push((t) => {
+      const k = (t * 0.25) % 1
+      zzz.position.set(sort.x - 4.6, 1.9 + k * 0.6, sort.z - 2.3)
+      zzz.material.opacity = 1 - k
+    })
+  }
+  // Smyg-Sigge, skimming stones on Svartsjön (and nothing in his pocket, honest)
+  {
+    const { n } = miner(6)
+    const x = LAKE.x + 3.2
+    const z = LAKE.z + LAKE.rz + 1.3
+    n.group.position.set(x, 0, z)
+    n.setYaw(Math.PI + 0.5)
+    mergeRigid(n.group)
+    scene.add(n.group)
+    obstacles.push({ x, z, r: 0.45 })
+    people.push({ npc: n, talk: MINE_TALK.skipper })
+    const stone = new THREE.Mesh(new THREE.SphereGeometry(0.05, 8, 6), std(0x6a625a, 0.8))
+    stone.scale.y = 0.4
+    scene.add(stone)
+    const ripples = new THREE.Mesh(new THREE.RingGeometry(0.1, 0.14, 20), new THREE.MeshBasicMaterial({ color: 0x9ad8ff, transparent: true, depthWrite: false }))
+    ripples.rotation.x = -Math.PI / 2
+    scene.add(ripples)
+    updaters.push((t) => {
+      // a throw every few seconds: the arm swings, the stone skips out over the water
+      const k = (t / 4) % 1
+      n.armR.rotation.x = k < 0.15 ? -0.4 - (k / 0.15) * 1.4 : k < 0.22 ? -1.8 + ((k - 0.15) / 0.07) * 2.4 : 0.1
+      const f = k > 0.22 ? (k - 0.22) / 0.6 : -1
+      if (f < 0 || f > 1) {
+        stone.visible = ripples.visible = false
+        return
+      }
+      stone.visible = true
+      const d = f * 5
+      const hop = Math.abs(Math.sin(f * Math.PI * 5)) * 0.25 * (1 - f)
+      stone.position.set(x - Math.sin(0.5) * d, 0.08 + hop, z - Math.cos(0.5) * d)
+      ripples.visible = hop < 0.03
+      ripples.position.set(stone.position.x, 0.06, stone.position.z)
+      ripples.scale.setScalar(1 + ((f * 5) % 1) * 3)
+      ;(ripples.material as THREE.MeshBasicMaterial).opacity = 1 - ((f * 5) % 1)
+    })
+  }
+
   const coal = new THREE.InstancedMesh(lumpGeo, coalMat, lumps.length)
   lumps.forEach((m, i) => coal.setMatrixAt(i, m))
   coal.computeBoundingSphere()
@@ -921,6 +1024,22 @@ export function buildMine() {
   const nearLadder = (pos: THREE.Vector3, fwd: THREE.Vector3) => facing(pos, fwd, LADDER.x, LADDER.z, 1.6)
   /** At the free seam, facing it: take the pick. */
   const nearHack = (pos: THREE.Vector3, fwd: THREE.Vector3) => facing(pos, fwd, hack.seam.x, hack.seam.z, 3.4)
+/** Someone to talk to, close by and in front of you (the nearest). */
+  function nearPerson(pos: THREE.Vector3, fwd: THREE.Vector3) {
+    let best: (typeof people)[number] | null = null
+    let bestD = 2.6
+    for (const p of people) {
+      const at = p.npc.group.position
+      const dx = at.x - pos.x
+      const dz = at.z - pos.z
+      const d = Math.hypot(dx, dz)
+      if (d < bestD && (dx * fwd.x + dz * fwd.z) / d > 0.55) {
+        best = p
+        bestD = d
+      }
+    }
+    return best
+  }
   /** By Gruvexpressen, facing it: get in. */
   const nearCart = (pos: THREE.Vector3, fwd: THREE.Vector3) => facing(pos, fwd, STATION.x, STATION.z, 2.2)
 
@@ -982,7 +1101,7 @@ export function buildMine() {
   }
 
   return {
-    scene, collide, ground, update, nearLadder, nearCart, nearHack, leave, climb, arrive: ARRIVE, station: STATION, hack,
+    scene, collide, ground, update, nearLadder, nearCart, nearHack, nearPerson, leave, climb, arrive: ARRIVE, station: STATION, hack,
     /** Seconds since the miners' picks last came down on the heave. */
     heave: () => now - lastStrike,
   }

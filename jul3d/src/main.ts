@@ -13,6 +13,7 @@ import { ARRIVE, STUMP, buildMine, buildStump, type Mine } from './kolgruvan'
 import { CartRun } from './gruvvagn'
 import { Hacking } from './kolhackning'
 import { buildCalendar } from './julkalender'
+import { buildCalendarVillage } from './kalenderbyn'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
@@ -142,6 +143,7 @@ type Target =
   | { kind: 'cart' }
   | { kind: 'hack' }
   | { kind: 'calendar' }
+  | { kind: 'pickup'; item: NonNullable<ReturnType<NonNullable<typeof advent>['near']>> }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
 let shops: BuiltShop[] = []
@@ -160,6 +162,8 @@ let cartRun: CartRun | null = null
 let hacking: Hacking | null = null
 /** Julkalendern on the square. */
 let calendar: ReturnType<typeof buildCalendar> | null = null
+/** …and what its doors bring to the village. */
+let advent: ReturnType<typeof buildCalendarVillage> | null = null
 let skyTimer = 0
 let elves: Elf[] = []
 /** What snowballs can hit. */
@@ -212,6 +216,9 @@ async function build() {
   // the calendar house, with a door a day from the first of December
   calendar = buildCalendar(scene)
   circles.push(...calendar.colliders)
+  advent = buildCalendarVillage(scene)
+  circles.push(...advent.colliders)
+  calendar.status = advent.status
   solids.push(choir.group)
   const square = await buildSquare(scene, shops)
   circles.push(...square.colliders)
@@ -478,7 +485,16 @@ let talking: Nisse | null = null
 
 function findTarget(): Target | null {
   // down in the mine: only the ladder back up (for now)
-  if (inMine) return mine?.nearLadder(player.pos, player.forward) ? { kind: 'ladder' } : mine?.nearCart(player.pos, player.forward) ? { kind: 'cart' } : mine?.nearHack(player.pos, player.forward) ? { kind: 'hack' } : null
+  if (inMine && mine) {
+    const f = player.forward
+    if (mine.nearLadder(player.pos, f)) return { kind: 'ladder' }
+    // (the people down there first: you'll want to talk to the foreman standing by things)
+    const who = mine.nearPerson(player.pos, f)
+    if (who) return { kind: 'npc', ...who }
+    if (mine.nearCart(player.pos, f)) return { kind: 'cart' }
+    if (mine.nearHack(player.pos, f)) return { kind: 'hack' }
+    return null
+  }
   ray.setFromCamera(new THREE.Vector2(0, 0), camera)
   const hit = ray.intersectObjects(rayRoots, true)[0]
   let aimed: Target | null = null
@@ -529,6 +545,8 @@ function findTarget(): Target | null {
   // up on the gallery at the top of Leksaksfabriken's chute
   if (slide.near(player.pos, player.floor, fwd)) return { kind: 'slide' }
   if (calendar?.near(player.pos, fwd)) return { kind: 'calendar' }
+  const item = advent?.near(player.pos, player.floor + player.height)
+  if (item) return { kind: 'pickup', item }
   // right at the old stump, looking down into it
   if (stump?.near(player.pos, player.pitch)) return { kind: 'stump' }
   return aimed
@@ -600,7 +618,9 @@ function setTarget(t: Target | null) {
                         ? 'Ta hackan och hacka kol'
                         : t.kind === 'calendar'
                           ? calendar!.prompt()
-                          : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
+                          : t.kind === 'pickup'
+                            ? t.item.prompt
+                            : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
 }
 
 // Popups keep the mouse grabbed (with a cursor of their own), so closing one goes straight back to looking around.
@@ -896,6 +916,11 @@ function interact() {
   else if (t.kind === 'cart') ride()
   else if (t.kind === 'hack') hack()
   else if (t.kind === 'calendar') calendar?.show(() => resume())
+  else if (t.kind === 'pickup') {
+    toast(advent!.take(t.item))
+    setTarget(null)
+    resume()
+  }
   else if (t.open) t.open()
   else viewer.show(t.image(), t.title, t.caption)
 }
@@ -1227,6 +1252,7 @@ function frame(now: number) {
     parade.near(player.pos, !flight.active)
     choir?.update(dt, player.pos, !flight.active)
     calendar?.update(t, dt)
+    advent?.update(t, dt, player.pos)
     // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
     if ((skyTimer -= dt) <= 0) {
       skyTimer = 5
