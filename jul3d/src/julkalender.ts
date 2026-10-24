@@ -366,6 +366,8 @@ export function buildCalendar(scene: THREE.Scene) {
   let isOpen = false
   /** How a door's task is going (kalenderbyn.ts), shown under it. */
   let status: (day: number) => string = () => ''
+  /** (told when a door is opened for the first time) */
+  let opens: (n: number) => void = () => {}
   /** What you've done (kalenderbyn.ts keeps it): door 4's riddle is answered here. */
   let done: { has: (id: string) => boolean; mark: (id: string) => void } = { has: () => false, mark: () => {} }
   let onClose: () => void = () => {}
@@ -401,6 +403,7 @@ export function buildCalendar(scene: THREE.Scene) {
       doors[n - 1].want = 1
       noise(0.3, 400, 1600, 0.08, 1)
       ;[784, 988, 1175, 1568].forEach((f, i) => setTimeout(() => blip(f, 0.12, 'triangle', 0.05), 150 + i * 90))
+      opens(n)
     }
     chapter(n, fresh)
   }
@@ -506,6 +509,9 @@ export function buildCalendar(scene: THREE.Scene) {
     },
     set status(fn: (day: number) => string) {
       status = fn
+    },
+    set onOpen(fn: (n: number) => void) {
+      opens = fn
     },
     set done(d: { has: (id: string) => boolean; mark: (id: string) => void }) {
       done = d

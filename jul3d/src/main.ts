@@ -16,6 +16,16 @@ import { buildCalendar, julafton, today } from './julkalender'
 import { CentralPark } from './centralpark'
 import { PARK, WORKSHOP } from './sleigh'
 import { buildTomtegarden, tomtegardenToast } from './tomtegarden'
+import { buildWildlife, type Wildlife } from './djur'
+import { buildJulstamning, type Julstamning } from './julstamning'
+import { buildLake, type Lake } from './skridskosjo'
+import { Sledding } from './pulkabacke'
+import { buildSnowmen, type Snowmen } from './snogubbar'
+import { buildMarket, type Market } from './julmarknad'
+import { buildChapel, chapelSign, type Chapel } from './kapell'
+import { buildJulafton, type Julafton } from './julafton'
+import { buildFireworks, type Fireworks } from './fyrverkeri'
+import { julotta, toMidnight, tomteVisit } from './hogtider'
 import { factoryDoors } from './leksaksfabriken'
 import type { Claus } from './tomtefolk'
 import type { Box, Floor } from './shop'
@@ -43,7 +53,8 @@ import { bakeStatic, mergeRigid } from './batch'
 import { PARTICIPANTS } from './data'
 import { getClaims, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
-import { buildWorld, keepInside } from './world'
+import { buildWorld, keepInside, onIce } from './world'
+import { watchWeather } from './vader'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 import { noise } from './sfx'
 
@@ -95,6 +106,8 @@ const cursor = new VirtualCursor(() => player.locked)
 const menu = new PauseMenu()
 
 const world = buildWorld(scene, { lowPower: QUALITY.lowPower })
+// Stockholm's weather, right now, over the village
+watchWeather((w) => world.weather(w))
 camera.position.set(0, 1.62, 32)
 const vm = new Viewmodel()
 // Tomtens släde, parked behind you – push him out and fly it (see flight.ts)
@@ -156,6 +169,10 @@ type Target =
   | { kind: 'cart' }
   | { kind: 'hack' }
   | { kind: 'calendar' }
+  | { kind: 'mood' }
+  | { kind: 'bandy' }
+  | { kind: 'pulka' }
+  | { kind: 'snow'; label: string }
   | { kind: 'pickup'; item: Act }
 const exhibitOf = new Map<THREE.Object3D, Target>()
 const rayRoots: THREE.Object3D[] = []
@@ -207,6 +224,25 @@ let choirCheckAt = 0
 let sleighYard: ReturnType<typeof buildSleighYard> | null = null
 /** Tomtegården: Tomten and Tomtemor's house, the stable, the slädverkstad (see tomtegarden.ts). */
 let garden: ReturnType<typeof buildTomtegarden> | null = null
+/** The birds at the feeder, the deer, the fox, the hare and the moose (djur.ts). */
+let wild: Wildlife | null = null
+/** Byns julstämning: the village's shared Christmas spirit for the day, its thermometer on the square. */
+let mood: Julstamning | null = null
+/** Skridskosjön, west of the village: skating, and bandy on the ice. */
+let lake: Lake | null = null
+/** Pulkabacken, south of the village: down the hill against the clock. */
+let sled: Sledding | null = null
+/** Snögubbsbacken: snowmen everyone builds, standing for the rest of the season. */
+let snowmen: Snowmen | null = null
+/** The high days: julmarknad on Advent weekends, the chapel and julotta, julafton's Kalle Anka and Tomten at the door, nyårsafton's fireworks (hogtider.ts). */
+let market: Market | null = null
+let chapel: Chapel | null = null
+let christmasEve: Julafton | null = null
+let fireworks: Fireworks | null = null
+/** (now and then: julotta and midnight count for the julstämning if you're there) */
+let feastCheckAt = 0
+/** How light it is (0 night … 1 day), as last worked out. */
+let dayK = 0
 /** Everything with walls to bump into and floors to stand on: the shops, and Tomtegården's buildings. */
 let blockers: { group: THREE.Object3D; boxes: Box[]; floors: Floor[] }[] = []
 let skyTimer = 0
@@ -287,8 +323,57 @@ async function build() {
   world.roofs.push(...garden.roofs)
   solids.push(...garden.solids)
   for (const k of garden.talkers) k.who.group.userData.onSnowball = () => (k.who.laugh(), toast(k.who.kind === 'tomten' ? '🎅 Ho ho ho! Inte inomhus, min vän!' : '🤶 Men snälla du, det smälter ju på mattan!'))
-  blockers = [...shops.map((s) => s.shop), ...garden.lots]
+  chapel = buildChapel(scene)
+  chapelSign(scene)
+  circles.push(...chapel.colliders)
+  world.roofs.push(...chapel.roofs)
+  talkers.push(chapel.talker)
+  blockers = [...shops.map((s) => s.shop), ...garden.lots, chapel.lot]
   circles.push(...sleighYard.colliders)
+  wild = buildWildlife(scene, (text) => toast(text))
+  circles.push(...wild.colliders)
+  solids.push(...wild.solids)
+  lake = buildLake(scene, (text) => toast(text))
+  lake.onYourGoal = () => mood?.cheer('bandy')
+  circles.push(...lake.colliders)
+  solids.push(...lake.solids)
+  sled = new Sledding(scene, player, camera)
+  sled.onDone = () => resume()
+  sled.say = (text) => toast(text)
+  sled.name = () => rememberedName.get()
+  circles.push(...sled.colliders)
+  solids.push(...sled.solids)
+  snowmen = buildSnowmen(scene, {
+    addCollider: (c) => circles.push(c),
+    addSolid: (o) => solids.push(o),
+    ask: (talk) => dialog.start(talk),
+    done: () => resume(),
+    say: (text) => toast(text),
+    name: () => rememberedName.get(),
+    built: () => mood?.cheer('snowman'),
+  })
+  market = buildMarket(scene, { resume: () => resume(), say: (text) => toast(text), cheer: () => mood?.cheer('market') })
+  circles.push(...market.colliders)
+  talkers.push(...market.talkers)
+  {
+    // (Tomten's round on julafton evening: the doors of the four shops round the square)
+    const doors = shops.slice(0, 4).map((s) => {
+      s.shop.group.updateMatrixWorld(true)
+      const p = s.shop.group.localToWorld(new THREE.Vector3(0, 0, s.shop.size.d / 2 + 1.1))
+      return { x: p.x, z: p.z }
+    })
+    christmasEve = buildJulafton(scene, renderer, doors, { say: (text) => toast(text), name: () => rememberedName.get(), gift: () => mood?.cheer('tomte') })
+    circles.push(...christmasEve.colliders)
+    talkers.push(christmasEve.talker)
+  }
+  fireworks = buildFireworks(scene, (text) => toast(text))
+  mood = buildJulstamning(scene, (text) => toast(text))
+  circles.push(...mood.colliders)
+  solids.push(...mood.solids)
+  // what raises it
+  wild.onMoose = () => mood?.cheer('moose')
+  calendar.onOpen = () => mood?.cheer('door')
+  snowballs.onHitSomeone = () => mood?.cheer('snowball')
   // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
   const sixten = MINE_TALK.fisher.greeting
   MINE_TALK.fisher.greeting = () =>
@@ -372,6 +457,14 @@ async function build() {
     ...(buskers ? [buskers.group] : []),
     ...(sleighYard?.moving ?? []),
     ...(garden?.moving ?? []),
+    ...(wild ? [wild.group] : []),
+    ...(mood ? [mood.group] : []),
+    ...(lake ? [lake.group] : []),
+    ...(sled ? [sled.group] : []),
+    ...(snowmen ? [snowmen.group] : []),
+    ...(market ? [market.group] : []),
+    ...(chapel?.moving ?? []),
+    ...(christmasEve ? [christmasEve.group] : []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
     camper.car,
@@ -599,6 +692,8 @@ function findTarget(): Target | null {
   let best: (typeof talkers)[number] | null = null
   let bestD = 3.4
   for (const s of talkers) {
+    // (the market's stallholders only on market days, Tomten only on his rounds)
+    if (!s.npc.group.visible || s.npc.group.parent?.visible === false) continue
     const np = s.npc.group.position
     const dx = np.x - player.pos.x
     const dz = np.z - player.pos.z
@@ -645,6 +740,11 @@ function findTarget(): Target | null {
   // up on the gallery at the top of Leksaksfabriken's chute
   if (slide.near(player.pos, player.floor, fwd)) return { kind: 'slide' }
   if (calendar?.near(player.pos, fwd)) return { kind: 'calendar' }
+  if (mood?.near(player.pos, fwd)) return { kind: 'mood' }
+  if (player.ice && lake?.nearBall(player.pos, fwd)) return { kind: 'bandy' }
+  if (sled?.near(player.pos, fwd)) return { kind: 'pulka' }
+  const snow = snowmen?.prompt(player.pos, fwd)
+  if (snow) return { kind: 'snow', label: snow }
   const item = advent?.near(player.pos, player.floor + player.height)
   if (item) return { kind: 'pickup', item }
   // right at the old stump, looking down into it
@@ -727,6 +827,14 @@ function setTarget(t: Target | null) {
                         ? 'Ta hackan och hacka kol'
                         : t.kind === 'calendar'
                           ? calendar!.prompt()
+                          : t.kind === 'mood'
+                            ? 'Läs julstämningsmätaren'
+                            : t.kind === 'bandy'
+                              ? 'Slå bollen'
+                              : t.kind === 'pulka'
+                                ? 'Ta en pulka och åk'
+                                : t.kind === 'snow'
+                                  ? t.label
                           : t.kind === 'pickup'
                             ? t.item.prompt
                             : (t.prompt ?? `Titta på ${t.title.replace(/^\S+\s(?=[A-ZÅÄÖ])/u, '')}`)
@@ -761,6 +869,7 @@ function toast(text: string) {
 }
 
 function playArcade(cab: Cabinet) {
+  mood?.cheer('game')
   pause(false)
   cursor.hide()
   $('hud').classList.add('arcade')
@@ -1009,13 +1118,29 @@ function interact() {
     setTarget(null)
     return
   }
+  // (rolling a snowball, putting it down or up: no need to stop – dressing the snowman is a talk)
+  if (t.kind === 'snow' && t.label !== 'Klä snögubben') {
+    snowmen?.act(player.pos, player.forward)
+    setTarget(null)
+    return
+  }
+  // (a hit at the ball, and on you skate)
+  if (t.kind === 'bandy') {
+    lake?.shoot(player.forward)
+    setTarget(null)
+    return
+  }
   pause()
   if (t.kind === 'npc') {
     talking = t.npc
     dialog.start(t.talk)
+    mood?.cheer('talk')
   } else if (t.kind === 'claus') {
     t.who.laugh()
     dialog.start(t.talk)
+    mood?.cheer('talk')
+  } else if (t.kind === 'mood') {
+    dialog.start(mood!.talk())
   } else if (t.kind === 'arcade') playArcade(t.cab)
   else if (t.kind === 'sleigh') {
     if (newYorkOn()) dialog.start(santaTalk)
@@ -1025,6 +1150,12 @@ function interact() {
   else if (t.kind === 'slide') {
     cursor.hide()
     slide.start()
+  } else if (t.kind === 'snow') {
+    snowmen?.act(player.pos, player.forward)
+  } else if (t.kind === 'pulka') {
+    cursor.hide()
+    sled!.start()
+    mood?.cheer('pulka')
   } else if (t.kind === 'stump') goDown()
   else if (t.kind === 'ladder') goUp()
   else if (t.kind === 'cart') ride()
@@ -1127,6 +1258,7 @@ function goUp() {
 }
 /** Shove Tomten out and jump in. */
 function takeSleigh() {
+  mood?.cheer('sleigh')
   cursor.hide()
   $('hud').classList.add('flight')
   if (sleigh.driver) {
@@ -1167,7 +1299,8 @@ function season(t: number) {
       sleigh.home = home
       sleigh.park()
     }
-    sleigh.driver = out
+    // (on julafton evening Tomten is out on foot, round the village – julafton.ts)
+    sleigh.driver = out && !tomteVisit()
     sleigh.team = out
     if (!julafton()) refreshSleighCircles()
   }
@@ -1202,6 +1335,7 @@ function startPark() {
     }
     p.onCaught = place
     p.onDone = (r) => {
+      if (r.won) mood?.cheer('park')
       pause(false)
       $('fade').classList.add('on')
       setTimeout(() => {
@@ -1264,6 +1398,7 @@ function sip() {
   if (!player.enabled) return
   const left = vm.sip()
   if (left < 0) return
+  mood?.cheer('glogg')
   setTimeout(() => noise(0.45, 700, 250, 0.05, 2), 350)
   if (left === 0) {
     $('sip').hidden = true
@@ -1484,7 +1619,11 @@ function frame(now: number) {
   } else if (!trip.inWorld && !corrida.inWorld) {
     // (down the chute, the chute steers)
     if (slide.active) slide.update(dt)
-    else player.update(dt, collidePlayer, groundAt)
+    else if (sled?.active) sled.update(dt)
+    else {
+      player.ice = onIce(player.pos.x, player.pos.z, 0.2)
+      player.update(dt, collidePlayer, groundAt)
+    }
     // (how high you are, the others see: up on a gallery or in mid-jump)
     mp?.sendState(player.pos, player.yaw, player.vel.length() / 6.8, player.floor + player.height)
     thrower.update(dt, t)
@@ -1493,10 +1632,27 @@ function frame(now: number) {
     season(t)
     sleighYard?.update(t, flight.active)
     garden?.update(t, dt, player.pos)
+    wild?.update(t, dt, flight.active ? null : player.pos, wallClock(), dayK)
+    lake?.update(t, dt, flight.active ? null : player)
+    snowmen?.update(flight.active || sled?.active ? null : player.pos, player.yaw)
+    {
+      const clock = wallClock()
+      const me = flight.active ? null : player.pos
+      market?.update(t, dt, player.pos, clock)
+      chapel?.update(t, dt, me, clock)
+      christmasEve?.update(t, dt, me, clock)
+      fireworks?.update(dt, camera.position, clock)
+      if (t >= feastCheckAt) {
+        feastCheckAt = t + 3
+        if (me && chapel && julotta(clock) && Math.hypot(me.x - chapel.at.x, me.z - chapel.at.z) < 18) mood?.cheer('julotta')
+        const m = toMidnight(clock)
+        if (m != null && m < 0 && m > -600) mood?.cheer('nyar')
+      }
+    }
     sleigh.update(t, dt, player.pos)
     camper.update(t, dt, player.pos)
     matadors.update(t, dt, player.pos)
-    world.update(t, dt, flight.active ? flight.pos : player.pos)
+    world.update(t, dt, flight.active ? flight.pos : player.pos, !flight.active)
     for (const s of shops) s.shop.update(t, dt)
     for (const s of talkers) s.npc.update(t, dt, player.pos, dialog.open && talking === s.npc)
     // on Lucia morning the elves are all in the procession, and on the first Sunday of Advent at the concert
@@ -1510,7 +1666,11 @@ function frame(now: number) {
     parade.near(player.pos, !flight.active && factoryDoors.open)
     choir?.update(dt, player.pos, !flight.active)
     calendar?.update(t, dt)
-    advent?.update(t, dt, player.pos, !flight.active, world.aurora)
+    // (the northern lights flare with the calendar's door 20, and with the village's Christmas spirit)
+    const auroraAtLeast = mood?.aurora ?? 1
+    if (advent) advent.update(t, dt, player.pos, !flight.active, (b) => world.aurora(Math.max(b, auroraAtLeast)))
+    else world.aurora(auroraAtLeast)
+    mood?.update(t, dt)
     toyTrain?.update(t, dt, player.pos)
     {
       const d = new Date(wallClock())
@@ -1526,6 +1686,7 @@ function frame(now: number) {
       skyTimer = 5
       const day = daylightAt(swedenNow())
       world.daylight(day.k, day.dir)
+      dayK = day.k
     }
     // Lucia morning: the village goes dark round the procession's candles
     renderer.toneMappingExposure = EXPOSURE * (choir?.exposure ?? 1)
@@ -1626,4 +1787,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get mood() { return mood }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get chapel() { return chapel }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, startPark, goto, get shops() { return shops } } })
