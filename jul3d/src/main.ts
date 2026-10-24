@@ -22,7 +22,8 @@ import { buildSleighYard } from './julaftonsrunda'
 import { Sleigh } from './sleigh'
 import { NPC_SPOT, buildShops, buildSquare, type BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
-import { buildChoir, swedenNow } from './korsang'
+import { buildChoir, swedenNow, wallClock } from './korsang'
+import { buildBuskers } from './gitarrister'
 import { daylightAt } from './sol'
 import { loadFonts } from './tex'
 import { clockText, eventStatus, formatShortDate } from './time'
@@ -193,6 +194,8 @@ let calendar: ReturnType<typeof buildCalendar> | null = null
 let advent: ReturnType<typeof buildCalendarVillage> | null = null
 /** The toy train round the julgran. */
 let toyTrain: ReturnType<typeof buildToyTrain> | null = null
+/** The guitar and the banjo on the bench by the path to Leksaksfabriken. */
+let buskers: ReturnType<typeof buildBuskers> | null = null
 /** The sacks and the nissar by the sleigh, and Tomten's rounds on julafton. */
 let sleighYard: ReturnType<typeof buildSleighYard> | null = null
 let skyTimer = 0
@@ -259,6 +262,12 @@ async function build() {
   calendar.status = advent.status
   calendar.done = { has: advent.has, mark: advent.mark }
   toyTrain = buildToyTrain(scene)
+  buskers = buildBuskers(scene)
+  circles.push(...buskers.colliders)
+  for (const s of buskers.solids) {
+    solids.push(s)
+    s.userData.onSnowball = () => toast('🎸 Hörru! Inte på gitarren!')
+  }
   sleighYard = buildSleighYard(scene, sleigh, sleighCircles)
   circles.push(...sleighYard.colliders)
   // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
@@ -341,6 +350,7 @@ async function build() {
     sleigh.group,
     sleigh.santa.group,
     ...(toyTrain ? [toyTrain.train] : []),
+    ...(buskers ? [buskers.group] : []),
     ...(sleighYard?.moving ?? []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
     // the camper and its crew drive off to the mountain; the matadors flip coins and walk over to you
@@ -1360,11 +1370,13 @@ function frame(now: number) {
   // off on the camper trip or in Madrid, the village stands still (it's only a painted backdrop, after all)
   if (cartRun?.active) {
     advent?.hush()
+    buskers?.hush()
     cartRun.update(dt)
     renderer.toneMappingExposure = EXPOSURE
   } else if (inPark && park) {
     // New York: the park is its own world (and it waits while you're in the menu)
     advent?.hush()
+    buskers?.hush()
     if (park.cinematic) park.camera(camera)
     else player.update(dt, park.collide, park.ground)
     if (park.cinematic || player.enabled) park.update(t, dt, player.pos)
@@ -1373,6 +1385,7 @@ function frame(now: number) {
   } else if (inMine && mine) {
     // down in the mine: just you, the miners and their song (the village waits up above)
     advent?.hush()
+    buskers?.hush()
     if (hacking?.active) hacking.update(dt)
     else player.update(dt, mine.collide, mine.ground)
     mine.update(t, dt, player.pos, player.enabled)
@@ -1408,6 +1421,10 @@ function frame(now: number) {
     calendar?.update(t, dt)
     advent?.update(t, dt, player.pos, !flight.active, world.aurora)
     toyTrain?.update(t, dt, player.pos)
+    {
+      const d = new Date(wallClock())
+      buskers?.update(t, player.pos, !flight.active, d.getUTCMonth() + 1, d.getUTCDate())
+    }
     // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
     if ((skyTimer -= dt) <= 0) {
       skyTimer = 5

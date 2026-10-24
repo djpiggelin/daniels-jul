@@ -8,7 +8,7 @@
 // fountain with its angel), the city lit up all round it, and the crashed sleigh in the middle.
 // In metres; the park runs ±PARK.x by ±PARK.z, north is -z.
 import * as THREE from 'three'
-import { JingleChoir, blip, noise, thud } from './sfx'
+import { SingAlong, blip, noise, thud } from './sfx'
 import { Sleigh, std } from './sleigh'
 import { glowTexture, makeCanvas, rng, toTexture } from './tex'
 
@@ -23,6 +23,8 @@ const START_CHEER = 12
 const PEOPLE = 24
 const LIVES = 3
 const BEST_KEY = 'jul3d.best.centralpark'
+/** What they sing: a cappella (see public/sounds/README.md). */
+const SONG = '/sounds/park/wassailing.mp3'
 
 type Circle = { x: number; z: number; r: number }
 
@@ -210,7 +212,8 @@ export class CentralPark {
   private noteTex: THREE.Texture[] = []
   private flakes: THREE.Points
   private sleighGlow: THREE.Sprite
-  private choir = new JingleChoir()
+  /** The park singing (a real choir, louder and fuller with every voice that joins). */
+  private choir = new SingAlong(SONG, PEOPLE)
   private cheer = START_CHEER
   private lives = LIVES
   private caught = 0
@@ -542,6 +545,7 @@ export class CentralPark {
     const r = rng(Date.now() % 100000)
     this.state = 'intro'
     this.stateT = 0
+    void this.choir.preload()
     this.time = 0
     this.cheer = START_CHEER
     this.lives = LIVES
