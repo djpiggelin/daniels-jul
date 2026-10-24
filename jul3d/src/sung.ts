@@ -10,4 +10,6 @@ export const SUNG: Record<string, [number, number][]> = {
   'o-tannenbaum': [[0.4, 36.5], [37.5, 46.9]],
   'sankta-lucia': [[15.1, 88.9], [95.6, 96.7], [100.1, 101.9], [104.1, 197.5]],
   'stilla-natt': [[7, 15.5], [16.4, 69.4], [70.2, 121.2], [123.6, 185.2]],
+  // (the miners' song in Kolgruvan)
+  'pramdragarna': [[2.5, 157.7], [158.8, 177.5], [178.8, 182.3], [185.5, 186.4], [187.8, 189.5]],
 }

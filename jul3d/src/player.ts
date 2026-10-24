@@ -27,8 +27,12 @@ export class Player {
   /** A tap on the scene (touch): talk to / look at whatever is under the finger. */
   onTap: (x: number, y: number) => void = () => {}
   private bob = 0
-  /** Feet above the snow (jumping), and how fast that is changing. */
+  /** What you stand on, metres up (the floor, a stair, a gallery)… */
+  floor = 0
+  /** …feet above it (jumping, falling), and how fast that is changing. */
   height = 0
+  /** The floor as the eye follows it: up a stair in a quick glide rather than a jolt. */
+  private eye = 0
   private vy = 0
   readonly touch = TOUCH
 
@@ -159,7 +163,11 @@ export class Player {
     return new THREE.Vector3(-Math.sin(this.yaw), 0, -Math.cos(this.yaw))
   }
 
-  update(dt: number, collide: (p: THREE.Vector3) => void) {
+  /**
+   * `collide` pushes you out of walls (at the height your feet are at); `ground` says what there is to
+   * stand on under a spot – the top of it, or null if something there is too high to step onto.
+   */
+  update(dt: number, collide: (p: THREE.Vector3, feet: number) => void, ground: (p: THREE.Vector3, feet: number) => number | null = () => 0) {
     const k = (c: string) => this.keys.has(c)
     if (this.enabled) {
       if (k('ArrowLeft')) this.yaw += dt * 1.9
@@ -184,8 +192,31 @@ export class Player {
     if (dir.lengthSq() > 1) dir.normalize()
     const target = dir.multiplyScalar(this.enabled ? 4.2 + run * 2.6 : 0)
     this.vel.lerp(target, 1 - Math.exp(-10 * dt))
+    const was = this.pos.clone()
     this.pos.addScaledVector(this.vel, dt)
-    collide(this.pos)
+    const feet = this.floor + this.height
+    collide(this.pos, feet)
+    // (moved far in one go – taken somewhere: start again from whatever is there)
+    if (was.distanceToSquared(this.pos) > 9) this.floor = this.eye = this.height = this.vy = 0
+    // up a step, down off an edge, or stopped by something too high (sliding along it if you can)
+    let top = ground(this.pos, this.floor + this.height)
+    // (already inside something – put down there by a teleport: up on top of it)
+    if (top === null && ground(was, feet) === null) top = ground(this.pos, Infinity) ?? 0
+    if (top === null) {
+      const along = [new THREE.Vector3(this.pos.x, 0, was.z), new THREE.Vector3(was.x, 0, this.pos.z)]
+      const free = along.find((p) => ground(p, feet) !== null)
+      this.pos.set(free ? free.x : was.x, this.pos.y, free ? free.z : was.z)
+      top = ground(this.pos, feet) ?? this.floor
+    }
+    if (top > this.floor) {
+      this.height = Math.max(0, this.height - (top - this.floor))
+      this.floor = top
+    } else if (top < this.floor) {
+      this.height += this.floor - top
+      this.floor = top
+    }
+    this.eye += (this.floor - this.eye) * Math.min(1, dt * 14)
+    if (Math.abs(this.floor - this.eye) > 1.5) this.eye = this.floor
 
     const speed = this.vel.length()
     this.bob += dt * speed * 2.2
@@ -202,7 +233,7 @@ export class Player {
     const bobY = airborne ? 0 : Math.sin(this.bob) * 0.045 * Math.min(1, speed / 4)
     // lean back while winding up a throw (head goes back and up a little)
     const back = this.lean * 0.16
-    this.camera.position.set(this.pos.x + Math.sin(this.yaw) * back, 1.62 + this.height + bobY - Math.abs(this.lean) * 0.04, this.pos.z + Math.cos(this.yaw) * back)
+    this.camera.position.set(this.pos.x + Math.sin(this.yaw) * back, 1.62 + this.eye + this.height + bobY - Math.abs(this.lean) * 0.04, this.pos.z + Math.cos(this.yaw) * back)
     this.camera.rotation.set(this.pitch + this.lean * 0.13, this.yaw, -this.lean * 0.05, 'YXZ')
   }
 }

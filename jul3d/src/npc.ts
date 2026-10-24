@@ -12,6 +12,9 @@ export type NisseLook = {
   /** Young elves: no beard, pointy ears. */
   beard?: boolean
   ears?: boolean
+  /** Skin and beard (the coal miners are sooty, with dark beards). */
+  skin?: number
+  beardColor?: number
 }
 
 const std = (color: number, roughness = 0.8) => new THREE.MeshStandardMaterial({ color, roughness })
@@ -30,7 +33,7 @@ export class Nisse {
   private nearFor = 0
 
   constructor(look: NisseLook) {
-    const skin = std(0xf1c7a5, 0.6)
+    const skin = std(look.skin ?? 0xf1c7a5, 0.6)
     const coat = std(look.coat)
     const white = std(0xf7f4ee, 0.9)
     const dark = std(look.pants ?? 0x2b2b33)
@@ -98,10 +101,11 @@ export class Nisse {
     }
     this.head.add(face, nose)
     if (look.beard !== false) {
-      const beard = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), white)
+      const whiskers = look.beardColor === undefined ? white : std(look.beardColor, 0.9)
+      const beard = new THREE.Mesh(new THREE.SphereGeometry(0.2, 16, 12), whiskers)
       beard.scale.set(1, look.longBeard ? 1.6 : 1.15, 0.75)
       beard.position.set(0, look.longBeard ? -0.2 : -0.11, 0.07)
-      const mustache = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), white)
+      const mustache = new THREE.Mesh(new THREE.SphereGeometry(0.07, 10, 8), whiskers)
       mustache.scale.set(1.8, 0.6, 0.8)
       mustache.position.set(0, -0.06, 0.17)
       this.head.add(beard, mustache)
