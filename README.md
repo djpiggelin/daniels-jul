@@ -48,6 +48,18 @@ Länken är `https://<sajten>/?inbjudan=k7f3q9xa`. Första gången den öppnas s
 gäst. Gör koderna svåra att gissa (inte bara namnet). `upload-content` kontrollerar inbjudningarna
 och skriver ut alla länkar. En kod som spridits tar du bort ur listan och laddar upp igen.
 
+Enklast är att låta skriptet göra det:
+
+```bash
+npm run invite -- "Lisa"
+npm run upload-content
+```
+
+`invite` sätter upp Lisa på gästlistan om hon inte redan står där, med `photos/Lisa.png` om den
+finns. Hon får en slumpad kod till alla privata event (`--event julbord` för bara ett av dem), och
+skriptet skriver ut hennes länk. Är hon redan inbjuden får du länken hon redan har. Alla länkar
+hamnar också i `content/inbjudningslankar.txt`. Sätt `SITE_URL=https://…` i `.env` så blir länkarna hela.
+
 Ladda upp med:
 
 ```bash
