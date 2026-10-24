@@ -11,10 +11,34 @@ import type { Circle } from './world'
 /** Where the bench stands: on the east side of the path, between two of its lanterns, facing across it. */
 const BENCH = { x: 3.55, z: -34.7 }
 const DIR = '/sounds/gitarr/'
-// (only the album's guitar-only tracks: the rest have a band with drums and electric bass)
-const SONGS = ['jingle-bells', 'away-in-a-manger', 'joy-to-the-world', 'o-holy-night', 'we-wish-you']
+/**
+ * The set, in order, with each recording's length in seconds (the silence at their ends trimmed off).
+ * Only the album's guitar-only tracks: the rest have a band with drums and electric bass.
+ */
+const SET: [string, number][] = [['jingle-bells', 118.8], ['away-in-a-manger', 116.58], ['joy-to-the-world', 123.92], ['o-holy-night', 131.87], ['we-wish-you', 117.19]]
 /** After Christmas, the new year's one too. */
-const NEW_YEAR = 'auld-lang-syne'
+const NEW_YEAR: [string, number] = ['auld-lang-syne', 162.93]
+/** A breath between songs (s). */
+const BREATH = 4
+
+/**
+ * What they're playing at `sec` (seconds) on the village clock, the same for everyone in the
+ * village (like the Lucia procession): the song and how far into it – or none, between two songs –
+ * and which one is next.
+ */
+function onStage(sec: number, set: [string, number][]) {
+  const cycle = set.reduce((sum, [, len]) => sum + len + BREATH, 0)
+  let at = ((sec % cycle) + cycle) % cycle
+  for (let i = 0; i < set.length; i++) {
+    const [name, len] = set[i]
+    const next = set[(i + 1) % set.length]
+    if (at < len) return { name: name as string | null, at, left: len - at, next: next[0] }
+    at -= len
+    if (at < BREATH) return { name: null, at, left: BREATH - at, next: next[0] }
+    at -= BREATH
+  }
+  return { name: null, at: 0, left: 0, next: set[0][0] }
+}
 const HEAR = 24
 
 /** A guitar (or, `banjo`, a banjo) with its neck out along -x, the body at the origin. */
@@ -95,31 +119,54 @@ export function buildBuskers(scene: THREE.Scene) {
 
   const song = new Playlist(3)
   const solids = players.map((n) => n.group)
+  // following the music: a strum on every beat the analyser hears, the hand settling between them
+  const hands = players.map(() => ({ stroke: 0, dir: 1, at: -9 }))
+  let slow = 0
 
-  /** `quiet`: the choir has the square (the Lucia procession, the advent concert), so they rest and listen. */
-  function update(t: number, player: THREE.Vector3, enabled: boolean, month: number, day: number, quiet: boolean) {
-    const d = Math.hypot(player.x - BENCH.x, player.z - BENCH.z)
+  /**
+   * `clock` is the village clock (ms), `quiet` when the choir has the square (the Lucia procession,
+   * the advent concert): then they rest and listen.
+   */
+  function update(t: number, dt: number, player: THREE.Vector3, enabled: boolean, clock: number, quiet: boolean) {
+    const date = new Date(clock)
+    const month = date.getUTCMonth() + 1
+    const day = date.getUTCDate()
     // all December, and on into January until it all comes down
     const season = month === 12 || (month === 1 && day <= 13)
+    g.visible = season
+    const set = month === 1 || day >= 26 ? [...SET, NEW_YEAR] : SET
+    const now = onStage(clock / 1000, set)
+    const on = season && !quiet && now.name !== null
+
+    const d = Math.hypot(player.x - BENCH.x, player.z - BENCH.z)
     const vol = enabled && season && !quiet && d < HEAR ? 0.55 * (1 - d / HEAR) ** 1.4 : 0
     if (vol > 0.003) {
-      const list = SONGS.map((s) => `${DIR}${s}.mp3`)
-      if (month === 1 || day >= 26) list.push(`${DIR}${NEW_YEAR}.mp3`)
-      song.start(list)
       song.level(vol)
+      song.cue(now.name && `${DIR}${now.name}.mp3`, now.at)
+      // the next one fetched in good time, so it starts on the dot
+      if (now.left < 30) song.preload([`${DIR}${now.next}.mp3`])
     } else if (song.playing) {
       song.level(0.0001)
       if (d > HEAR + 4 || !enabled || !season || quiet) song.stop()
     }
-    g.visible = season
-    // strumming along (and resting between songs), heads nodding to the beat
-    const playing = song.playing && song.loudness() > 0.02
+
+    // a strum when the music jumps (out of earshot, a steady one as it would be)
+    const loud = song.playing ? song.loudness() : 0
+    const beat = song.playing ? loud > slow * 1.3 + 0.03 : on && Math.floor(t * 4) !== Math.floor((t - dt) * 4)
+    slow += (loud - slow) * Math.min(1, dt * 3)
     players.forEach((n, i) => {
-      const k = playing ? 1 : 0
-      n.armR.rotation.x = -0.85 + Math.sin(t * (i ? 14 : 9)) * 0.18 * k
-      n.armL.rotation.z = -0.75 + Math.sin(t * 1.3 + i) * 0.05 * k
-      n.head.rotation.x = Math.sin(t * 4.4 + i) * 0.08 * k
-      n.body.rotation.z = Math.sin(t * 2.2 + i * 2) * 0.03 * k
+      const h = hands[i]
+      if (on && beat && t - h.at > (i ? 0.09 : 0.14)) {
+        h.at = t
+        h.dir = -h.dir
+      }
+      // the stroke snaps across the strings, then the hand rests where it ended up
+      h.stroke += ((on ? h.dir : 0) - h.stroke) * Math.min(1, dt * (i ? 30 : 22))
+      const since = t - h.at
+      n.armR.rotation.x = -0.85 + h.stroke * (i ? 0.1 : 0.17)
+      n.armL.rotation.z = -0.75 + (on ? Math.sin(t * 1.3 + i) * 0.05 : 0)
+      n.head.rotation.x = on ? Math.max(0, 1 - since / 0.3) * 0.09 : 0
+      n.body.rotation.z = on ? Math.sin(t * 1.1 + i * 2) * 0.03 : 0
     })
   }
   const hush = () => {

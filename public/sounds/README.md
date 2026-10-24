@@ -1,6 +1,6 @@
 # Ljud
 
-Kören i 3D-byn (`kor/`) sjunger de här. Gitarristerna på bänken vid stigen till Leksaksfabriken (`gitarr/`, se `jul3d/src/gitarrister.ts`) spelar de rena gitarrspåren från flygvapnets julalbum *The Spirit of the Season* från 2020, omkodat till 128 kbps med jämnad ljudnivå. Vilka den sjunger när (advent, lucia, jul och julafton) står i
+Kören i 3D-byn (`kor/`) sjunger de här. Gitarristerna på bänken vid stigen till Leksaksfabriken (`gitarr/`, se `jul3d/src/gitarrister.ts`) spelar de rena gitarrspåren från flygvapnets julalbum *The Spirit of the Season* från 2020, omkodat till 128 kbps med jämnad ljudnivå och utan tystnaden i slutet. Vilken låt som spelas och var i den styrs av byns klocka, så alla hör samma sak. Vilka den sjunger när (advent, lucia, jul och julafton) står i
 `jul3d/src/korsang.ts`. En fil som saknas hoppas över. Alla är omkodade till mp3 utan omslagsbild.
 
 | Fil | Vad | Källa och licens |

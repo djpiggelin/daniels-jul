@@ -1430,7 +1430,7 @@ function frame(now: number) {
         choirCheckAt = t + 0.5
         choirHasSquare = ['lucia', 'advent'].includes(choirMode())
       }
-      buskers?.update(t, player.pos, !flight.active, d.getUTCMonth() + 1, d.getUTCDate(), choirHasSquare)
+      buskers?.update(t, dt, player.pos, !flight.active, d.getTime(), choirHasSquare)
     }
     // day and night as they are in Sweden right now (checked now and then: the sun moves slowly)
     if ((skyTimer -= dt) <= 0) {

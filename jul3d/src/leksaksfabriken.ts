@@ -17,6 +17,7 @@ import { html, type Talk } from './ui'
 import type { BuiltShop } from './shops'
 import { parade, stamping } from './verkstadslek'
 import { chute as slideway } from './rutschkana'
+import { wallClock } from './korsang'
 
 /** The star on the big tree in the yard (the calendar's door 14 takes it away, until you bring it back). */
 export const yardTree = { star: null as THREE.Object3D | null }
@@ -316,8 +317,8 @@ function nutcracker() {
 
 /* ---------- moving parts ---------- */
 
-/** A clock face with hands that go round; `speed` 1 is the workshop's own (very fast) time. */
-function clockFace(r: number, updaters: Shop['updaters'], speed = 1) {
+/** A clock face with hands that go round: `speed` 1 is the workshop's own (very fast) time, null the village's real time. */
+function clockFace(r: number, updaters: Shop['updaters'], speed: number | null = 1) {
   const [c, ctx] = makeCanvas(256, 256)
   ctx.fillStyle = '#fbf3e4'
   ctx.beginPath()
@@ -348,6 +349,14 @@ function clockFace(r: number, updaters: Shop['updaters'], speed = 1) {
   const hour = hand(r * 0.52, r * 0.08)
   const minute = hand(r * 0.78, r * 0.05)
   updaters.push((t) => {
+    if (speed === null) {
+      // what the village clock says (the pretend ?tid= one too), the minute hand creeping on second by second
+      const d = new Date(wallClock())
+      const min = d.getUTCMinutes() + d.getUTCSeconds() / 60
+      minute.rotation.z = -(min / 60) * Math.PI * 2
+      hour.rotation.z = -(((d.getUTCHours() % 12) + min / 60) / 12) * Math.PI * 2
+      return
+    }
     minute.rotation.z = -t * 0.6 * speed
     hour.rotation.z = -t * 0.05 * speed
   })
@@ -701,7 +710,8 @@ function exterior(shop: Shop) {
   add(upper, tiledBox(uw, 13, ud), brick, 0, 6.5, 0)
   for (const y of [0, 13]) add(upper, box(uw + 0.6, 0.45, ud + 0.6), stone, 0, y, 0)
   for (const [x, z, ry] of [[0, ud / 2 + 0.07, 0], [uw / 2 + 0.07, 0, Math.PI / 2], [-uw / 2 - 0.07, 0, -Math.PI / 2]] as const) {
-    const f = clockFace(2.5, shop.updaters, 0.25)
+    // (the tower tells the real time, for everyone in the village)
+    const f = clockFace(2.5, shop.updaters, null)
     f.position.set(x, 7.4, z)
     f.rotation.y = ry
     upper.add(f)

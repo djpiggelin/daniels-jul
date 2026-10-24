@@ -1,5 +1,5 @@
-// The sleigh's corner of Leksaksfabriken's yard: big sacks of presents waiting by the sleigh, and nissar
-// carrying more out through the tower door, all December. And on julafton Tomten is out all day: round
+// The sleigh's corner of Leksaksfabriken's yard: on the 23rd the nissar carry the presents out through
+// the tower door and fill the big sacks by the sleigh (and the sacks stand there through julafton). And on julafton Tomten is out all day: round
 // and round over the village, and every couple of minutes down into the yard again, where the nissar
 // heave another sack into the back before he's off. (Timed by the village clock, so everyone sees him
 // in the same place.)
@@ -64,12 +64,13 @@ export function buildSleighYard(scene: THREE.Scene, sleigh: Sleigh, sleighCircle
     g.traverse((o) => (o.castShadow = true))
     return g
   }
+  const sackCircles: Circle[] = []
   const sacks = SACKS.map(([x, z], i) => {
     const g = bigSack()
     g.position.set(x, 0, z)
     g.rotation.y = i * 1.9
     scene.add(g)
-    colliders.push({ x, z, r: 0.85 })
+    sackCircles.push({ x, z, r: 0.85 })
     return g
   })
   // the one that goes into the sleigh at each stop (the others stand by for later)
@@ -113,8 +114,16 @@ export function buildSleighYard(scene: THREE.Scene, sleigh: Sleigh, sleighCircle
   }
 
   function update(t: number, flying: boolean) {
+    // the packing is on the 23rd (and the sacks wait by the sleigh through julafton); before that,
+    // the presents are still being made, and after it they've all been given out
+    const d = new Date(wallClock())
+    const packing = d.getUTCMonth() === 11 && (d.getUTCDate() === 23 || d.getUTCDate() === 24)
+    for (const s of sacks) s.visible = packing
+    for (const c of sackCircles) c.r = packing ? Math.abs(c.r) : -Math.abs(c.r)
+    for (const c of carriers) c.n.group.visible = packing
+
     /* the nissar: out of the door with a present, over to the sacks, in it goes, back for another */
-    for (const c of carriers) {
+    for (const c of packing ? carriers : []) {
       const leg = DOOR.distanceTo(c.to) / WALK
       const k = (t + c.phase) % (leg * 2 + 2)
       const g = c.n.group
@@ -151,7 +160,7 @@ export function buildSleighYard(scene: THREE.Scene, sleigh: Sleigh, sleighCircle
       if (wasAway) {
         sleigh.park()
         loaded.position.copy(loadedHome)
-        loaded.visible = true
+        loaded.visible = packing
         for (const c of sleighCircles) c.r = Math.abs(c.r)
       }
       wasAway = false
@@ -194,5 +203,6 @@ export function buildSleighYard(scene: THREE.Scene, sleigh: Sleigh, sleighCircle
 
   // (these move: keep them out of the baking)
   const moving: THREE.Object3D[] = [...sacks, ...carriers.map((c) => c.n.group)]
+  colliders.push(...sackCircles)
   return { colliders, update, moving, cycle: CYCLE }
 }
