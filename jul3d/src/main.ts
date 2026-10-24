@@ -16,6 +16,7 @@ import { buildCalendar, julafton, today } from './julkalender'
 import { CentralPark } from './centralpark'
 import { PARK, WORKSHOP } from './sleigh'
 import { buildTomtegarden, tomtegardenToast } from './tomtegarden'
+import { factoryDoors } from './leksaksfabriken'
 import type { Claus } from './tomtefolk'
 import type { Box, Floor } from './shop'
 import { MINE_TALK } from './gruvfolk'
@@ -1505,7 +1506,8 @@ function frame(now: number) {
       if (elvesOut) e.update(dt, t)
     }
     // the tin soldiers' band plays as you come near (not from up in the sleigh)
-    parade.near(player.pos, !flight.active)
+    // (the band in Leksaksfabriken only plays while its doors are open)
+    parade.near(player.pos, !flight.active && factoryDoors.open)
     choir?.update(dt, player.pos, !flight.active)
     calendar?.update(t, dt)
     advent?.update(t, dt, player.pos, !flight.active, world.aurora)

@@ -19,6 +19,11 @@ import { parade, stamping } from './verkstadslek'
 import { chute as slideway } from './rutschkana'
 import { wallClock } from './korsang'
 
+/** Whether the great doors are open (December until tjugondag Knut): shut, the band inside is silent too (main.ts). */
+export const factoryDoors = { open: true }
+/** Shut, the doorway stops snowballs (added to the hitboxes; shown only while the doors are shut). */
+const shutHit = keepApart(new THREE.Group())
+
 /** The star on the big tree in the yard (the calendar's door 14 takes it away, until you bring it back). */
 export const yardTree = { star: null as THREE.Object3D | null }
 
@@ -800,9 +805,16 @@ function exterior(shop: Shop) {
     shop.block(hinge.position.x + ox * Math.cos(hinge.rotation.y), hinge.position.z - ox * Math.sin(hinge.rotation.y), 0.35, DOOR_W / 4)
   }
   const shut = shop.block(0, D / 2 - 0.7, DOOR_W / 2, 0.25, -Infinity, Infinity)
-  // (shut, the doors fill the arch: a panel for the round top of it)
-  const lunette = keepApart(add(g, new THREE.CircleGeometry(DOOR_W / 2, 32, 0, Math.PI), mat(0xa0132a, 0.6), 0, DOOR_H - DOOR_W / 2, D / 2 - 0.7))
+  // (shut, the doorway is filled right up into its arch – behind the leaves, so nothing shows through
+  // the gaps between them – and snowballs stop at it)
+  const filled = new THREE.Shape()
+  arch(DOOR_W + 0.1, DOOR_H + 0.05, filled)
+  const lunette = keepApart(add(g, new THREE.ShapeGeometry(filled, 24), mat(0x8a1020, 0.6), 0, 0, D / 2 - 0.85))
   ;(lunette.material as THREE.Material).side = THREE.DoubleSide
+  const door = new THREE.Mesh(box(DOOR_W, DOOR_H, 0.4), new THREE.MeshBasicMaterial())
+  door.position.set(0, DOOR_H / 2, D / 2 - 0.75)
+  door.visible = false
+  shutHit.add(door)
   const [nc, nctx] = makeCanvas(512, 256)
   nctx.fillStyle = '#fbf3e0'
   nctx.fillRect(0, 0, 512, 256)
@@ -826,7 +838,8 @@ function exterior(shop: Shop) {
     const isOpen = m === 12 || (m === 1 && d.getUTCDate() <= 13)
     for (const { hinge, sx } of hinges) hinge.rotation.y = isOpen ? -sx * open : 0
     shut.y0 = isOpen ? 99 : -Infinity
-    note.visible = lunette.visible = !isOpen
+    note.visible = lunette.visible = shutHit.visible = !isOpen
+    factoryDoors.open = isOpen
   })
 
   // the nutcracker guards
@@ -1807,6 +1820,7 @@ function lasse(): { npc: Nisse; talk: Talk } {
 /** Simple invisible boxes for aiming and snowballs, so they don't test the building's every triangle. */
 function hitboxes() {
   const g = keepApart(new THREE.Group())
+  g.add(shutHit)
   const m = new THREE.MeshBasicMaterial({ side: THREE.DoubleSide })
   // (the walls' boxes are only their outer half, so from inside the boards on them are hit first)
   const boxes: [number, number, number, number, number, number][] = [
