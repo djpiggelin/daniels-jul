@@ -46,6 +46,19 @@ try {
 if (typeof content.year !== 'number' || !Array.isArray(content.events) || !Array.isArray(content.guests))
   fail('content.json måste ha year (nummer), events (lista) och guests (lista)')
 
+// personal invite links for the private events (the julbord) – see netlify/lib/invite.mts
+const invites = Object.entries(content.invites ?? {})
+const privateIds = content.events.filter((e) => e.private).map((e) => e.id)
+for (const [code, inv] of invites) {
+  if (!/^[\w-]{4,}$/.test(code)) fail(`Inbjudningskoden "${code}" ska vara minst 4 tecken: bokstäver, siffror, - och _`)
+  if (typeof inv?.name !== 'string' || !Array.isArray(inv.events)) fail(`Inbjudan "${code}" behöver name och events`)
+  const unknown = inv.events.filter((id) => !privateIds.includes(id))
+  if (unknown.length) fail(`Inbjudan "${code}" (${inv.name}) pekar på ${unknown.join(', ')} – inget privat event med det id:t`)
+  if (!content.guests.some((g) => g.name.toLowerCase() === inv.name.toLowerCase()))
+    console.warn(`⚠ ${inv.name} (inbjudan "${code}") finns inte bland gästerna – får sitt namn men ingen bild`)
+}
+if (privateIds.length && !invites.length) console.warn(`⚠ ${privateIds.join(', ')} är privat men ingen är inbjuden`)
+
 const files = (await walk(dir))
   .map((p) => relative(dir, p).split(sep).join('/'))
   .filter((key) => key === 'content.json' || MEDIA.test(key))
@@ -71,3 +84,7 @@ if (prune) {
 }
 
 console.log(`✔ ${files.length} filer uppladdade till "${STORE}"`)
+if (invites.length) {
+  console.log('\nInbjudningslänkar (sätt sajtens adress framför):')
+  for (const [code, inv] of invites) console.log(`  ${inv.name.padEnd(20)} /?inbjudan=${encodeURIComponent(code)}`)
+}

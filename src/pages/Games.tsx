@@ -37,7 +37,7 @@ export default function Games() {
           Spelstugan
         </h1>
         <p className="animate-rise mx-auto mt-4 max-w-md text-snow/70" style={{ animationDelay: '0.2s' }}>
-          Tre stånd, tre topplistor. Den som leder när julbordet dukas får äran att skåla först.
+          Tre stånd, tre topplistor. Den som leder på julafton får äran att skåla först.
         </p>
       </header>
 

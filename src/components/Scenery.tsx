@@ -4,6 +4,7 @@ import { SantaSleigh } from './Santa'
 import { useDaypart, type Daypart } from '../lib/daypart'
 import { useNisseEffect } from './Snowballs'
 import { Player, type PlayerDoor } from './Player'
+import { JULBORD } from '../lib/village'
 
 export function Stars({ count = 90 }: { count?: number }) {
   const stars = useMemo(
@@ -543,7 +544,7 @@ const PLAYER_DOORS: PlayerDoor[] = [
   { id: 'destilleri', building: 'destilleri', x: 594, branch: BRANCHES[4], title: 'Kliv in i destilleriet' },
   { id: 'verkstad', building: 'verkstad', x: 725, branch: BRANCHES[5], title: 'Kliv in i verkstaden' },
   { id: 'ritbord', building: 'ritningar', x: 782, branch: 'M782 386 Q 782 392 782 395', title: 'Rita ert pepparkakshus' },
-  { id: 'julbord', building: 'julbord', x: 924, branch: BRANCHES[6], title: 'Kliv in i långhuset' },
+  ...(JULBORD ? [{ id: 'julbord', building: 'julbord' as const, x: 924, branch: BRANCHES[6], title: 'Kliv in i långhuset' }] : []),
   { id: 'ritningar', building: 'ritningar', x: 1200, branch: BRANCHES[8], title: 'Kliv in på Arkitektkontoret' },
 ]
 const GARLAND = ['#ffd27a', '#ff5a5a', '#7fd1ff', '#9bff9b', '#ffb3f0']
@@ -860,7 +861,12 @@ export function Lappland({
           {busy && <Nisse id="waver" x={372} y={388} carry="wave" />}
           {/* centre: Tomtens stuga (Julafton), destilleri + verkstad (Julbak), långhuset (Julbord) */}
           <House x={425} base={380} w={80} h={38} wall="#a8322a" windows={2} sign="TOMTEN" building="julafton" title="Kliv in hos Tomten – julafton" onEnter={onEnter} smoke={3} />
-          <House x={836} base={380} w={170} h={46} wall="#8e2a1f" windows={4} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} smoke={7} />
+          {/* (not invited to the julbord: just a long house, no sign and no way in) */}
+          {JULBORD ? (
+            <House x={836} base={380} w={170} h={46} wall="#8e2a1f" windows={4} sign="JULBORD" building="julbord" title="Kliv in i långhuset – julbordet" onEnter={onEnter} smoke={7} />
+          ) : (
+            <House x={836} base={380} w={170} h={46} wall="#8e2a1f" windows={4} smoke={7} />
+          )}
           {/* right */}
           <House x={1145} base={380} w={120} h={40} wall="#c98a2b" windows={4} sign="ARKITEKTKONTORET" signColor="#5a3b22" building="ritningar" title="Kliv in på Arkitektkontoret – Pepparkaksarkitekten" onEnter={onEnter} smoke={31} />
           <Sled x={1100} base={388} />

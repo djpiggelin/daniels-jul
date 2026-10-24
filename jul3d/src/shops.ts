@@ -16,7 +16,8 @@ import { furnishJulbord, knytisBoardItems, showClaimsOnBuffet } from './julbord'
 import type { Claims } from '../../src/lib/api'
 
 const JULBAK = EVENTS.find((e) => e.id === 'julbak')!
-const JULBORD = EVENTS.find((e) => e.potluck)!
+// (only there for those invited – see netlify/lib/invite.mts)
+const JULBORD = EVENTS.find((e) => e.potluck)
 const JULAFTON = EVENTS.find((e) => e.santa)!
 const VERKSTAD = JULBAK.competitions?.find((c) => c.art === 'verkstad')
 const DESTILLERI = JULBAK.competitions?.find((c) => c.art === 'destilleri')
@@ -445,8 +446,7 @@ async function buildDestilleri(): Promise<BuiltShop> {
   return { shop, event: e, npc, talk }
 }
 
-async function buildJulbord(): Promise<BuiltShop> {
-  const e = JULBORD
+async function buildJulbord(e: JulEvent): Promise<BuiltShop> {
   // white panelled walls inside, like the dining room in the photo
   const shop = new Shop('Julbordet', { wall: '#a8282c', trim: 0xfdfcf8, roof: 0x3a2a24, inner: '#ece3d3' })
   shop.place(30, 23)
@@ -569,7 +569,7 @@ async function buildJulafton(): Promise<BuiltShop> {
       },
       {
         label: '🦌 Var är renarna?',
-        pages: () => [html.p('Ute och flyger provvarv över byn! Rudolf leder julbordet, Dasher julbaket – och på julafton kör jag själv.')],
+        pages: () => [html.p(`Ute och flyger provvarv över byn! ${JULBORD ? 'Rudolf leder julbordet, ' : ''}Dasher julbaket – och på julafton kör jag själv.`)],
       },
       calendar(e),
     ],
@@ -715,7 +715,8 @@ async function buildArkitektkontor(): Promise<BuiltShop> {
 }
 
 export async function buildShops(): Promise<BuiltShop[]> {
-  return Promise.all([buildVerkstad(), buildDestilleri(), buildJulbord(), buildJulafton(), buildArkitektkontor(), buildLeksaksfabriken()])
+  // no julbord house at all if you're not invited – just snow where it would have stood
+  return Promise.all([buildVerkstad(), buildDestilleri(), ...(JULBORD ? [buildJulbord(JULBORD)] : []), buildJulafton(), buildArkitektkontor(), buildLeksaksfabriken()])
 }
 
 /** NPC spot in shop-local space: behind the counter, facing the room. */

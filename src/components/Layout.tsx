@@ -3,10 +3,12 @@ import { NavLink, Outlet, useLocation } from 'react-router-dom'
 import { Snow } from './Snow'
 import { YEAR } from '../data'
 import { useDaypart } from '../lib/daypart'
+import { JULBORD } from '../lib/village'
 
 const links = [
   { to: '/handelser', label: 'Händelser' },
-  { to: '/knytis', label: 'Knytis' },
+  // (knytis is the julbord's – only for those invited)
+  ...(JULBORD ? [{ to: '/knytis', label: 'Knytis' }] : []),
   { to: '/spel', label: 'Spel' },
 ]
 

@@ -635,6 +635,28 @@ body:not(.touch) #jump { display: none; }
 body:not(.touch) #zoom { display: none; }
 #hud.busy #zoom, #hud.flight #zoom, #hud.arcade #zoom { display: none; }
 
+/* a sip of glögg (touch), left of the zoom button – only while you've a glass */
+#sip {
+  pointer-events: auto; position: absolute; right: 158px; bottom: max(176px, calc(env(safe-area-inset-bottom) + 156px));
+  width: 52px; height: 52px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(110, 12, 24, 0.6); font-size: 22px; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+#sip[hidden], body:not(.touch) #sip { display: none; }
+#hud.busy #sip, #hud.flight #sip, #hud.arcade #sip { display: none; }
+
+/* ---------- Central Park: the Christmas spirit, who's singing, how many chances are left ---------- */
+#park { position: absolute; top: max(64px, calc(env(safe-area-inset-top) + 50px)); left: 0; right: 0; margin: 0 auto; width: min(420px, calc(100vw - 32px)); pointer-events: none; text-align: center; color: #fff; font: 600 15px var(--sans); text-shadow: 0 1px 3px rgba(0, 0, 0, 0.6); }
+#park[hidden], #park-quit[hidden] { display: none; }
+#park .cheer { display: flex; align-items: center; gap: 8px; padding: 8px 12px; border-radius: 999px; background: rgba(7, 11, 29, 0.6); }
+#park .bar { flex: 1; height: 12px; border-radius: 999px; background: rgba(255, 255, 255, 0.15); overflow: hidden; }
+#park .bar i { display: block; height: 100%; width: 0; border-radius: 999px; background: linear-gradient(90deg, #c8102e, #f6c453, #2fa36b); transition: width 0.4s; }
+#park .row { display: flex; justify-content: space-between; margin: 6px 6px 0; }
+#park .alert { margin-top: 8px; padding: 6px 12px; border-radius: 999px; background: rgba(200, 16, 46, 0.85); animation: park-alert 0.6s infinite alternate; }
+#park .alert[hidden], #park .msg[hidden] { display: none; }
+@keyframes park-alert { to { background: rgba(43, 95, 168, 0.85); } }
+#park .msg { margin-top: 10px; padding: 10px 14px; border-radius: 12px; background: rgba(7, 11, 29, 0.75); font-weight: 500; }
+#park-quit { pointer-events: auto; position: absolute; right: 16px; bottom: max(16px, env(safe-area-inset-bottom)); padding: 8px 14px; border-radius: 999px; border: 1px solid rgba(255, 255, 255, 0.4); background: rgba(7, 11, 29, 0.6); color: #fff; font: 600 14px var(--sans); }
+
 /* ---------- Kvalitetskontrollen (stamping toys in Leksaksfabriken) ---------- */
 #stampla { position: absolute; inset: 0; pointer-events: none; }
 #hud.stampla #next-event, #hud.stampla #prompt { display: none; }
