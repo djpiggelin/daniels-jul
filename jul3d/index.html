@@ -199,6 +199,26 @@
       </div>
     </div>
 
+    <div id="affisch" hidden>
+      <div class="card" role="dialog" aria-label="Affischtavlan">
+        <button class="close" type="button" aria-label="Stäng">✕</button>
+        <div class="kicker">Torget</div>
+        <h2>📌 Affischtavlan</h2>
+        <form class="pin-up">
+          <input class="name" maxlength="24" autocomplete="name" placeholder="Ditt namn" />
+          <textarea maxlength="1000" rows="2" placeholder="Skriv något – en hälsning, en inbjudan, en efterlysning …"></textarea>
+          <div class="row">
+            <label class="pick">🖼️ Välj affisch<input type="file" accept=".png,.jpg,.jpeg,.pdf,image/png,image/jpeg,application/pdf" /></label>
+            <span class="file-name">PNG, JPG eller PDF, max 4,5 MB</span>
+            <button class="unpick" type="button" aria-label="Ta bort filen" hidden>✕</button>
+            <button class="send" type="submit">Sätt upp</button>
+          </div>
+          <p class="status" aria-live="polite"></p>
+        </form>
+        <div class="posters"></div>
+      </div>
+    </div>
+
     <div id="ritbord" hidden>
       <div class="bar">
         <span class="title">📐 Ritbordet <small>– Pepparkaksarkitekten</small></span>

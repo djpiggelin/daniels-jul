@@ -731,3 +731,66 @@ body.touch #minimap { width: 104px; height: 104px; }
 /* (the next event in the top left keeps clear of the map) */
 #next-event { max-width: calc(100vw - 190px); }
 body.touch #next-event { max-width: calc(100vw - 150px); }
+
+/* ---------- Affischtavlan (affischtavla.ts): every poster, and the form to pin up your own ---------- */
+#affisch {
+  position: fixed; inset: 0; z-index: 50; display: grid; place-items: center; padding: 16px;
+  background: rgba(4, 6, 16, 0.55); backdrop-filter: blur(6px); -webkit-backdrop-filter: blur(6px);
+  animation: menu-in 0.28s ease-out;
+}
+#affisch[hidden] { display: none; }
+#affisch .card {
+  position: relative; width: min(980px, 100%); max-height: calc(100dvh - 32px); overflow: auto;
+  padding: 22px 24px 20px; border-radius: 20px; color: var(--ink);
+  background: linear-gradient(180deg, #fbf1dc, #efdcb6);
+  border: 3px solid #7a4c2a; box-shadow: 0 0 0 3px #f6c453 inset, 0 30px 80px rgba(0, 0, 0, 0.6);
+  animation: rise-card 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+}
+#affisch .close {
+  position: absolute; top: 12px; right: 12px; width: 38px; height: 38px; border-radius: 50%;
+  border: 2px solid rgba(122, 76, 42, 0.35); background: rgba(255, 255, 255, 0.6); color: var(--ink); font-size: 16px; cursor: pointer;
+}
+#affisch .kicker { font: 600 12px var(--sans); letter-spacing: 0.25em; text-transform: uppercase; color: #8e1b1b; }
+#affisch h2 { margin: 2px 0 12px; font: 700 30px/1.1 var(--serif); }
+#affisch .pin-up { display: grid; gap: 8px; padding-bottom: 14px; border-bottom: 1px solid rgba(122, 76, 42, 0.25); }
+#affisch .pin-up input.name, #affisch .pin-up textarea {
+  width: 100%; box-sizing: border-box; padding: 9px 12px; border-radius: 12px; border: 2px solid rgba(122, 76, 42, 0.3);
+  background: rgba(255, 255, 255, 0.8); color: var(--ink); font: 400 16px var(--sans); resize: vertical;
+}
+#affisch .pin-up input.name { max-width: 260px; }
+#affisch .pin-up :is(input, textarea):focus { outline: none; border-color: #b3202a; background: #fff; }
+#affisch .row { display: flex; flex-wrap: wrap; align-items: center; gap: 10px; }
+#affisch .pick { position: relative; padding: 8px 14px; border-radius: 999px; background: #fff; border: 2px solid rgba(122, 76, 42, 0.35); font: 600 15px var(--sans); cursor: pointer; }
+#affisch .pick input { position: absolute; width: 1px; height: 1px; opacity: 0; }
+#affisch .file-name { min-width: 0; max-width: 260px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 14px; opacity: 0.7; }
+#affisch .unpick { border: 0; background: none; font-size: 15px; cursor: pointer; color: var(--ink); }
+#affisch .send { margin-left: auto; padding: 10px 22px; border-radius: 999px; border: 0; background: #1d6e48; color: #fff; font: 700 16px var(--sans); cursor: pointer; }
+#affisch .send:disabled { opacity: 0.6; }
+#affisch .status { margin: 0; min-height: 1.2em; font-size: 14px; color: #8e1b1b; }
+#affisch .posters {
+  margin-top: 16px; padding: 16px; border-radius: 14px; border: 8px solid #6b4426; columns: 3 240px; column-gap: 16px;
+  background-color: #b98a58; background-image: radial-gradient(rgba(80, 48, 20, 0.35) 1px, transparent 1.5px), radial-gradient(rgba(255, 235, 200, 0.25) 1px, transparent 1.5px);
+  background-size: 9px 9px, 13px 13px; background-position: 0 0, 4px 6px;
+}
+#affisch .empty { margin: 30px 0; text-align: center; font: 600 17px var(--sans); color: rgba(30, 20, 10, 0.75); column-span: all; }
+#affisch .poster {
+  position: relative; break-inside: avoid; margin: 0 0 16px; padding: 18px 10px 8px; background: #fdfbf6;
+  box-shadow: 0 8px 20px rgba(40, 20, 0, 0.35); transform: rotate(var(--tilt, 0deg));
+}
+#affisch .poster .pin { position: absolute; left: 50%; top: 4px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; box-shadow: 0 2px 3px rgba(0, 0, 0, 0.4); }
+#affisch .poster img { display: block; width: 100%; height: auto; }
+#affisch .poster .pdf { display: block; width: 100%; aspect-ratio: 1 / 1.414; background: #fff; }
+#affisch .poster .pdf-fallback { display: flex; height: 100%; flex-direction: column; align-items: center; justify-content: center; gap: 6px; color: var(--ink); text-align: center; }
+#affisch .poster .pdf-fallback .big { font-size: 44px; }
+#affisch .poster .open { display: block; margin-top: 4px; text-align: right; font-size: 12px; color: var(--ink); opacity: 0.7; }
+#affisch .poster .text { margin: 8px 0 0; white-space: pre-wrap; overflow-wrap: anywhere; font: 400 14px/1.4 var(--sans); }
+#affisch .poster.note .text { margin-top: 0; font: 400 18px/1.35 var(--serif); }
+#affisch figcaption { display: flex; justify-content: space-between; gap: 8px; margin-top: 8px; font-size: 12px; opacity: 0.6; }
+@media (max-width: 520px) {
+  #affisch { padding: 8px; }
+  #affisch .card { padding: 18px 14px 14px; max-height: calc(100dvh - 16px); }
+  #affisch h2 { font-size: 24px; padding-right: 40px; }
+  #affisch .pin-up input.name { max-width: none; }
+  #affisch .send { margin-left: 0; flex: 1; }
+  #affisch .posters { padding: 10px; border-width: 6px; }
+}
