@@ -247,7 +247,7 @@ export class PackingLine {
       '<div class="fl-top"><div class="fl-score"><b>0</b><span>paket</span></div><div class="fl-time"><b>45</b><span>sekunder</span></div><div class="fl-best">🏆 0</div></div>' +
       '<div class="st-msg" hidden></div>' +
       `<div class="pl-papers">${PAPERS.map((p, i) => `<button type="button" data-i="${i}" style="background:${p.css}">${i + 1}</button>`).join('')}</div>` +
-      '<button class="st-stop" type="button">Sluta slå in</button>'
+      '<button class="st-stop" type="button">✕ Sluta slå in</button>'
     document.getElementById('hud')!.appendChild(this.el)
     this.el.querySelector('.st-stop')!.addEventListener('click', () => this.leave())
     for (const b of this.el.querySelectorAll<HTMLButtonElement>('.pl-papers button'))

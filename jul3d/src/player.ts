@@ -155,6 +155,11 @@ export class Player {
     this.stick.classList.remove('on')
   }
 
+  /** The finger that was turning the view lets go of it (a second finger came down to pinch). */
+  endLook() {
+    this.look.id = -1
+  }
+
   private turn(dx: number, dy: number, k: number) {
     k /= this.zoom
     this.yaw -= dx * k
