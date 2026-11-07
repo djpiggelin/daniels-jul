@@ -10,6 +10,7 @@ const links = [
   // (knytis is the julbord's – only for those invited)
   ...(JULBORD ? [{ to: '/knytis', label: 'Knytis' }] : []),
   { to: '/spel', label: 'Spel' },
+  { to: '/affischtavla', label: 'Affischer' },
 ]
 
 export function Layout() {

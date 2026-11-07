@@ -13,6 +13,7 @@ import Games from './pages/Games'
 import GamePage from './pages/GamePage'
 import NotFound from './pages/NotFound'
 import Pepparkaksarkitekten from './pages/Pepparkaksarkitekten'
+import Affischtavla from './pages/Affischtavla'
 
 createRoot(document.getElementById('root')!).render(
   <StrictMode>
@@ -29,6 +30,7 @@ createRoot(document.getElementById('root')!).render(
           <Route path="spel" element={<Games />} />
           <Route path="spel/:game" element={<GamePage />} />
           <Route path="pepparkaksarkitekten" element={<Pepparkaksarkitekten />} />
+          <Route path="affischtavla" element={<Affischtavla />} />
           <Route path="*" element={<NotFound />} />
         </Route>
       </Routes>
