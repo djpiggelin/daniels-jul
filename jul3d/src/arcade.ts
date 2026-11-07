@@ -319,6 +319,8 @@ export class Arcade {
   private bar = document.getElementById('arcade-bar')!
   /** Called once the camera is back with the player. */
   onLeft: () => void = () => {}
+  /** Called when a round ends, for the season's shared list. */
+  onScore: (game: string, score: number) => void = () => {}
 
   constructor(
     scene: THREE.Scene,
@@ -478,6 +480,7 @@ export class Arcade {
       if (game.over) {
         this.lastScore = game.score
         this.record = cab.saveBest(game.score)
+        if (game.score > 0) this.onScore(cab.def.id, game.score)
         cab.freeze()
         this.state = 'over'
         this.armedAt = performance.now() + 700

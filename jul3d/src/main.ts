@@ -49,12 +49,14 @@ import { Dialog, PauseMenu, Viewer, VirtualCursor, html, type Talk } from './ui'
 import { KnytisPanel } from './knytis'
 import { RitbordPanel } from './ritbord'
 import { refreshTeamHouse } from './teamhouse'
-import { Multiplayer } from './multiplayer'
+import { Multiplayer, colorFor } from './multiplayer'
+import { ThirdPerson } from './tredjeperson'
+import { Minimap } from './minimap'
 import { bakeStatic, mergeRigid } from './batch'
 import { PARTICIPANTS } from './data'
-import { getClaims, rememberedName } from '../../src/lib/api'
+import { getClaims, postScore, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
-import { buildWorld, keepInside, onIce } from './world'
+import { buildWorld, groundHeight, keepInside, onIce } from './world'
 import { watchWeather } from './vader'
 import { PROFILE, QUALITY, TOUCH, textureMB, walkFov } from './device'
 import { noise } from './sfx'
@@ -384,12 +386,7 @@ async function build() {
     const lb = (list: unknown) => Array.isArray(list) && packing?.showBoard(list)
     fetch('/api/leaderboard?game=paketlinjen').then((r) => (r.ok ? r.json() : [])).then(lb).catch(() => {})
     packing.onScore = (score) => {
-      const name = rememberedName.get()
-      if (!name || score <= 0) return
-      fetch('/api/leaderboard', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ game: 'paketlinjen', name, score }) })
-        .then((r) => (r.ok ? r.json() : []))
-        .then(lb)
-        .catch(() => {})
+      postScore('paketlinjen', rememberedName.get() || 'En nisse', score).then(lb).catch(() => {})
     }
   }
   // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
@@ -413,6 +410,8 @@ async function build() {
   // the games round the tree
   arcade = new Arcade(scene, camera, player, vm, playArcade)
   arcade.onLeft = () => resume()
+  // every round on a cabinet goes on the season's list too (the same one the games page shows)
+  arcade.onScore = (game, score) => void postScore(game, rememberedName.get() || 'En nisse', score).catch(() => {})
   for (const c of arcade.cabinets) {
     const p = c.group.position
     circles.push({ x: p.x, z: p.z, r: 0.62 }, { x: c.host.group.position.x, z: c.host.group.position.z, r: 0.32 })
@@ -654,6 +653,7 @@ function joinOthers() {
   if (typed) rememberedName.set(typed)
   const name = typed || `Nisse ${10 + Math.floor(Math.random() * 90)}`
   const photo = PARTICIPANTS.find((p) => p.name.toLowerCase() === name.toLowerCase())?.image ?? null
+  tp.look(colorFor(name))
   mp.join({ name, photo })
 }
 /** "👥 3 i byn" in the corner, and who's here (with their hits) in the menu. */
@@ -806,7 +806,9 @@ function targetAt(x: number, y: number): Target | null {
 }
 player.onTap = (x, y) => {
   if (!player.enabled || !started) return
+  tp.apply()
   const t = targetAt(x, y)
+  tp.restore()
   if (!t) return
   setTarget(t)
   interact()
@@ -1097,6 +1099,7 @@ sens.addEventListener('input', () => {
 // the 2D site lives next to the village – knytis, topplistor, ritningar
 $('m-knytis').addEventListener('click', openKnytisPanel)
 $('m-web').addEventListener('click', () => location.assign('/handelser'))
+$('m-affisch').addEventListener('click', () => location.assign(import.meta.env.DEV ? `${import.meta.env.VITE_SITE_URL ?? 'http://localhost:5173'}/affischtavla` : '/affischtavla'))
 
 // Fullscreen works on Android and iPad too, not just with a mouse
 if (document.fullscreenEnabled) $('m-full').classList.remove('desk')
@@ -1463,6 +1466,140 @@ function updateZoom(dt: number) {
   camera.updateProjectionMatrix()
 }
 
+/* ---------- third person: the mouse wheel, a pinch or 👤 backs the camera off so you see your own nisse ---------- */
+const tp = new ThirdPerson(scene, player, camera, viewClear, (x, z) => groundHeight(x, z))
+const minimap = new Minimap($('minimap') as HTMLCanvasElement)
+const hudEl = $('hud')
+/** Out walking in the village – no game, popup, sleigh or trip that wants the camera (or the corner) for itself. */
+function freeWalk() {
+  return (
+    started &&
+    !inPark &&
+    !inMine &&
+    !trip.inWorld &&
+    !corrida.inWorld &&
+    !cartRun?.active &&
+    !hacking?.active &&
+    !flight.active &&
+    !slide.active &&
+    !sled?.active &&
+    !stamping.active &&
+    !packing?.active &&
+    !arcade?.active &&
+    !['busy', 'arcade', 'flight', 'trip', 'corrida', 'stampla'].some((c) => hudEl.classList.contains(c))
+  )
+}
+/** How far (0–1) the camera can back off from `a` towards `b` before a wall (or, indoors, the ceiling) is in the way. */
+function viewClear(a: THREE.Vector3, b: THREE.Vector3) {
+  const len = a.distanceTo(b)
+  if (len < 1e-4) return 1
+  let t = 1
+  // indoors there isn't room to stand far back
+  for (const r of world.roofs) {
+    const dx = a.x - r.x
+    const dz = a.z - r.z
+    if (Math.abs(dx * r.cos - dz * r.sin) < r.hw && Math.abs(dx * r.sin + dz * r.cos) < r.hd && a.y < r.h) t = Math.min(t, 2.2 / len)
+  }
+  const lowY = Math.min(a.y, b.y)
+  const PAD = 0.25
+  for (const s of blockers) {
+    const g = s.group
+    const cos = Math.cos(g.rotation.y)
+    const sin = Math.sin(g.rotation.y)
+    const ax = (a.x - g.position.x) * cos - (a.z - g.position.z) * sin
+    const az = (a.x - g.position.x) * sin + (a.z - g.position.z) * cos
+    const bx = (b.x - g.position.x) * cos - (b.z - g.position.z) * sin
+    const bz = (b.x - g.position.x) * sin + (b.z - g.position.z) * cos
+    const ux = bx - ax
+    const uz = bz - az
+    for (const box of s.boxes) {
+      if (box.y1 !== undefined && box.y1 < lowY) continue
+      // where the line from you to the camera first goes into the box (a slab test), if it does
+      let t0 = 0
+      let t1 = 1
+      for (const [p, u, lo, hi] of [
+        [ax, ux, box.x - box.hw - PAD, box.x + box.hw + PAD],
+        [az, uz, box.z - box.hd - PAD, box.z + box.hd + PAD],
+      ]) {
+        if (Math.abs(u) < 1e-9) {
+          if (p < lo || p > hi) t0 = 2
+        } else {
+          const e = (lo - p) / u
+          const f = (hi - p) / u
+          t0 = Math.max(t0, Math.min(e, f))
+          t1 = Math.min(t1, Math.max(e, f))
+        }
+      }
+      // (already inside it – a counter you're leaning on – doesn't count)
+      if (t0 <= t1 && t0 > 0 && t0 < t) t = t0
+    }
+  }
+  // and the outside of the big buildings, trees and the like
+  ray.set(a, b.clone().sub(a).normalize())
+  ray.far = len * t
+  const hit = ray.intersectObjects(rayRoots, true)[0]
+  ray.far = Infinity
+  if (hit) t = Math.min(t, Math.max(0, hit.distance - 0.3) / len)
+  return t
+}
+function updateView(t: number, dt: number) {
+  const free = freeWalk()
+  tp.update(t, dt, free)
+  const map = $('minimap')
+  map.hidden = !free
+  if (free) minimap.update(dt, { x: player.pos.x, z: player.pos.z, yaw: player.yaw }, mp?.others ?? [])
+  $('vy').classList.toggle('on', tp.on)
+}
+renderer.domElement.addEventListener(
+  'wheel',
+  (e) => {
+    e.preventDefault()
+    if (!freeWalk() || !player.enabled) return
+    // (a mouse wheel notch is ~100; a trackpad sends lots of little ones)
+    const px = e.deltaMode === 1 ? e.deltaY * 33 : e.deltaY
+    tp.zoom(Math.sign(px) * Math.min(1.2, Math.abs(px) / 90))
+  },
+  { passive: false },
+)
+addEventListener('keydown', (e) => {
+  if (e.code === 'KeyV' && !e.repeat && player.enabled && freeWalk() && !(e.target as HTMLElement | null)?.closest?.('input, textarea')) tp.cycle()
+})
+$('vy').addEventListener('pointerdown', (e) => {
+  e.preventDefault()
+  if (freeWalk()) tp.cycle()
+})
+// two fingers on the right of the screen pinching: out (or in) – the left thumb stays on the stick
+const pinch = new Map<number, { x: number; y: number }>()
+let pinchFrom = 0
+const spread = () => {
+  const [p, q] = [...pinch.values()]
+  return Math.hypot(p.x - q.x, p.y - q.y)
+}
+renderer.domElement.addEventListener('pointerdown', (e) => {
+  if (e.pointerType === 'mouse' || e.clientX < innerWidth * 0.45) return
+  pinch.set(e.pointerId, { x: e.clientX, y: e.clientY })
+  if (pinch.size === 2) {
+    pinchFrom = spread()
+    // (the first finger stops turning the view)
+    player.endLook()
+  }
+})
+renderer.domElement.addEventListener('pointermove', (e) => {
+  const p = pinch.get(e.pointerId)
+  if (!p) return
+  p.x = e.clientX
+  p.y = e.clientY
+  if (pinch.size !== 2 || !freeWalk() || !player.enabled) return
+  const d = spread()
+  // fingers together: further out; apart: back in
+  const by = (pinchFrom - d) / 45
+  if (Math.abs(by) >= 1 || (tp.want === 0 && by > 0.5)) {
+    tp.zoom(by)
+    pinchFrom = d
+  }
+})
+for (const ev of ['pointerup', 'pointercancel'] as const) renderer.domElement.addEventListener(ev, (e) => pinch.delete(e.pointerId))
+
 renderer.domElement.addEventListener('mousedown', (e) => {
   if (!player.enabled || e.button !== 0) return
   if (target) interact()
@@ -1730,6 +1867,7 @@ function frame(now: number) {
   corrida.update(dt, t)
   if (frameNo % 2 === 0) renderer.shadowMap.needsUpdate = true
   updateZoom(dt)
+  updateView(t, dt)
   vm.cupPose(dt, t)
   // before drawing: a new resolution resizes (and clears) the canvas, which would otherwise show as a black flash
   if (!idle) adaptResolution(now)
@@ -1747,8 +1885,11 @@ function frame(now: number) {
     renderer.render(corrida.world!.scene, camera)
     vm.render(renderer, camera)
   } else {
+    // zoomed out: the camera backs off for the drawing only (aiming, throwing and getting hit stay in your head)
+    const away = tp.apply()
     renderer.render(scene, camera)
-    vm.render(renderer, camera)
+    if (!away) vm.render(renderer, camera)
+    tp.restore()
   }
 }
 
@@ -1758,6 +1899,7 @@ build()
   .then(() => {
     updateHud()
     refreshClaims()
+    minimap.build(world.roofs, circles)
     go.disabled = false
     go.textContent = 'Gå in i byn'
     const q = new URLSearchParams(location.search)
@@ -1794,6 +1936,7 @@ function fillScreen() {
 }
 go.addEventListener('click', () => {
   fillScreen()
+  tp.look(colorFor(($('me-name') as HTMLInputElement).value.trim() || rememberedName.get() || 'Nisse'))
   joinOthers()
   started = true
   // a door waiting in the calendar today?
@@ -1813,4 +1956,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, get packing() { return packing }, get bakery() { return bakery }, get baubles() { return baubles }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, tp, minimap, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, get packing() { return packing }, get bakery() { return bakery }, get baubles() { return baubles }, startPark, goto, get shops() { return shops } } })
