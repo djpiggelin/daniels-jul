@@ -47,6 +47,7 @@ import { Thrower } from './throw'
 import { Trip } from './trip'
 import { Dialog, PauseMenu, Viewer, VirtualCursor, html, type Talk } from './ui'
 import { KnytisPanel } from './knytis'
+import { buildPosterBoard, PosterPanel, type PosterBoard } from './affischtavla'
 import { RitbordPanel } from './ritbord'
 import { refreshTeamHouse } from './teamhouse'
 import { Multiplayer, colorFor } from './multiplayer'
@@ -177,6 +178,7 @@ type Target =
   | { kind: 'snow'; label: string }
   | { kind: 'paket' }
   | { kind: 'vitrin' }
+  | { kind: 'affisch' }
   | { kind: 'kula'; i: number }
   | { kind: 'pickup'; item: Act }
 const exhibitOf = new Map<THREE.Object3D, Target>()
@@ -243,6 +245,8 @@ let christmasEve: Julafton | null = null
 let fireworks: Fireworks | null = null
 /** Paketlinjen, in Leksaksfabriken's yard: wrapping the toys in the paper they wished for. */
 let packing: PackingLine | null = null
+/** Affischtavlan, on the east side of the square: posters and notes, the same board as /affischtavla. */
+let posterBoard: PosterBoard | null = null
 /** Gingerbread houses by Tomtens bageri: Bagar-Berit's table, and the window everyone votes in. */
 let bakery: Bakery | null = null
 /** The 24 baubles hidden round the village, and Kul-Kerstin's hints. */
@@ -378,6 +382,13 @@ async function build() {
   circles.push(...baubles.colliders)
   talkers.push(baubles.talker)
   packing = new PackingLine(scene)
+  posterBoard = buildPosterBoard(scene)
+  circles.push(...posterBoard.colliders)
+  solids.push(posterBoard.group)
+  void posterBoard.refresh()
+  // (tap the board to open it, like an exhibit)
+  exhibitOf.set(posterBoard.group, { kind: 'affisch' })
+  rayRoots.push(posterBoard.group)
   circles.push(...packing.colliders)
   solids.push(packing.group)
   packing.onLeft = () => resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
@@ -481,6 +492,7 @@ async function build() {
     ...(market ? [market.group] : []),
     ...(christmasEve ? [christmasEve.group] : []),
     ...(packing ? [packing.group] : []),
+    ...(posterBoard ? [posterBoard.group] : []),
     ...(bakery ? [bakery.group, ...bakery.moving] : []),
     ...(baubles ? [baubles.group, ...baubles.moving] : []),
     ...(arcade?.cabinets.map((c) => c.group) ?? []),
@@ -763,6 +775,7 @@ function findTarget(): Target | null {
   if (sled?.near(player.pos, fwd)) return { kind: 'pulka' }
   if (packing?.near(player.pos, fwd)) return { kind: 'paket' }
   if (bakery?.nearWindow(player.pos, fwd)) return { kind: 'vitrin' }
+  if (posterBoard?.near(player.pos, fwd)) return { kind: 'affisch' }
   const kula = baubles?.near(player.pos, fwd) ?? -1
   if (kula >= 0) return { kind: 'kula', i: kula }
   const snow = snowmen?.prompt(player.pos, fwd)
@@ -859,6 +872,8 @@ function setTarget(t: Target | null) {
                                   ? t.label
                                   : t.kind === 'paket'
                                     ? '📦 Hjälp till att slå in paket'
+                                    : t.kind === 'affisch'
+                                      ? '📌 Titta på affischtavlan'
                                     : t.kind === 'vitrin'
                                       ? '🏠 Titta på pepparkakshusen'
                                       : t.kind === 'kula'
@@ -940,6 +955,23 @@ function openKnytisPanel(e?: Event) {
   }
 }
 addEventListener('jul:knytis', openKnytisPanel)
+
+/* ---------- Affischtavlan ---------- */
+// Also a form you type in: the mouse is let go while it's open.
+const posters = new PosterPanel()
+posters.onList = (list) => posterBoard?.show(list)
+posters.onClose = () => resume(() => toast('🖱️ Klicka i byn för att styra med musen'))
+function openPosters() {
+  if (posters.open || !started) return
+  pause(false)
+  cursor.hide()
+  menu.hide()
+  void posters.show()
+  if (player.locked) {
+    selfUnlock = true
+    document.exitPointerLock()
+  }
+}
 // who brings what: on the chalkboard and the buffet cards – fetched now and then (others claim too)
 function refreshClaims() {
   // (no julbord in the village unless you're invited – and then nothing to ask for)
@@ -1047,6 +1079,7 @@ function onEsc() {
   if (chatting) return closeChat()
   if (ritbord.open) return ritbord.close()
   if (knytis.open) return knytis.close()
+  if (posters.open) return posters.close()
   if (dialog.open) return dialog.close()
   if (viewer.open) return viewer.close()
   if (stamping.active) return stamping.leave()
@@ -1099,7 +1132,7 @@ sens.addEventListener('input', () => {
 // the 2D site lives next to the village – knytis, topplistor, ritningar
 $('m-knytis').addEventListener('click', openKnytisPanel)
 $('m-web').addEventListener('click', () => location.assign('/handelser'))
-$('m-affisch').addEventListener('click', () => location.assign(import.meta.env.DEV ? `${import.meta.env.VITE_SITE_URL ?? 'http://localhost:5173'}/affischtavla` : '/affischtavla'))
+$('m-affisch').addEventListener('click', openPosters)
 
 // Fullscreen works on Android and iPad too, not just with a mouse
 if (document.fullscreenEnabled) $('m-full').classList.remove('desk')
@@ -1181,6 +1214,8 @@ function interact() {
   else if (t.kind === 'slide') {
     cursor.hide()
     slide.start()
+  } else if (t.kind === 'affisch') {
+    openPosters()
   } else if (t.kind === 'vitrin') {
     dialog.start(bakery!.voteTalk())
   } else if (t.kind === 'paket') {
@@ -1606,7 +1641,7 @@ renderer.domElement.addEventListener('mousedown', (e) => {
   else player.lock()
 })
 addEventListener('keydown', (e) => {
-  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || ritbord.open || chatting || stamping.active || packing?.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || hacking?.active || calendar?.open || !started) return
+  if (e.defaultPrevented || dialog.open || viewer.open || menu.open || knytis.open || posters.open || ritbord.open || chatting || stamping.active || packing?.active || arcade?.active || flight.active || trip.active || corrida.active || cartRun?.active || hacking?.active || calendar?.open || !started) return
   if ((e.target as HTMLElement | null)?.closest?.('input, textarea')) return
   const talk = e.code === 'Enter' || e.code === 'NumpadEnter' || e.code === 'KeyT'
   if (talk && mp?.online) {
@@ -1956,4 +1991,4 @@ function goto(i: number, lx = 0.5, lz = 3.2, look: [number, number] = [0, -4]) {
   player.yaw = Math.atan2(-(t.x - p.x), -(t.z - p.z))
   player.pitch = -0.05
 }
-Object.assign(window, { jul: { renderer, vm, player, camera, tp, minimap, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, get packing() { return packing }, get bakery() { return bakery }, get baubles() { return baubles }, startPark, goto, get shops() { return shops } } })
+Object.assign(window, { jul: { renderer, vm, player, camera, tp, minimap, scene, dialog, viewer, menu, snowballs, thrower, sleigh, flight, camper, trip, matadors, corrida, world, talkers, mp, parade, stamping, slide, goDown, goUp, ride, hack, get hacking() { return hacking }, get calendar() { return calendar }, get mine() { return mine }, get cartRun() { return cartRun }, get arcade() { return arcade }, get choir() { return choir }, get elves() { return elves }, get sleighYard() { return sleighYard }, get park() { return park }, get garden() { return garden }, get wild() { return wild }, get lake() { return lake }, get sled() { return sled }, get snowmen() { return snowmen }, get market() { return market }, get christmasEve() { return christmasEve }, get fireworks() { return fireworks }, get packing() { return packing }, get posterBoard() { return posterBoard }, posters, get bakery() { return bakery }, get baubles() { return baubles }, startPark, goto, get shops() { return shops } } })
