@@ -52,7 +52,7 @@ import { refreshTeamHouse } from './teamhouse'
 import { Multiplayer } from './multiplayer'
 import { bakeStatic, mergeRigid } from './batch'
 import { PARTICIPANTS } from './data'
-import { getClaims, rememberedName } from '../../src/lib/api'
+import { getClaims, postScore, rememberedName } from '../../src/lib/api'
 import { Viewmodel } from './viewmodel'
 import { buildWorld, keepInside, onIce } from './world'
 import { watchWeather } from './vader'
@@ -384,12 +384,7 @@ async function build() {
     const lb = (list: unknown) => Array.isArray(list) && packing?.showBoard(list)
     fetch('/api/leaderboard?game=paketlinjen').then((r) => (r.ok ? r.json() : [])).then(lb).catch(() => {})
     packing.onScore = (score) => {
-      const name = rememberedName.get()
-      if (!name || score <= 0) return
-      fetch('/api/leaderboard', { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ game: 'paketlinjen', name, score }) })
-        .then((r) => (r.ok ? r.json() : []))
-        .then(lb)
-        .catch(() => {})
+      postScore('paketlinjen', rememberedName.get() || 'En nisse', score).then(lb).catch(() => {})
     }
   }
   // in the mine: old Sixten gets his pipe back (door 17); the foreman's word on the list (door 15)
@@ -413,6 +408,8 @@ async function build() {
   // the games round the tree
   arcade = new Arcade(scene, camera, player, vm, playArcade)
   arcade.onLeft = () => resume()
+  // every round on a cabinet goes on the season's list too (the same one the games page shows)
+  arcade.onScore = (game, score) => void postScore(game, rememberedName.get() || 'En nisse', score).catch(() => {})
   for (const c of arcade.cabinets) {
     const p = c.group.position
     circles.push({ x: p.x, z: p.z, r: 0.62 }, { x: c.host.group.position.x, z: c.host.group.position.z, r: 0.32 })
@@ -1097,6 +1094,7 @@ sens.addEventListener('input', () => {
 // the 2D site lives next to the village – knytis, topplistor, ritningar
 $('m-knytis').addEventListener('click', openKnytisPanel)
 $('m-web').addEventListener('click', () => location.assign('/handelser'))
+$('m-affisch').addEventListener('click', () => location.assign(import.meta.env.DEV ? `${import.meta.env.VITE_SITE_URL ?? 'http://localhost:5173'}/affischtavla` : '/affischtavla'))
 
 // Fullscreen works on Android and iPad too, not just with a mouse
 if (document.fullscreenEnabled) $('m-full').classList.remove('desk')

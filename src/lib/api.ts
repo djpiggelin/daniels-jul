@@ -114,3 +114,43 @@ export const shareHouse = (house: SavedHouse) =>
       return saved
     },
   )
+
+/* ---------- Affischtavlan ---------- */
+
+export type Poster = {
+  id: string
+  by: string
+  at: string
+  text?: string
+  file?: { url: string; type: string; name: string }
+}
+
+/** What the board takes: PNG, JPG and PDF (the server checks the bytes too). */
+export const POSTER_TYPES = ['image/png', 'image/jpeg', 'application/pdf']
+export const POSTER_MAX_BYTES = 4.5 * 1024 * 1024
+
+export const getPosters = () => call<Poster[]>('/api/affischer', undefined, () => local.read<Poster[]>('dev-affischer', []))
+
+export async function addPoster(name: string, text: string, file: File | null) {
+  const form = new FormData()
+  form.set('name', name)
+  form.set('text', text)
+  if (file) form.set('file', file)
+  // (in local development the file is kept in this browser as a data: URL – fine for small ones)
+  const dataUrl = import.meta.env.DEV && file
+    ? await new Promise<string>((ok, fail) => {
+        const r = new FileReader()
+        r.onload = () => ok(String(r.result))
+        r.onerror = () => fail(r.error)
+        r.readAsDataURL(file)
+      })
+    : ''
+  return call<Poster[]>('/api/affischer', { method: 'POST', body: form }, () => {
+    const poster: Poster = { id: crypto.randomUUID(), by: name, at: new Date().toISOString() }
+    if (text) poster.text = text
+    if (file) poster.file = { url: dataUrl, type: file.type, name: file.name }
+    const list = [poster, ...local.read<Poster[]>('dev-affischer', [])]
+    local.write('dev-affischer', list)
+    return list
+  })
+}
