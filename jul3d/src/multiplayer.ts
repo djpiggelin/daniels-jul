@@ -229,6 +229,13 @@ export class Multiplayer {
   }
   private myHits = 0
 
+  /** Where the others are standing, in their colours – for the map in the corner. */
+  get others(): { x: number; z: number; color: number }[] {
+    const out: { x: number; z: number; color: number }[] = []
+    for (const a of this.avatars.values()) if (a.group.visible) out.push({ x: a.group.position.x, z: a.group.position.z, color: a.info.color })
+    return out
+  }
+
   join(me: Me) {
     this.me = { name: cleanName(me.name) || 'Nisse', photo: me.photo }
     this.stopped = false

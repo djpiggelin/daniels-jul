@@ -703,3 +703,25 @@ body.touch #pulka button { display: block; }
 /* Paketlinjen: the three papers to wrap in, big enough for thumbs */
 #paketlinje .pl-papers { position: absolute; left: 50%; bottom: max(70px, calc(env(safe-area-inset-bottom) + 60px)); transform: translateX(-50%); display: flex; gap: 14px; }
 #paketlinje .pl-papers button { pointer-events: auto; width: 74px; height: 74px; border-radius: 18px; border: 3px solid rgba(255, 255, 255, 0.85); color: #fff; font: 700 30px var(--sans); box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35); touch-action: none; }
+
+/* ---------- third person (👤) and the map of the village in the top right corner ---------- */
+#vy {
+  pointer-events: auto; position: absolute; right: 22px; bottom: max(22px, calc(env(safe-area-inset-bottom) + 12px));
+  width: 44px; height: 44px; border-radius: 50%; border: 2px solid rgba(255, 255, 255, 0.45);
+  background: rgba(7, 11, 29, 0.55); font-size: 20px; touch-action: none; user-select: none; -webkit-user-select: none;
+}
+#vy.on { background: rgba(246, 196, 83, 0.35); border-color: var(--gold); }
+/* (touch: above the jump button) */
+body.touch #vy { right: 34px; bottom: max(238px, calc(env(safe-area-inset-bottom) + 218px)); width: 52px; height: 52px; font-size: 22px; }
+#hud.busy #vy, #hud.flight #vy, #hud.arcade #vy { display: none; }
+
+#minimap {
+  position: absolute; top: calc(max(16px, env(safe-area-inset-top)) + 54px); right: 16px; width: 150px; height: 150px;
+  border-radius: 50%; border: 2px solid rgba(246, 196, 83, 0.55); background: #21402f;
+  box-shadow: 0 4px 18px rgba(0, 0, 0, 0.45); pointer-events: none; opacity: 0.92;
+}
+body.touch #minimap { width: 104px; height: 104px; }
+#minimap[hidden], :is(#hud.busy, #hud.flight, #hud.arcade, #hud.trip, #hud.corrida, #hud.stampla) #minimap { display: none; }
+/* (the next event in the top left keeps clear of the map) */
+#next-event { max-width: calc(100vw - 190px); }
+body.touch #next-event { max-width: calc(100vw - 150px); }
